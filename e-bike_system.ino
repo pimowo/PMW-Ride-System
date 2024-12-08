@@ -42,8 +42,22 @@
 // --- WDT ---
 #include <esp_task_wdt.h>         // Watchdog Timer (WDT) dla ESP32 - zapobieganie zawieszaniu się systemu
 
+// ---
+#include "esp_timer.h"
+
+// Mutexy dla bezpiecznego dostępu do współdzielonych zasobów
+portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE speedMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
+
+// Stałe czasowe (w mikrosekundach)
+const uint32_t DEBOUNCE_TIME_US = 50000;  // 50ms
+const uint32_t HOLD_TIME_US = 1000000;    // 1s
+const uint32_t MIN_PULSE_TIME_US = 50000; // 50ms
+const uint32_t MIN_REVOLUTION_TIME_US = 150000; // 150ms
+
 // --- Wersja systemu --- 
-const char systemVersion[] PROGMEM = "14.10.2024";
+const char systemVersion[] PROGMEM = "8.12.2024";
 
 // --- Ustawienia wyświetlacza OLED ---
 #define SCREEN_WIDTH 128
@@ -125,6 +139,26 @@ bool longPressHandled = false;     // Flaga dla długiego naciśnięcia
 bool buttonReleased = true;        // Flaga sygnalizująca, że przycisk został zwolniony
 unsigned long debounceDelay = 50; // Opóźnienie do debounce
 unsigned long holdTime = 1000;     // Czas trzymania przycisku
+
+// Zmienne volatile dla bezpiecznej komunikacji między ISR a główną pętlą
+static volatile bool buttonState = true;
+static volatile uint32_t lastButtonChangeTime = 0;
+
+// Struktury do przechowywania danych czujników
+struct SensorData {
+    volatile uint32_t lastPulseTime;
+    volatile uint32_t pulseInterval;
+    volatile uint32_t pulseCount;
+    volatile bool newPulse;
+};
+
+// Dane czujników
+static SensorData speedSensor = {0, 0, 0, false};
+static SensorData cadenceSensor = {0, 0, 0, false};
+
+// Mutexy dla bezpiecznego dostępu
+portMUX_TYPE speedMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
 
 // --- Kadencja ---
 // Stałe dla kadencji
@@ -435,20 +469,53 @@ void connectToBms() {
 }
 
 // --- Obsługa przerwania przycisku ---
-void IRAM_ATTR handleButtonISR() {
-  unsigned long currentMillis = millis();
+// Zmienne volatile dla bezpiecznej komunikacji między ISR a główną pętlą
+static volatile bool buttonState = true;
+static volatile uint32_t lastButtonChangeTime = 0;
 
-  if (digitalRead(buttonPin) == LOW) {  // Jeśli przycisk jest naciśnięty
-    if (currentMillis - lastButtonPress >= debounceDelay && buttonReleased) {
-      buttonHoldStart = currentMillis;  // Rozpocznij liczenie czasu przytrzymania
-      buttonPressed = true;             // Ustaw flagę krótkiego naciśnięcia
-      buttonReleased = false;           // Ustaw flagę, że przycisk jest naciśnięty
-      longPressHandled = false;         // Zresetuj flagę obsługi długiego naciśnięcia
+// Zoptymalizowana obsługa przerwania przycisku
+void IRAM_ATTR handleButtonISR() {
+    portENTER_CRITICAL_ISR(&buttonMux);
+    
+    // Zapisz aktualny stan przycisku
+    buttonState = digitalRead(buttonPin);
+    
+    // Zapisz czas zmiany stanu używając esp_timer dla większej dokładności
+    lastButtonChangeTime = esp_timer_get_time();
+    
+    portEXIT_CRITICAL_ISR(&buttonMux);
+}
+
+// Funkcja do przetwarzania stanu przycisku w głównej pętli
+void processButtonState() {
+    static uint32_t lastProcessTime = 0;
+    uint32_t currentTime = esp_timer_get_time();
+    
+    portENTER_CRITICAL(&buttonMux);
+    bool currentButtonState = buttonState;
+    uint32_t changeTime = lastButtonChangeTime;
+    portEXIT_CRITICAL(&buttonMux);
+    
+    // Debouncing i przetwarzanie w głównej pętli
+    if ((currentTime - lastProcessTime) >= debounceDelay * 1000) { // konwersja na mikrosekundy
+        if (!currentButtonState) { // Przycisk naciśnięty (aktywny LOW)
+            if (!buttonPressed) {
+                buttonPressed = true;
+                buttonHoldStart = currentTime;
+                longPressHandled = false;
+            }
+        } else { // Przycisk zwolniony
+            if (buttonPressed) {
+                // Obsługa zwolnienia przycisku
+                if (!longPressHandled && (currentTime - buttonHoldStart < holdTime * 1000)) {
+                    // Krótkie naciśnięcie
+                    handleShortPress();
+                }
+                buttonPressed = false;
+            }
+        }
+        lastProcessTime = currentTime;
     }
-  } else {  // Jeśli przycisk jest zwolniony
-    buttonReleased = true;
-    lastButtonPress = currentMillis; // Aktualizuj czas ostatniego naciśnięcia
-  }
 }
 
 // --- Obsługa zmiany ekranu ---
@@ -972,15 +1039,18 @@ void setupSpeedSensor() {
 
 // Obsługa przerwania dla czujnika prędkości
 void IRAM_ATTR handleSpeedInterrupt() {
-    uint32_t currentTime = millis();
-    uint32_t interval = currentTime - lastSpeedPulseTime;
+    uint32_t currentTime = esp_timer_get_time(); // Użycie precyzyjniejszego timera
     
-    // Filtrowanie drgań styków
-    if (interval > MIN_PULSE_TIME) {
-        speedPulseInterval = interval;
-        lastSpeedPulseTime = currentTime;
-        newSpeedPulse = true;
+    portENTER_CRITICAL_ISR(&speedMux);
+    uint32_t interval = currentTime - speedSensor.lastPulseTime;
+    
+    if (interval > MIN_PULSE_TIME * 1000) { // Konwersja na mikrosekundy
+        speedSensor.pulseInterval = interval;
+        speedSensor.lastPulseTime = currentTime;
+        speedSensor.pulseCount++;
+        speedSensor.newPulse = true;
     }
+    portEXIT_CRITICAL_ISR(&speedMux);
 }
 
 // Obliczanie prędkości
@@ -1067,15 +1137,34 @@ float getAverageSpeed() {
 // --- Funkcja do obliczania i wyświetlania kadencji ---
 // Przerwanie dla kadencji
 void IRAM_ATTR handleCadenceInterrupt() {
-    uint32_t currentTime = millis();
-    uint32_t interval = currentTime - lastCadencePulseTime;
+    uint32_t currentTime = esp_timer_get_time();
     
-    // Filtrowanie szumów i odbić
-    if (interval > MIN_REVOLUTION_TIME) {
-        cadencePulseInterval = interval;
-        lastCadencePulseTime = currentTime;
-        newCadencePulse = true;
+    portENTER_CRITICAL_ISR(&cadenceMux);
+    uint32_t interval = currentTime - cadenceSensor.lastPulseTime;
+    
+    if (interval > MIN_REVOLUTION_TIME * 1000) {
+        cadenceSensor.pulseInterval = interval;
+        cadenceSensor.lastPulseTime = currentTime;
+        cadenceSensor.pulseCount++;
+        cadenceSensor.newPulse = true;
     }
+    portEXIT_CRITICAL_ISR(&cadenceMux);
+}
+
+// Funkcja do bezpiecznego odczytu danych czujnika
+bool getSensorData(SensorData* sensor, portMUX_TYPE* mux, uint32_t* interval, uint32_t* count) {
+    bool newData = false;
+    
+    portENTER_CRITICAL(mux);
+    if (sensor->newPulse) {
+        *interval = sensor->pulseInterval;
+        *count = sensor->pulseCount;
+        sensor->newPulse = false;
+        newData = true;
+    }
+    portEXIT_CRITICAL(mux);
+    
+    return newData;
 }
 
 // Funkcja obliczająca kadencję
