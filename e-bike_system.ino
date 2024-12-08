@@ -509,10 +509,66 @@ public:
     void clear() { count = 0; head = 0; }
 };
 
+template<typename T, size_t MAX_SIZE>
+class SafeBuffer {
+private:
+    static const size_t WATERMARK_HIGH = MAX_SIZE * 90 / 100; // 90% pojemności
+    static const size_t WATERMARK_LOW = MAX_SIZE * 70 / 100;  // 70% pojemności
+    CircularDataBuffer<T, MAX_SIZE> buffer;
+    bool overflowFlag;
+    
+public:
+    SafeBuffer() : overflowFlag(false) {}
+    
+    bool push(const T& value) {
+        if (buffer.size() >= MAX_SIZE) {
+            overflowFlag = true;
+            systemManager.addLog(LOG_WARNING, 5); // Log ostrzeżenia o przepełnieniu
+            return false;
+        }
+        
+        buffer.push(value);
+        
+        // Sprawdzenie wysokiego poziomu zapełnienia
+        if (buffer.size() >= WATERMARK_HIGH) {
+            systemManager.addLog(LOG_WARNING, 6); // Log ostrzeżenia o wysokim poziomie
+        }
+        
+        return true;
+    }
+    
+    bool pop(T& value) {
+        if (buffer.size() == 0) {
+            return false;
+        }
+        
+        value = buffer.get(0);
+        buffer.clear();
+        
+        // Jeśli poziom spadł poniżej dolnego progu
+        if (buffer.size() <= WATERMARK_LOW) {
+            overflowFlag = false;
+        }
+        
+        return true;
+    }
+    
+    void clear() {
+        buffer.clear();
+        overflowFlag = false;
+    }
+    
+    bool isOverflow() const { return overflowFlag; }
+    size_t size() const { return buffer.size(); }
+    bool isEmpty() const { return buffer.size() == 0; }
+    bool isFull() const { return buffer.size() >= MAX_SIZE; }
+};
+
 // Zastąpienie istniejących buforów
-CircularDataBuffer<float, BUFFER_SIZE> energyHistory;
-CircularDataBuffer<float, BUFFER_SIZE> powerHistory;
-CircularDataBuffer<float, BUFFER_SIZE> speedHistory;
+SafeBuffer<float, BUFFER_SIZE> energyHistory;
+SafeBuffer<float, BUFFER_SIZE> powerHistory;
+SafeBuffer<float, BUFFER_SIZE> speedHistory;
+SafeBuffer<uint8_t, MAX_BMS_BUFFER_SIZE> bmsBuffer;
 
 // --- Zmienne do statystyk ---
 float totalWh = 0;           // Zużycie energii od początku jazdy
@@ -656,63 +712,186 @@ const uint32_t BLE_CONNECT_TIMEOUT = 5000;    // 5 sekund na połączenie
 const uint32_t BLE_OPERATION_TIMEOUT = 1000;  // 1 sekunda na operację
 const uint8_t BLE_MAX_RETRIES = 3;           // Maksymalna liczba prób
 
+// Stałe dla mechanizmu recovery BLE
+#define BLE_MAX_RECONNECT_ATTEMPTS 5     // Maksymalna liczba prób ponownego połączenia
+#define BLE_RECONNECT_DELAY 1000         // Opóźnienie między próbami (ms)
+#define BLE_RECOVERY_TIMEOUT 30000       // Timeout dla całego procesu recovery (ms)
+#define BLE_DATA_TIMEOUT 5000            // Timeout dla oczekiwania na dane (ms)
+
 class BMSConnection {
 private:
     TimeoutHandler connectTimeout;
     TimeoutHandler operationTimeout;
+    TimeoutHandler recoveryTimeout;
     uint8_t retryCount;
+    uint8_t recoveryAttempts;
     bool isConnecting;
+    bool inRecoveryMode;
+    uint32_t lastConnectAttempt;
+
+    // Bufor dla danych podczas recovery
+    struct {
+        float lastValidVoltage;
+        float lastValidCurrent;
+        float lastValidCapacity;
+        uint8_t lastValidSoc;
+        uint32_t timestamp;
+    } recoveryData;
 
 public:
     BMSConnection() : 
         connectTimeout(BLE_CONNECT_TIMEOUT),
         operationTimeout(BLE_OPERATION_TIMEOUT),
+        recoveryTimeout(BLE_RECOVERY_TIMEOUT),
         retryCount(0),
-        isConnecting(false) {}
+        recoveryAttempts(0),
+        isConnecting(false),
+        inRecoveryMode(false),
+        lastConnectAttempt(0) {
+        memset(&recoveryData, 0, sizeof(recoveryData));
+    }
 
     bool connect() {
-        if (bleClient->isConnected()) return true;
+        if (bleClient->isConnected()) {
+            inRecoveryMode = false;
+            return true;
+        }
+
+        uint32_t currentTime = millis();
+        if (inRecoveryMode) {
+            if (recoveryTimeout.isExpired()) {
+                exitRecoveryMode();
+                return false;
+            }
+            if (currentTime - lastConnectAttempt < BLE_RECONNECT_DELAY) {
+                return false;
+            }
+        }
+
         if (isConnecting && !connectTimeout.isExpired()) return false;
 
         isConnecting = true;
         connectTimeout.start();
-        retryCount = 0;
+        lastConnectAttempt = currentTime;
 
-        while (retryCount < BLE_MAX_RETRIES) {
-            if (connectTimeout.isExpired()) {
-                #if DEBUG
-                Serial.println("Timeout połączenia BLE");
-                #endif
-                break;
-            }
-
-            if (bleClient->connect(bmsMacAddress)) {
-                isConnecting = false;
-                return initializeServices();
-            }
-
-            retryCount++;
-            delay(100); // Krótkie opóźnienie między próbami
+        if (!inRecoveryMode) {
+            recoveryAttempts = 0;
+            inRecoveryMode = true;
+            recoveryTimeout.start(BLE_RECOVERY_TIMEOUT);
+            saveCurrentState(); // Zapisz ostatni znany stan
         }
 
+        if (recoveryAttempts >= BLE_MAX_RECONNECT_ATTEMPTS) {
+            systemManager.addLog(LOG_ERROR, 2, recoveryAttempts); // Log błędu
+            exitRecoveryMode();
+            return false;
+        }
+
+        // Próba połączenia
+        if (bleClient->connect(bmsMacAddress)) {
+            isConnecting = false;
+            recoveryAttempts = 0;
+            if (initializeServices()) {
+                inRecoveryMode = false;
+                systemManager.addLog(LOG_INFO, 1); // Log sukcesu
+                return true;
+            }
+        }
+
+        recoveryAttempts++;
         isConnecting = false;
         return false;
+    }
+
+    bool sendRequest(uint8_t* data, size_t length) {
+        if (!bleClient->isConnected()) return false;
+
+        operationTimeout.start();
+        notificationReceived = false;
+
+        if (!bleCharacteristicTx->writeValue(data, length)) {
+            systemManager.addLog(LOG_ERROR, 5); // Log błędu wysyłania
+            return false;
+        }
+
+        // Czekaj na odpowiedź z timeoutem
+        while (!notificationReceived) {
+            if (operationTimeout.isExpired()) {
+                systemManager.addLog(LOG_ERROR, 6); // Log timeout odpowiedzi
+                startRecovery();
+                return false;
+            }
+            delay(1);
+        }
+
+        return true;
+    }
+
+    void startRecovery() {
+        if (!inRecoveryMode) {
+            inRecoveryMode = true;
+            recoveryAttempts = 0;
+            recoveryTimeout.start();
+            saveCurrentState();
+            systemManager.addLog(LOG_WARNING, 7); // Log rozpoczęcia recovery
+        }
+    }
+
+    bool isRecovering() const {
+        return inRecoveryMode;
+    }
+
+    uint8_t getRecoveryAttempts() const {
+        return recoveryAttempts;
+    }
+
+private:
+    void exitRecoveryMode() {
+        inRecoveryMode = false;
+        isConnecting = false;
+        recoveryAttempts = 0;
+        restoreLastState(); // Przywróć ostatni znany stan
+        systemManager.addLog(LOG_INFO, 2); // Log zakończenia recovery
+    }
+
+    void saveCurrentState() {
+        recoveryData.lastValidVoltage = voltage;
+        recoveryData.lastValidCurrent = current;
+        recoveryData.lastValidCapacity = remainingCapacity;
+        recoveryData.lastValidSoc = soc;
+        recoveryData.timestamp = millis();
+    }
+
+    void restoreLastState() {
+        // Jeśli dane nie są zbyt stare (np. nie starsze niż 1 minuta)
+        if (millis() - recoveryData.timestamp < 60000) {
+            voltage = recoveryData.lastValidVoltage;
+            current = recoveryData.lastValidCurrent;
+            remainingCapacity = recoveryData.lastValidCapacity;
+            soc = recoveryData.lastValidSoc;
+        } else {
+            // Dane są zbyt stare - ustaw wartości bezpieczne
+            voltage = 0;
+            current = 0;
+            remainingCapacity = 0;
+            soc = 0;
+            systemManager.addLog(LOG_WARNING, 8); // Log o przestarzałych danych
+        }
     }
 
     bool initializeServices() {
         operationTimeout.start();
 
-        // Inicjalizacja usług BLE
+        // Inicjalizacja usług BLE z timeoutem
         bleService = bleClient->getService(SERVICE_UUID);
-        if (!bleService) {
-            #if DEBUG
-            Serial.println("Nie znaleziono usługi BMS");
-            #endif
+        if (!bleService || operationTimeout.isExpired()) {
+            systemManager.addLog(LOG_ERROR, 3); // Log błędu usługi
             return false;
         }
 
-        // Inicjalizacja charakterystyk
+        // Inicjalizacja charakterystyk z timeoutem
         if (!initializeCharacteristics()) {
+            systemManager.addLog(LOG_ERROR, 4); // Log błędu charakterystyk
             return false;
         }
 
@@ -739,33 +918,6 @@ public:
         }
 
         return false;
-    }
-
-    bool sendRequest(uint8_t* data, size_t length) {
-        if (!bleClient->isConnected()) return false;
-
-        operationTimeout.start();
-        notificationReceived = false;
-
-        if (!bleCharacteristicTx->writeValue(data, length)) {
-            #if DEBUG
-            Serial.println("Błąd wysyłania danych");
-            #endif
-            return false;
-        }
-
-        // Czekaj na odpowiedź z timeoutem
-        while (!notificationReceived) {
-            if (operationTimeout.isExpired()) {
-                #if DEBUG
-                Serial.println("Timeout odpowiedzi BMS");
-                #endif
-                return false;
-            }
-            delay(1);
-        }
-
-        return true;
     }
 };
 
