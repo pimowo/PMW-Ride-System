@@ -175,14 +175,16 @@ float remainingEnergy = 0;
 float soc = 0;
 
 // --- zasieg i srednie ---
-#define BUFFER_SIZE 300  // 5 minut * 60 sek/min = 300 (zakładamy odczyty co sekundę)
-#define DEFAULT_UPDATE_INTERVAL 1000  // Domyślny czas aktualizacji (1 sekunda)
+// Stałe dla obliczania zasięgu
+const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+const float MIN_POWER_FOR_RANGE = 1.0;        // Minimalna moc do obliczeń [W]
+const float RANGE_SMOOTH_FACTOR = 0.2;        // Współczynnik wygładzania (0-1)
+const uint16_t RANGE_UPDATE_INTERVAL = 5000;  // Interwał aktualizacji [ms]
 
-unsigned long lastUpdateTime = 0;  // Zmienna do śledzenia czasu aktualizacji
-unsigned long lastStationaryTime = 0;  // Czas, kiedy rower ostatnio się zatrzymał
-unsigned long updateInterval = DEFAULT_UPDATE_INTERVAL;  // Dynamiczny interwał aktualizacji
-bool stationary = false;  // Czy rower stoi w miejscu
-float previousRange = 0;  // Poprzedni zasięg (do stabilizacji)
+// Zmienne dla obliczania zasięgu
+float smoothedRange = 0.0;           // Wygładzony zasięg
+float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
+unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
 
 // --- Bufory do przechowywania danych historycznych ---
 CircularBuffer<float, BUFFER_SIZE> energyHistory;  // Energia zużyta w Wh w ostatnich 5 minutach
@@ -1141,32 +1143,85 @@ void adjustUpdateInterval(float speedKmh) {
 }
 
 // --- Funkcja do obliczania zasięgu ---
+// Stałe dla obliczania zasięgu
+const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+const float MIN_POWER_FOR_RANGE = 1.0;        // Minimalna moc do obliczeń [W]
+const float RANGE_SMOOTH_FACTOR = 0.2;        // Współczynnik wygładzania (0-1)
+const uint16_t RANGE_UPDATE_INTERVAL = 5000;  // Interwał aktualizacji [ms]
+
+// Zmienne dla obliczania zasięgu
+float smoothedRange = 0.0;           // Wygładzony zasięg
+float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
+unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
+
 float calculateRange() {
-  avgWh = 0;  // Średnie zużycie energii
-  avgSpeed = 0;  // Średnia prędkość
-
-  if (energyHistory.size() > 0 && speedHistory.size() > 0) {
-    // Obliczanie średniego zużycia energii (w Wh/h) i prędkości z ostatnich 5 minut
-    for (int i = 0; i < energyHistory.size(); i++) {
-      avgWh += energyHistory[i];
-      avgSpeed += speedHistory[i];
+    unsigned long currentTime = millis();
+    
+    // Aktualizuj tylko w określonych interwałach
+    if (currentTime - lastRangeUpdate < RANGE_UPDATE_INTERVAL) {
+        return smoothedRange;
     }
-    avgWh = (avgWh / energyHistory.size()) * 3600;  // Przekształcamy Wh na godzinę
-    avgSpeed /= speedHistory.size();
-  } else {
-    // Jeśli nie mamy danych historycznych, obliczamy na podstawie bieżącego zużycia
-    avgWh = (power / 3600);  // Moc przeliczona na Wh/h
-    avgSpeed = speedKmh;
-  }
+    lastRangeUpdate = currentTime;
 
-  // Unikanie nagłych zmian w obliczeniach zasięgu przy zerowej prędkości
-  if (avgSpeed < 0.1) {
-    // Zakładamy, że rower się zatrzymał, nie zmieniamy obliczeń zasięgu
-    return previousRange;
-  } else {
-    previousRange = remainingEnergy / (avgWh / avgSpeed);  // Obliczenie zasięgu w km
-    return previousRange;
-  }
+    // Jeśli stoimy w miejscu lub nie ma zużycia energii
+    if (avgSpeed < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+        return smoothedRange;  // Zachowaj ostatnią wartość
+    }
+
+    // Oblicz bieżące zużycie energii na kilometr
+    float whPerKm = 0;
+    if (speedHistory.size() > 0 && energyHistory.size() > 0) {
+        float totalEnergy = 0;
+        float totalDistance = 0;
+        
+        // Oblicz średnie z historii
+        for (int i = 0; i < energyHistory.size(); i++) {
+            totalEnergy += energyHistory[i];
+            if (i < speedHistory.size()) {
+                totalDistance += speedHistory[i] / 3600.0; // km
+            }
+        }
+        
+        if (totalDistance > 0) {
+            whPerKm = (totalEnergy * 3600.0) / totalDistance;
+        }
+    } else {
+        // Brak historii - użyj bieżących wartości
+        whPerKm = (power * 3600.0) / speedKmh;
+    }
+
+    // Oblicz teoretyczny zasięg
+    float theoreticalRange = 0;
+    if (whPerKm > 0) {
+        theoreticalRange = remainingEnergy / whPerKm;
+    }
+
+    // Zastosuj ograniczenia i wygładzanie
+    if (theoreticalRange > 0) {
+        // Ogranicz maksymalny zasięg do rozsądnej wartości
+        theoreticalRange = min(theoreticalRange, 200.0f);  // Max 200 km
+        
+        // Wygładź zmiany
+        if (smoothedRange == 0) {
+            smoothedRange = theoreticalRange;
+        } else {
+            smoothedRange = RANGE_SMOOTH_FACTOR * theoreticalRange + 
+                          (1 - RANGE_SMOOTH_FACTOR) * smoothedRange;
+        }
+        
+        lastValidRange = smoothedRange;
+    }
+
+    return smoothedRange;
+}
+
+// Funkcja do resetowania obliczeń zasięgu
+void resetRangeCalculations() {
+    smoothedRange = 0;
+    lastValidRange = 0;
+    energyHistory.clear();
+    speedHistory.clear();
+    powerHistory.clear();
 }
 
 // --- Funkcja do obliczenia średniego zużycia Wh ---
@@ -1600,18 +1655,31 @@ void loop() {
     stationary = false;
   }
 
-  // Jeśli rower nie jest w trybie postoju, kontynuujemy aktualizację
-  if (!stationary && currentMillis - lastUpdateTime >= updateInterval) {
-    lastUpdateTime = currentMillis;
+    // Jeśli rower nie jest w trybie postoju, kontynuujemy aktualizację
+    if (!stationary && currentMillis - lastUpdateTime >= updateInterval) {
+        lastUpdateTime = currentMillis;
 
-    // Dynamiczne dostosowanie interwału aktualizacji
-    adjustUpdateInterval(speedKmh);
+        // Dynamiczne dostosowanie interwału aktualizacji
+        adjustUpdateInterval(speedKmh);
 
-    // Przykładowa aktualizacja danych (zastąp rzeczywistymi danymi)
-    updateData(current, voltage, speedKmh);
+        // Przykładowa aktualizacja danych (zastąp rzeczywistymi danymi)
+        updateData(current, voltage, speedKmh);
 
-    // Obliczanie zasięgu
-    range = calculateRange();
-  }
-  calculateSpeed();
+        // Obliczanie zasięgu
+        //range = calculateRange();
+    }
+
+    if (!stationary) {
+        float currentRange = calculateRange();
+        // Aktualizuj wyświetlacz tylko jeśli jest znacząca zmiana
+        if (abs(currentRange - displayedRange) > 0.1) {
+            displayedRange = currentRange;
+            // Odśwież wyświetlacz
+        }
+    }
+
+    // Przy zatrzymaniu lub włączeniu:
+    resetRangeCalculations();
+  
+    calculateSpeed();
 }
