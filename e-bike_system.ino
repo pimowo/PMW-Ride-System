@@ -592,28 +592,27 @@ void showScreen(int screen) {
       }
       break;
 
-    case 3: // Zasięg i przebieg dzienny 
-      switch (subScreen) {
+        case 3: // Zasięg i przebieg dzienny 
+            switch (subScreen) {
+                case 0:
+                    display.setFont(&FreeSans9pt7b);             
+                    display.setCursor(2, 12);
+                    display.print("Zasieg");  // pozostały zasięg
+                    display.setCursor(2, 31);
+                    display.print(range, 1);
+                    display.print(" km");
+                    break;
 
-        case 0:
-          display.setFont(&FreeSans9pt7b);             
-          display.setCursor(2, 12);
-          display.print("Zasieg");  // pozostały zasięg
-          display.setCursor(2, 31);
-          display.print(range, 1);
-          display.print(" km");
-          break;
-
-        case 1: 
-          display.setFont(&FreeSans9pt7b);
-          display.setCursor(2, 12);
-          display.print("Przebieg");  // licznik dzienny
-          display.setCursor(2, 31);
-          display.print(totalDistanceKm, 1);
-          display.print(" km");
-          break;
-      }    
-      break;
+                case 1: 
+                    display.setFont(&FreeSans9pt7b);
+                    display.setCursor(2, 12);
+                    display.print("Przebieg");  // licznik dzienny
+                    display.setCursor(2, 31);
+                    display.print(totalDistanceKm, 1);
+                    display.print(" km");
+                    break;
+            }    
+            break;
 
     case 4: // Akumulator
       switch (subScreen) {
@@ -1002,7 +1001,7 @@ float calculateSpeed() {
         float speed = (float)WHEEL_CIRCUMFERENCE * 3.6 / speedPulseInterval;
         
         // Filtrowanie nierealistycznych wartości
-        if (speed < 100.0) {  // Max 100 km/h
+        if (speed < 99.9) {  // Max 100 km/h
             lastValidSpeed = speed;
         }
         
@@ -1110,21 +1109,24 @@ uint8_t calculateCadence() {
 
 // --- Funkcja do aktualizacji bieżących danych ---
 void updateData(float current, float voltage, float speedKmh) {
-  power = current * voltage;  // Moc w W (watty)
-  wh = power / 3600;    // Zużycie energii w Wh na sekundę
+    power = current * voltage;  // Moc w W (watty)
+    wh = power / 3600;    // Zużycie energii w Wh na sekundę
 
-  // Zbieranie danych historycznych
-  energyHistory.push(wh);
-  powerHistory.push(power);
-  speedHistory.push(speedKmh);
+    // Zbieranie danych historycznych
+    energyHistory.push(wh);
+    powerHistory.push(power);
+    speedHistory.push(speedKmh);
 
-  // Aktualizacja statystyk
-  totalWh += wh;
-  totalPower += power;
-  dataCount++;
+    // Aktualizacja statystyk
+    totalWh += wh;
+    totalPower += power;
+    dataCount++;
 
-  if (wh > maxWh) maxWh = wh;  // Maksymalne zużycie Wh
-  if (power > maxPower) maxPower = power;  // Maksymalna moc
+    if (wh > maxWh) maxWh = wh;  // Maksymalne zużycie Wh
+    if (power > maxPower) maxPower = power;  // Maksymalna moc
+
+    // Aktualizacja przejechanych kilometrów
+    totalDistanceKm += speedKmh * (updateInterval / 3600000.0);  // km = km/h * h
 }
 
 // Funkcja do dynamicznej aktualizacji interwału
