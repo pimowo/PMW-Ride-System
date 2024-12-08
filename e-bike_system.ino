@@ -65,8 +65,6 @@ const char systemVersion[] PROGMEM = "8.12.2024";
 #define OLED_RESET -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-int currentScreen = 0;
-int subScreen = 0; // Zmienna do obsługi pod-ekranów
 const long screenInterval = 500;
 
 // Przeniesienie stałych tekstowych do pamięci programu
@@ -127,11 +125,6 @@ struct SystemState {
 #define FrontDayPin 10 // światła dzienne
 #define FrontPin 11    // światła zwykłe
 #define RealPin 12     // tylne światło
-//bool rearBlinkState = false;
-//bool rearBlinkEnabled = true;
-
-//int currentLightMode = 2;  // po uruchomieniu wszystkie światła wyłączone
-//bool lightsOn = false;
 
 enum LightMode {
     LIGHTS_OFF = 0,
@@ -218,10 +211,6 @@ struct SensorData {
 // Dane czujników
 static SensorData speedSensor = {0, 0, 0, false};
 static SensorData cadenceSensor = {0, 0, 0, false};
-
-// Mutexy dla bezpiecznego dostępu
-portMUX_TYPE speedMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
 
 // --- Kadencja ---
 // Stałe dla kadencji
@@ -691,48 +680,7 @@ public:
     static bool isInRange(float value, float min, float max) {
         return isfinite(value) && value >= min && value <= max;
     }
-};
-
-
-
-// --- Funkcje inicjalizujące i konfigurujące ---
-// void showWelcomeMessage();           // Wyświetlenie wiadomości powitalnej na ekranie OLED
-// void loadSettingsFromEEPROM();       // Wczytanie ustawień z pamięci EEPROM
-// void setLights();                    // Konfiguracja stanu świateł na rowerze
-// void connectToBms();                 // Inicjalizacja i połączenie z BMS przez BLE
-// // --- Funkcje związane z przyciskiem --- 
-// void handleButtonISR();              // Obsługa przerwania przycisku (debouncing i rejestrowanie naciśnięcia)
-// void handleButton();                 // Obsługa krótkiego naciśnięcia przycisku (przełączanie ekranów)
-// void handleLongPress();              // Obsługa długiego naciśnięcia przycisku (zmiana pod-ekranów, przełączanie trybów)
-// // --- Funkcje obsługi ekranu OLED ---
-// void showScreen(int screen);         // Aktualizacja wyświetlacza OLED z danymi zależnymi od aktualnego ekranu
-// int getSubScreenCount(int screen);   // Zwrócenie liczby pod-ekranów dla wybranego ekranu
-// // --- Funkcje związane z BLE i BMS ---
-// void notificationCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify);  // Obsługa powiadomień BLE
-// bool appendBmsDataPacket(uint8_t *data, int dataLength);                                                                     // Dodawanie pakietu danych do bufora
-// void printBatteryStatistics(uint8_t *data);                                                                                  // Wyświetlanie statystyk baterii
-// // --- Funkcje sterowania akcesoriami ---
-// void toggleLightMode();              // Zmiana trybu świateł (dzienny/nocny/wyłączony)
-// void toggleUSBMode();                // Włączanie/wyłączanie zasilania USB
-// // --- Funkcje związane z czujnikami ---
-// void countPulse();                   // Obsługa impulsów z czujnika prędkości/kadencji
-// void updateTemperature();            // Aktualizacja temperatury z czujnika DS18B20
-// void calculateSpeed();               // Obliczanie aktualnej prędkości na podstawie impulsów
-// // --- Funkcje związane z danymi i zasięgiem ---
-// void updateData(float current, float voltage, float speedKmh);  // Aktualizacja danych, takich jak moc, energia i prędkość
-// void adjustUpdateInterval(float speedKmh);                      // Dynamiczna zmiana interwału aktualizacji na podstawie prędkości
-// float calculateRange();                                         // Obliczanie pozostałego zasięgu roweru
-// float getAverageWh();                                           // Obliczanie średniego zużycia energii (Wh)
-// float getAveragePower();                                        // Obliczanie średniej mocy (W)
-// void updateReadings(unsigned long currentTime);                 // Aktualizacja różnych odczytów systemu
-
-// void printRTCDateTime();
-// void handleSaveClockSettings();
-// void handleSaveBikeSettings();
-// //bool isValidDate(int year, int month, int day, int hour, int minute);
-// void htmlStyle();
-
-// void checkDaylightSavingTime();
+}
 
 // --- Funkcja wyświetlania animacji powitania ---
 void showWelcomeMessage() {
@@ -1656,11 +1604,6 @@ void adjustUpdateInterval(float speedKmh) {
 }
 
 // --- Funkcja do obliczania zasięgu ---
-// Stałe dla obliczania zasięgu
-const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
-const float MIN_POWER_FOR_RANGE = 1.0;        // Minimalna moc do obliczeń [W]
-const float RANGE_SMOOTH_FACTOR = 0.2;        // Współczynnik wygładzania (0-1)
-const uint16_t RANGE_UPDATE_INTERVAL = 5000;  // Interwał aktualizacji [ms]
 
 // Zmienne dla obliczania zasięgu
 float smoothedRange = 0.0;           // Wygładzony zasięg
@@ -2102,92 +2045,6 @@ void setup() {
 }
 
 // --- PĘTLA GŁÓWNA ---
-// void loop() {
-//     DateTime now = rtc.now();     // Odczyt aktualnego czasu z RTC
-//     checkDaylightSavingTime(now); // Sprawdzenie i ewentualna zmiana czasu
-
-//     // Aktualizacja danych z czujników
-//     unsigned long currentMillis = millis();
- 
-//     // Resetuj Watchdoga co cykl pętli, aby uniknąć restartu
-//     static unsigned long lastWdtReset = 0;
-//     if (millis() - lastWdtReset >= 1000) {
-//         esp_task_wdt_reset();
-//         lastWdtReset = millis();
-//     }
-
-//   // Obsługa krótkiego naciśnięcia
-//   if (buttonPressed && !longPressHandled) {
-//     // Sprawdź, czy przycisk jest nadal trzymany przez określony czas
-//     if (currentMillis - buttonHoldStart >= holdTime) {
-//       handleLongPress();       // Obsługa długiego naciśnięcia
-//       longPressHandled = true; // Flaga, że długie naciśnięcie zostało obsłużone
-//     } else if (buttonReleased) {
-//       handleButton();          // Obsługa krótkiego naciśnięcia
-//       buttonPressed = false;   // Reset flagi krótkiego naciśnięcia
-//     }
-//   }
-  
-//   // Sprawdzanie i odczyt temperatury
-//   if (isGroundTemperatureReady()) {
-//     // Odczyt temperatury tylko jeśli jest gotowy
-//     currentTemp = readGroundTemperature();
-//     if (currentTemp != -999.0) {
-//       #if DEBUG
-//       Serial.print("Aktualna temperatura: ");
-//       Serial.println(currentTemp);
-//       #endif
-//     }
-
-//     // Po odczytaniu temperatury inicjujemy nowy pomiar
-//     requestGroundTemperature();
-//   }
-
-//   // Aktualizacja ekranu
-//   if (currentMillis - previousScreenMillis >= screenInterval) {
-//     previousScreenMillis = currentMillis;
-//     showScreen(currentScreen);
-//   }
-
-//   // Detekcja postoju - gdy prędkość wynosi 0 przez dłuższy czas
-//   if (speedKmh < 0.1) {
-//     if (currentMillis - lastStationaryTime > 10000) {
-//       stationary = true;
-//     }
-//   } else {
-//     lastStationaryTime = currentMillis;
-//     stationary = false;
-//   }
-
-//     // Jeśli rower nie jest w trybie postoju, kontynuujemy aktualizację
-//     if (!stationary && currentMillis - lastUpdateTime >= updateInterval) {
-//         lastUpdateTime = currentMillis;
-
-//         // Dynamiczne dostosowanie interwału aktualizacji
-//         adjustUpdateInterval(speedKmh);
-
-//         // Przykładowa aktualizacja danych (zastąp rzeczywistymi danymi)
-//         updateData(current, voltage, speedKmh);
-
-//         // Obliczanie zasięgu
-//         //range = calculateRange();
-//     }
-
-//     if (!stationary) {
-//         float currentRange = calculateRange();
-//         // Aktualizuj wyświetlacz tylko jeśli jest znacząca zmiana
-//         if (abs(currentRange - displayedRange) > 0.1) {
-//             displayedRange = currentRange;
-//             // Odśwież wyświetlacz
-//         }
-//     }
-
-//     // Przy zatrzymaniu lub włączeniu:
-//     resetRangeCalculations();
-  
-//     calculateSpeed();
-// }
-
 void loop() {
     // Obsługa BMS
     if (!bmsConnection.connect()) {
