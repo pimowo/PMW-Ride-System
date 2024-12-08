@@ -59,10 +59,28 @@ const long screenInterval = 500;
 #define FrontDayPin 10 // światła dzienne
 #define FrontPin 11    // światła zwykłe
 #define RealPin 12     // tylne światło
-bool rearBlinkState = false;
-bool rearBlinkEnabled = true;
+//bool rearBlinkState = false;
+//bool rearBlinkEnabled = true;
 
-int currentLightMode = 2;  // po uruchomieniu wszystkie światła wyłączone
+//int currentLightMode = 2;  // po uruchomieniu wszystkie światła wyłączone
+//bool lightsOn = false;
+
+enum LightMode {
+    LIGHTS_OFF = 0,
+    LIGHTS_DAY = 1,
+    LIGHTS_NIGHT = 2
+};
+
+enum LightConfig {
+    FRONT_DAY = 0,
+    FRONT_NORMAL = 1, 
+    REAR_ONLY = 2,
+    FRONT_DAY_AND_REAR = 3,
+    FRONT_NORMAL_AND_REAR = 4
+};
+
+bool rearBlinkState = false;
+int currentLightMode = LIGHTS_OFF;  // domyślnie wyłączone
 bool lightsOn = false;
 
 // --- EEPROM - struktura do przechowywania ustawień ---
@@ -322,56 +340,37 @@ void saveSettingsToEEPROM() {
 
 // --- Ustawiania świateł ---
 void setLights() {
-  if (!lightsOn) {
-    // Wyłącz wszystkie światła
-    digitalWrite(FrontDayPin, LOW);
-    digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
-    rearBlinkState = false;
-    return;
-  }
+    if (!lightsOn) {
+        digitalWrite(FrontDayPin, LOW);
+        digitalWrite(FrontPin, LOW);
+        digitalWrite(RealPin, LOW);
+        return;
+    }
 
-  // Wybierz ustawienia świateł w zależności od trybu (dzienny/nocny)
-  int lightSetting = (currentLightMode == 0) ? bikeSettings.daySetting : bikeSettings.nightSetting;
-  rearBlinkEnabled = (currentLightMode == 0) ? bikeSettings.dayRearBlink : bikeSettings.nightRearBlink;  // Czy mruganie tylnego światła ma być włączone
+    // Wybierz ustawienia w zależności od trybu
+    bool isDay = (currentLightMode == LIGHTS_DAY);
+    int config = isDay ? bikeSettings.daySetting : bikeSettings.nightSetting;
+    bool shouldBlink = isDay ? bikeSettings.dayRearBlink : bikeSettings.nightRearBlink;
 
-  // Obsługa ustawień świateł
-  switch (lightSetting) {
-    case 0: // Tylko przednie światło dzienne/nocne
-      digitalWrite(FrontDayPin, HIGH);
-      digitalWrite(FrontPin, LOW);
-      digitalWrite(RealPin, LOW);  // Wyłącz tylne światło
-      rearBlinkState = false;       // Wyłącz mruganie tylnego światła
-      break;
-
-    case 1: // Tylko przednie światło zwykłe
-      digitalWrite(FrontDayPin, LOW);
-      digitalWrite(FrontPin, HIGH);
-      digitalWrite(RealPin, LOW);  // Wyłącz tylne światło
-      rearBlinkState = false;       // Wyłącz mruganie tylnego światła
-      break;
-
-    case 2: // Tylne światło bez przedniego
-      digitalWrite(FrontDayPin, LOW);
-      digitalWrite(FrontPin, LOW);
-      digitalWrite(RealPin, HIGH);  // Włącz tylne światło
-      rearBlinkState = rearBlinkEnabled;  // Sprawdź, czy tylne światło ma mrugać
-      break;
-
-    case 3: // Przednie dzienne/nocne + tylne światło      
-      digitalWrite(FrontDayPin, HIGH);
-      digitalWrite(FrontPin, LOW);      
-      digitalWrite(RealPin, HIGH);  // Włącz tylne światło
-      rearBlinkState = rearBlinkEnabled;  // Sprawdź, czy tylne światło ma mrugać
-      break;
-
-    case 4: // Przednie zwykłe + tylne światło      
-      digitalWrite(FrontDayPin, LOW);
-      digitalWrite(FrontPin, HIGH);
-      digitalWrite(RealPin, HIGH);  // Włącz tylne światło
-      rearBlinkState = rearBlinkEnabled;  // Sprawdź, czy tylne światło ma mrugać
-      break;
-  }
+    // Ustaw światła według konfiguracji
+    digitalWrite(FrontDayPin, (config == FRONT_DAY || config == FRONT_DAY_AND_REAR));
+    digitalWrite(FrontPin, (config == FRONT_NORMAL || config == FRONT_NORMAL_AND_REAR));
+    
+    // Obsługa tylnego światła
+    if (config == REAR_ONLY || config == FRONT_DAY_AND_REAR || config == FRONT_NORMAL_AND_REAR) {
+        if (shouldBlink) {
+            static unsigned long lastBlinkTime = 0;
+            if (millis() - lastBlinkTime >= bikeSettings.blinkInterval) {
+                rearBlinkState = !rearBlinkState;
+                lastBlinkTime = millis();
+            }
+            digitalWrite(RealPin, rearBlinkState);
+        } else {
+            digitalWrite(RealPin, HIGH);
+        }
+    } else {
+        digitalWrite(RealPin, LOW);
+    }
 }
 
 // --- Połączenie z BMS ---
@@ -886,9 +885,9 @@ void printBatteryStatistics(uint8_t *data, size_t dataLength) {
 
 // --- Zmiana trybu świateł ---
 void toggleLightMode() {
-  currentLightMode = (currentLightMode + 1) % 3;  // Cykl: dzień (0), noc (1), wyłączone (2)
-  lightsOn = currentLightMode != 2;               // Jeśli tryb to "wyłączone", wyłącz światła       
-  setLights();  // Aktualizuj stan świateł
+    currentLightMode = (currentLightMode + 1) % 3;  // Przełączanie między LIGHTS_OFF (0), LIGHTS_DAY (1), LIGHTS_NIGHT (2)
+    lightsOn = (currentLightMode != LIGHTS_OFF);    // Światła są włączone, gdy nie jesteśmy w trybie LIGHTS_OFF
+    setLights();  // Aktualizuj stan świateł
 }
 
 //--- Wyjście USB ---
