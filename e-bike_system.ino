@@ -67,6 +67,123 @@ const uint32_t MIN_REVOLUTION_TIME_US = 150000; // 150ms
 // --- Wersja systemu --- 
 const char systemVersion[] PROGMEM = "8.12.2024";
 
+// --- Watchdog i logging ---
+#define WDT_TIMEOUT 8000              // Timeout watchdoga (8 sekund)
+#define LOG_BUFFER_SIZE 10            // Ilość ostatnich logów do przechowania
+#define SYSTEM_CHECK_INTERVAL 5000    // Interwał sprawdzania systemu (5 sekund)
+
+// Typy logów systemowych
+enum LogType {
+    LOG_INFO = 0,
+    LOG_WARNING = 1,
+    LOG_ERROR = 2,
+    LOG_CRITICAL = 3
+};
+
+// Struktura logu systemowego
+struct SystemLog {
+    uint32_t timestamp;      // Czas zdarzenia
+    LogType type;           // Typ logu
+    uint16_t code;          // Kod błędu/zdarzenia
+    float value;           // Dodatkowa wartość (np. napięcie, temperatura)
+};
+
+class SystemManager {
+private:
+    CircularDataBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
+    uint32_t lastSystemCheck;
+    uint32_t systemStartTime;
+    uint16_t resetCount;
+    
+    // Flagi stanu systemu
+    struct {
+        bool rtcOk : 1;
+        bool displayOk : 1;
+        bool bmsConnected : 1;
+        bool tempSensorOk : 1;
+        bool lowBattery : 1;
+        bool systemOverheat : 1;
+    } systemFlags;
+
+public:
+    SystemManager() : 
+        lastSystemCheck(0),
+        systemStartTime(0),
+        resetCount(0) {
+        memset(&systemFlags, 0, sizeof(systemFlags));
+    }
+
+    void begin() {
+        systemStartTime = esp_timer_get_time() / 1000;
+        loadSystemState();  // Wczytaj poprzedni stan z EEPROM
+    }
+
+    void addLog(LogType type, uint16_t code, float value = 0.0f) {
+        SystemLog log = {
+            .timestamp = esp_timer_get_time() / 1000,
+            .type = type,
+            .code = code,
+            .value = value
+        };
+        logs.push(log);
+        
+        // Dla błędów krytycznych, zapisz natychmiast do EEPROM
+        if (type == LOG_CRITICAL) {
+            saveSystemState();
+        }
+    }
+
+    bool checkSystem() {
+        uint32_t now = esp_timer_get_time() / 1000;
+        if (now - lastSystemCheck < SYSTEM_CHECK_INTERVAL) {
+            return true;
+        }
+        lastSystemCheck = now;
+
+        // Sprawdź RTC
+        if (!rtc.isrunning()) {
+            systemFlags.rtcOk = false;
+            addLog(LOG_ERROR, 1, 0);
+        } else {
+            systemFlags.rtcOk = true;
+        }
+
+        // Sprawdź temperaturę systemu
+        float temp = tempSensor.readTemperature();
+        if (temp > 80.0f) {  // Temperatura krytyczna
+            systemFlags.systemOverheat = true;
+            addLog(LOG_CRITICAL, 2, temp);
+            return false;
+        }
+
+        // Sprawdź napięcie systemu
+        if (voltage < 3.0f) {  // Krytycznie niskie napięcie
+            systemFlags.lowBattery = true;
+            addLog(LOG_CRITICAL, 3, voltage);
+            return false;
+        }
+
+        return true;
+    }
+
+    void saveSystemState() {
+        // Zapisz ważne dane systemu do EEPROM
+        EEPROM.put(450, resetCount);  // Użyj adresu po innych danych
+        EEPROM.commit();
+    }
+
+    void loadSystemState() {
+        // Wczytaj dane systemu z EEPROM
+        EEPROM.get(450, resetCount);
+    }
+
+    void handleSystemFailure() {
+        saveSystemState();  // Zapisz stan przed resetem
+        resetCount++;
+        ESP.restart();  // Reset systemu
+    }
+};
+
 // --- Ustawienia wyświetlacza OLED ---
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 32
@@ -501,10 +618,6 @@ struct SafeCounter {
     }
 };
 
-// Liczniki dla prędkości i kadencji
-SafeCounter speedCounter;
-SafeCounter cadenceCounter;
-
 class TimeoutHandler {
 private:
     uint32_t startTime;
@@ -706,6 +819,11 @@ public:
 // Utworzenie obiektów globalnych
 BMSConnection bmsConnection;
 TemperatureSensor tempSensor;
+// Liczniki dla prędkości i kadencji
+SafeCounter speedCounter;
+SafeCounter cadenceCounter;
+
+SystemManager systemManager;
 
 // Klasa pomocnicza do bezpiecznych operacji matematycznych
 class SafeMath {
@@ -2128,6 +2246,14 @@ void setup() {
   pinMode(FrontPin, OUTPUT);
   pinMode(RealPin, OUTPUT);
   setLights();
+
+    systemManager.begin();
+    
+    // Po każdej ważnej inicjalizacji dodaj log
+    if (!rtc.begin()) {
+        systemManager.addLog(LOG_CRITICAL, 1);  // Błąd RTC
+        while (1);
+    }
 }
 
 // --- PĘTLA GŁÓWNA ---
@@ -2201,6 +2327,11 @@ void loop() {
                 displayedRange = currentRange;
             }
         }
+    }
+
+    // Sprawdzanie stanu systemu
+    if (!systemManager.checkSystem()) {
+        systemManager.handleSystemFailure();
     }
 
     // Reset watchdoga
