@@ -69,6 +69,60 @@ int currentScreen = 0;
 int subScreen = 0; // Zmienna do obsługi pod-ekranów
 const long screenInterval = 500;
 
+// Przeniesienie stałych tekstowych do pamięci programu
+const char TEXT_SPEED[] PROGMEM = "Predkosc";
+const char TEXT_CADENCE[] PROGMEM = "Kadencja";
+const char TEXT_TEMPERATURE[] PROGMEM = "Temperatura";
+const char TEXT_BATTERY[] PROGMEM = "Akumulator";
+const char TEXT_POWER[] PROGMEM = "Moc";
+const char TEXT_CONSUMPTION[] PROGMEM = "Zuzycie";
+const char TEXT_RANGE[] PROGMEM = "Zasieg";
+const char TEXT_ERROR[] PROGMEM = "Blad";
+
+// Funkcja pomocnicza do odczytu tekstu z pamięci programu
+char* getProgmemString(const char* str) {
+    static char buffer[32];  // Bufor tymczasowy
+    strcpy_P(buffer, str);
+    return buffer;
+}
+
+class DisplayBuffer {
+private:
+    static const size_t BUFFER_SIZE = 128 * 32 / 8;  // Rozmiar bufora dla OLED 128x32
+    uint8_t buffer[BUFFER_SIZE];
+    bool dirty = false;
+
+public:
+    void setPixel(int16_t x, int16_t y, bool color) {
+        if (x < 0 || x >= 128 || y < 0 || y >= 32) return;
+        
+        if (color) {
+            buffer[x + (y/8)*128] |= (1 << (y&7));
+        } else {
+            buffer[x + (y/8)*128] &= ~(1 << (y&7));
+        }
+        dirty = true;
+    }
+
+    void clear() {
+        memset(buffer, 0, BUFFER_SIZE);
+        dirty = true;
+    }
+
+    bool isDirty() const { return dirty; }
+    void clearDirty() { dirty = false; }
+    const uint8_t* getBuffer() const { return buffer; }
+};
+
+struct SystemState {
+    uint8_t currentScreen : 4;    // 4 bity (16 ekranów max)
+    uint8_t subScreen : 3;        // 3 bity (8 pod-ekranów max)
+    uint8_t lightMode : 2;        // 2 bity (4 tryby świateł)
+    bool isMoving : 1;            // 1 bit
+    bool usbEnabled : 1;          // 1 bit
+    bool displayNeedsUpdate : 1;  // 1 bit
+} state;
+
 // --- Światła ---
 #define FrontDayPin 10 // światła dzienne
 #define FrontPin 11    // światła zwykłe
@@ -235,6 +289,28 @@ float power = 0;
 float remainingEnergy = 0;
 float soc = 0;
 
+class BMSData {
+private:
+    static const size_t MAX_PACKETS = 4;
+    uint8_t dataBuffer[BMS_BUFFER_SIZE];
+    size_t dataSize = 0;
+    
+public:
+    bool addPacket(const uint8_t* data, size_t length) {
+        if (dataSize + length > BMS_BUFFER_SIZE) return false;
+        memcpy(dataBuffer + dataSize, data, length);
+        dataSize += length;
+        return true;
+    }
+
+    void reset() {
+        dataSize = 0;
+    }
+
+    const uint8_t* getData() const { return dataBuffer; }
+    size_t getSize() const { return dataSize; }
+};
+
 // --- zasieg i srednie ---
 // Stałe dla obliczania zasięgu
 const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
@@ -248,9 +324,38 @@ float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
 unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
 
 // --- Bufory do przechowywania danych historycznych ---
-CircularBuffer<float, BUFFER_SIZE> energyHistory;  // Energia zużyta w Wh w ostatnich 5 minutach
-CircularBuffer<float, BUFFER_SIZE> powerHistory;   // Moc w W w ostatnich 5 minutach
-CircularBuffer<float, BUFFER_SIZE> speedHistory;   // Prędkość w km/h w ostatnich 5 minutach
+// Zmiana rozmiaru buforów na stałe wartości
+const size_t BUFFER_SIZE = 300;  // Ustalony rozmiar dla buforów danych
+const size_t BMS_BUFFER_SIZE = 64;  // Zoptymalizowany rozmiar dla danych BMS
+
+// Zoptymalizowana struktura dla danych historycznych
+template<typename T, size_t S>
+class CircularDataBuffer {
+private:
+    T data[S];
+    size_t head = 0;
+    size_t count = 0;
+
+public:
+    void push(T value) {
+        data[head] = value;
+        head = (head + 1) % S;
+        if (count < S) count++;
+    }
+
+    T get(size_t index) const {
+        if (index >= count) return T();
+        return data[(S + head - count + index) % S];
+    }
+
+    size_t size() const { return count; }
+    void clear() { count = 0; head = 0; }
+};
+
+// Zastąpienie istniejących buforów
+CircularDataBuffer<float, BUFFER_SIZE> energyHistory;
+CircularDataBuffer<float, BUFFER_SIZE> powerHistory;
+CircularDataBuffer<float, BUFFER_SIZE> speedHistory;
 
 // --- Zmienne do statystyk ---
 float totalWh = 0;           // Zużycie energii od początku jazdy
