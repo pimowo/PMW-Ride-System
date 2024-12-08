@@ -109,35 +109,34 @@ unsigned long debounceDelay = 50; // Opóźnienie do debounce
 unsigned long holdTime = 1000;     // Czas trzymania przycisku
 
 // --- Kadencja ---
-#define NUM_READINGS 4 // Liczba odczytów z czujnika
-#define cadencePin 5 // Pin dla czujnika Hall
-#define NO_IMPULSE_TIMEOUT 3000 // Czas po którym wyświetli się 0 (3 sekundy)
-#define MEASUREMENT_INTERVAL 200 // Interwał pomiaru (200 ms)
+// Stałe dla kadencji
+const uint8_t CADENCE_PIN = 5;  // Pin dla czujnika Hall
+const uint16_t RPM_TIMEOUT = 3000;  // Timeout w ms (3 sekundy)
+const uint8_t MAGNETS = 1;  // Liczba magnesów (domyślnie 1)
+const uint16_t MIN_REVOLUTION_TIME = 150;  // Minimalny czas obrotu w ms (zabezpieczenie przed szumem)
 
-long cadenceReadings[NUM_READINGS]; // Tablica do przechowywania odczytów kadencji
-int readIndex = 0; // Indeks do zapisywania odczytów kadencji
-unsigned long lastMeasurementTime = 0; // Czas ostatniego pomiaru
-unsigned long lastImpulseTime = 0; // Czas ostatniego impulsu
-long cadence = 0;
+// Zmienne dla kadencji
+volatile uint32_t lastCadencePulseTime = 0;  // Czas ostatniego impulsu
+volatile uint32_t cadencePulseInterval = 0;  // Interwał między impulsami
+volatile bool newCadencePulse = false;       // Flaga nowego impulsu
+
 const int cadenceMin = 60; // Minimalna kadencja
 const int cadenceMax = 80; // Maksymalna kadencja
 
 // --- Prędkość ---
-const int speedPin = 6;               
-volatile int pulseCount = 0;           
-const float wheelCircumference = 2100; // Obwód koła w mm
-unsigned long lastMillis = 0;          
-float speedKmh = 0;                    
-unsigned long speedUpdateInterval = 1000; // Interwał aktualizacji (1 sekunda)
-unsigned long noPulseTime = 0;         
-const unsigned long noPulseThreshold = 3000; // 3 sekundy bez impulsów
+// Stałe dla pomiaru prędkości
+const uint8_t SPEED_PIN = 6;
+const uint16_t WHEEL_CIRCUMFERENCE = 2100;  // mm
+const uint16_t SPEED_TIMEOUT = 3000;        // ms
+const uint16_t MIN_PULSE_TIME = 50;         // ms (eliminacja drgań)
+const float KMH_CONVERSION = 3.6;           // Przelicznik m/s na km/h
 
-// --- Uśrednianie prędkości ---
-const int numSpeedReadings = 5;              
-float speedReadings[numSpeedReadings];    // Tablica do uśredniania prędkości         
-int readingsIndex = 0;                  
-float averageSpeedKmh = 0;              
-const float alpha = 0.2;                
+// Zmienne dla pomiaru prędkości (volatile dla zmiennych używanych w przerwaniu)
+volatile uint32_t lastSpeedPulseTime = 0;
+volatile uint32_t speedPulseInterval = 0;
+volatile bool newSpeedPulse = false;
+float currentSpeed = 0.0;
+float smoothedSpeed = 0.0;               
 
 // --- Licznik kilometrów ---
 float totalDistanceKm = 0;              
@@ -237,7 +236,6 @@ void toggleUSBMode();                // Włączanie/wyłączanie zasilania USB
 void countPulse();                   // Obsługa impulsów z czujnika prędkości/kadencji
 void updateTemperature();            // Aktualizacja temperatury z czujnika DS18B20
 void calculateSpeed();               // Obliczanie aktualnej prędkości na podstawie impulsów
-void calculateAndDisplayCadence();   // Obliczanie i wyświetlanie kadencji
 // --- Funkcje związane z danymi i zasięgiem ---
 void updateData(float current, float voltage, float speedKmh);  // Aktualizacja danych, takich jak moc, energia i prędkość
 void adjustUpdateInterval(float speedKmh);                      // Dynamiczna zmiana interwału aktualizacji na podstawie prędkości
@@ -253,191 +251,6 @@ void handleSaveBikeSettings();
 void htmlStyle();
 
 void checkDaylightSavingTime();
-
-// --- Pętla konfiguracji ---
-void setup() {
-  Serial.begin(115200);
-  
-  // Tworzenie konfiguracji Watchdog Timer
-  // Sprawdzenie, czy Watchdog nie jest już zainicjalizowany
-  if (esp_task_wdt_status(NULL) == ESP_OK) {
-    // Watchdog już zainicjowany, nie inicjalizujemy go ponownie
-    #if DEBUG
-    Serial.println("Watchdog już został zainicjalizowany.");
-    #endif 
-  } else {
-    // Tworzenie konfiguracji Watchdog Timer
-    const esp_task_wdt_config_t wdtConfig = {
-      .timeout_ms = 8000,        // Timeout w milisekundach (8 sekund)
-      .idle_core_mask = 0,       // Maskowanie rdzeni (nie maskujemy)
-      .trigger_panic = true      // Resetowanie systemu w razie zablokowania
-    };
-    esp_task_wdt_init(&wdtConfig);  // Inicjalizacja Watchdog Timer
-    esp_task_wdt_add(NULL);         // Dodanie głównego tasku do WDT
-    #if DEBUG
-    Serial.println("Watchdog zainicjalizowany.");
-    #endif
-  }
-
-  // I2C
-  Wire.begin(8, 9);  //SDA = GPIO 8, SCL = GPIO 9
-
-  // Inicjalizacja RTC (zegar czasu rzeczywistego)
-  if (!rtc.begin()) {  // Sprawdzenie, czy zegar RTC został poprawnie zainicjalizowany
-    #if DEBUG
-    Serial.println("Couldn't find RTC");
-    #endif
-    while (1);  // Zatrzymaj działanie w przypadku błędu
-  }
-
-  DateTime now = rtc.now();  // Odczyt aktualnego czasu
-  if (now.year() < 2024) {  // Jeśli zegar nie jest prawidłowo ustawiony, ustaw domyślną datę
-    #if DEBUG
-    Serial.println("Zegar nie jest prawidłowo ustawiony. Ustawiam na 1 stycznia 2024 00:00:00.");
-    #endif
-    rtc.adjust(DateTime(2024, 1, 1, 0, 0, 0));  // Ustawienie domyślnej daty
-  }
-  
-  // Inicjalizacja czujnika temperatury DS18B20
-  initializeDS18B20();
-  //sensors.begin();
-
-  // Inicjalizacja EEPROM i wczytanie ustawień
-  EEPROM.begin(512);
-  loadSettingsFromEEPROM();  // Wczytaj ustawienia z EEPROM
-  
-  // Tworzenie taska BLE
-  xTaskCreate(
-    BLETask,           // Funkcja taska BLE
-    "BLE Task",        // Nazwa taska
-    4096,              // Rozmiar stosu (4 KB)
-    NULL,              // Parametry taska (NULL, bo nie są potrzebne)
-    1,                 // Priorytet taska
-    NULL               // Uchwyt taska (NULL, jeśli nie potrzebujemy uchwytu)
-  );
-
-  // Tworzenie taska WiFi/WebServer
-  xTaskCreate(
-    WiFiTask,          // Funkcja taska WiFi/WebServer
-    "WiFi Task",       // Nazwa taska
-    4096,              // Rozmiar stosu (4 KB)
-    NULL,              // Parametry taska (NULL, bo nie są potrzebne)
-    1,                 // Priorytet taska
-    NULL               // Uchwyt taska (NULL, jeśli nie potrzebujemy uchwytu)
-  );
-
-  // Kadencja
-  pinMode(cadencePin, INPUT_PULLUP); // Ustawienie pinu z wewnętrznym pull-up
-  //attachInterrupt(digitalPinToInterrupt(HALL_PIN), handleCadenceISR, RISING);
-
-  // Prędkość
-  pinMode(speedPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(speedPin), countPulse, RISING);
-
-  // Inicjalizacja tablicy uśredniania prędkości
-  for (int i = 0; i < numSpeedReadings; i++) {
-    speedReadings[i] = 0;
-  }
-
-  // Inicjalizacja wyświetlacza OLED
-  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Inicjalizacja wyświetlacza
-    #if DEBUG
-      Serial.println(F("SSD1306 allocation failed"));
-    #endif
-    for (;;);  // Zatrzymaj działanie w przypadku błędu
-  }
-  display.clearDisplay();
-  display.display();
-  showWelcomeMessage();  // Wyświetlanie powitania na OLED
-
-  // Konfiguracja przycisków
-  pinMode(buttonPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonISR, CHANGE);
-
-  // Konfiguracja świateł
-  pinMode(FrontDayPin, OUTPUT);
-  pinMode(FrontPin, OUTPUT);
-  pinMode(RealPin, OUTPUT);
-  setLights();
-}
-
-// --- PĘTLA GŁÓWNA ---
-void loop() {
-  esp_task_wdt_reset(); // Resetuj Watchdoga co cykl pętli, aby uniknąć restartu
-
-  DateTime now = rtc.now();     // Odczyt aktualnego czasu z RTC
-  checkDaylightSavingTime(now); // Sprawdzenie i ewentualna zmiana czasu
-
-  // Aktualizacja danych z czujników
-  unsigned long currentMillis = millis();
-
-  // Obsługa krótkiego naciśnięcia
-  if (buttonPressed && !longPressHandled) {
-    // Sprawdź, czy przycisk jest nadal trzymany przez określony czas
-    if (currentMillis - buttonHoldStart >= holdTime) {
-      handleLongPress();       // Obsługa długiego naciśnięcia
-      longPressHandled = true; // Flaga, że długie naciśnięcie zostało obsłużone
-    } else if (buttonReleased) {
-      handleButton();          // Obsługa krótkiego naciśnięcia
-      buttonPressed = false;   // Reset flagi krótkiego naciśnięcia
-    }
-  }
-  
-  // Sprawdzanie i odczyt temperatury
-  if (isGroundTemperatureReady()) {
-    // Odczyt temperatury tylko jeśli jest gotowy
-    currentTemp = readGroundTemperature();
-    if (currentTemp != -999.0) {
-      #if DEBUG
-      Serial.print("Aktualna temperatura: ");
-      Serial.println(currentTemp);
-      #endif
-    }
-
-    // Po odczytaniu temperatury inicjujemy nowy pomiar
-    requestGroundTemperature();
-  }
-
-  // Aktualizacja ekranu
-  if (currentMillis - previousScreenMillis >= screenInterval) {
-    previousScreenMillis = currentMillis;
-    showScreen(currentScreen);
-  }
-
-  // Sprawdzenie, czy czujnik kadencji został aktywowany
-  if (digitalRead(cadencePin) == LOW) { 
-    lastImpulseTime = currentMillis; // Uaktualnij czas ostatniego impulsu
-    updateReadings(currentMillis); // Zaktualizuj odczyty kadencji
-  } else if (currentMillis - lastImpulseTime > NO_IMPULSE_TIMEOUT) {
-    // Jeśli nie było impulsów przez czas większy od NO_IMPULSE_TIMEOUT, wyświetl 0 kadencji
-    cadence = 0; // Wyświetl 0, gdy brak impulsów
-  }
-
-  // Detekcja postoju - gdy prędkość wynosi 0 przez dłuższy czas
-  if (speedKmh < 0.1) {
-    if (currentMillis - lastStationaryTime > 10000) {
-      stationary = true;
-    }
-  } else {
-    lastStationaryTime = currentMillis;
-    stationary = false;
-  }
-
-  // Jeśli rower nie jest w trybie postoju, kontynuujemy aktualizację
-  if (!stationary && currentMillis - lastUpdateTime >= updateInterval) {
-    lastUpdateTime = currentMillis;
-
-    // Dynamiczne dostosowanie interwału aktualizacji
-    adjustUpdateInterval(speedKmh);
-
-    // Przykładowa aktualizacja danych (zastąp rzeczywistymi danymi)
-    updateData(current, voltage, speedKmh);
-
-    // Obliczanie zasięgu
-    range = calculateRange();
-  }
-  calculateSpeed();
-}
 
 // --- Funkcja wyświetlania animacji powitania ---
 void showWelcomeMessage() {
@@ -662,7 +475,7 @@ void handleLongPress() {
 
 // --- Funkcja do czyszczenia i aktualizacji wyświetlacza OLED tylko przy zmianach ---
 void showScreen(int screen) {
-  char buffer[30];  // Zwiększono rozmiar bufora, aby pomieścić większe teksty z PROGMEM
+  char buffer[16];  // Zwiększono rozmiar bufora, aby pomieścić większe teksty z PROGMEM
 
   display.clearDisplay();      // Wyczyść wyświetlacz
   display.setTextColor(SSD1306_WHITE); // Ustaw kolor tekstu na biały
@@ -1151,63 +964,147 @@ float readGroundTemperature() {
 }
 
 // --- Obliczenia prędkości ---
-void calculateSpeed() {
-  unsigned long currentMillis = millis();
-  bool pulseDetected = pulseCount > 0;
+void setupSpeedSensor() {
+    pinMode(SPEED_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(SPEED_PIN), handleSpeedInterrupt, FALLING);
+}
 
-  if (!pulseDetected) {
-    noPulseTime = currentMillis - lastMillis;
-  } else {
-    noPulseTime = 0;
-  }
+// Obsługa przerwania dla czujnika prędkości
+void IRAM_ATTR handleSpeedInterrupt() {
+    uint32_t currentTime = millis();
+    uint32_t interval = currentTime - lastSpeedPulseTime;
+    
+    // Filtrowanie drgań styków
+    if (interval > MIN_PULSE_TIME) {
+        speedPulseInterval = interval;
+        lastSpeedPulseTime = currentTime;
+        newSpeedPulse = true;
+    }
+}
 
-  // Aktualizacja prędkości co określony interwał
-  if (currentMillis - lastMillis >= speedUpdateInterval) {
-    if (pulseCount > 0) {
-      // Oblicz dystans w kilometrach
-      float distance = (pulseCount * wheelCircumference) / 1000000.0; 
-      float newSpeedKmh = distance / (speedUpdateInterval / 3600000.0); 
+// Obliczanie prędkości
+float calculateSpeed() {
+    static uint32_t lastCalculation = 0;
+    static float lastValidSpeed = 0.0;
+    uint32_t currentTime = millis();
 
-      // Zabezpieczenie przed nienaturalnie wysoką prędkością
-      if (newSpeedKmh > 99) { 
-        newSpeedKmh = 0; 
-      }
-      
-      averageSpeedKmh = alpha * newSpeedKmh + (1 - alpha) * averageSpeedKmh;  // Uśrednij prędkość za pomocą filtru EMA     
-      totalDistanceKm += distance;                                            // Zaktualizuj całkowity dystans
-
-      // Jeśli brak impulsów przez więcej niż noPulseThreshold, prędkość = 0
-      if (noPulseTime >= noPulseThreshold) {
-        speedKmh = 0;
-      } else {
-        speedKmh = averageSpeedKmh; // Zaktualizuj prędkość
-      }
+    // Sprawdzenie timeoutu - brak ruchu
+    if (currentTime - lastSpeedPulseTime > SPEED_TIMEOUT) {
+        lastValidSpeed = 0;
+        newSpeedPulse = false;
+        return 0;
     }
 
-    pulseCount = 0; // Reset licznika impulsów
-    lastMillis = currentMillis; // Zaktualizuj czas
-  }
+    // Aktualizacja tylko przy nowym impulsie
+    if (newSpeedPulse && (currentTime - lastCalculation > 250)) {  // max 4 updates/sec
+        // Prędkość = (obwód koła [mm] / 1000000) / (czas między impulsami [ms] / 3600000) [km/h]
+        float speed = (float)WHEEL_CIRCUMFERENCE * 3.6 / speedPulseInterval;
+        
+        // Filtrowanie nierealistycznych wartości
+        if (speed < 100.0) {  // Max 100 km/h
+            lastValidSpeed = speed;
+        }
+        
+        newSpeedPulse = false;
+        lastCalculation = currentTime;
+    }
+
+    return lastValidSpeed;
+}
+
+// Aktualizacja prędkości z wygładzaniem
+void updateSpeed() {
+    static uint32_t lastUpdate = 0;
+    uint32_t currentTime = millis();
+    
+    // Sprawdź czy pojazd stoi
+    if (currentTime - lastSpeedPulseTime > STOP_TIMEOUT) {
+        if (isMoving) {  // Zmiana stanu z ruchu na stop
+            isMoving = false;
+            currentSpeed = 0;
+            smoothedSpeed = 0;
+            // Można dodać zapis statystyk jazdy
+        }
+        return;  // Nie wykonuj dalszych obliczeń
+    }
+
+    // Aktualizuj co 250ms tylko jeśli są impulsy
+    if (currentTime - lastUpdate >= 250 && newSpeedPulse) {
+        float newSpeed = calculateSpeed();
+        
+        // Filtrowanie małych prędkości
+        if (newSpeed < MIN_SPEED) {
+            newSpeed = 0;
+        }
+        
+        // Wygładzanie tylko dla rzeczywistego ruchu
+        if (newSpeed > 0) {
+            float alpha = (newSpeed > 25.0) ? 0.3 : 0.2;
+            smoothedSpeed = alpha * newSpeed + (1.0 - alpha) * smoothedSpeed;
+            isMoving = true;
+        }
+        
+        currentSpeed = smoothedSpeed;
+        newSpeedPulse = false;
+        lastUpdate = currentTime;
+    }
+}
+
+// Funkcja zwracająca średnią prędkość
+float getAverageSpeed() {
+    static uint32_t sampleCount = 0;
+    static float speedSum = 0.0;
+    
+    if (currentSpeed > 0) {
+        speedSum += currentSpeed;
+        sampleCount++;
+        return speedSum / sampleCount;
+    }
+    return (sampleCount > 0) ? speedSum / sampleCount : 0;
 }
 
 // --- Funkcja do obliczania i wyświetlania kadencji ---
-void calculateAndDisplayCadence() {
-  // Znajdź minimalny i maksymalny czas w odczytach kadencji
-  long minTime = cadenceReadings[0];
-  long maxTime = cadenceReadings[0];
-  for (int i = 0; i < NUM_READINGS; i++) {
-    if (cadenceReadings[i] < minTime) {
-      minTime = cadenceReadings[i];
+// Przerwanie dla kadencji
+void IRAM_ATTR handleCadenceInterrupt() {
+    uint32_t currentTime = millis();
+    uint32_t interval = currentTime - lastCadencePulseTime;
+    
+    // Filtrowanie szumów i odbić
+    if (interval > MIN_REVOLUTION_TIME) {
+        cadencePulseInterval = interval;
+        lastCadencePulseTime = currentTime;
+        newCadencePulse = true;
     }
-    if (cadenceReadings[i] > maxTime) {
-      maxTime = cadenceReadings[i];
+}
+
+// Funkcja obliczająca kadencję
+uint8_t calculateCadence() {
+    static uint32_t lastCalculation = 0;
+    static uint8_t lastValidCadence = 0;
+    uint32_t currentTime = millis();
+
+    // Sprawdź czy nie minął timeout
+    if (currentTime - lastCadencePulseTime > RPM_TIMEOUT) {
+        lastValidCadence = 0;
+        newCadencePulse = false;
+        return 0;
     }
-  }
-  
-  long deltaT = maxTime - minTime;  // Oblicz deltaT
-  
-  if (deltaT > 0) {  // Upewnij się, że deltaT nie jest zerowe
-    cadence = (60000 * NUM_READINGS) / deltaT; // Oblicz kadencję
-  }
+
+    // Aktualizuj tylko gdy jest nowy impuls
+    if (newCadencePulse && currentTime - lastCalculation > 250) {  // Aktualizacja max 4 razy na sekundę
+        // Obliczenie RPM: (60 sekund * 1000ms) / (interwał * liczba magnesów)
+        uint8_t rpm = (uint32_t)60000 / (cadencePulseInterval * MAGNETS);
+        
+        // Filtr dla wartości odstających
+        if (rpm < 200) {  // Maksymalna realna kadencja
+            lastValidCadence = rpm;
+        }
+        
+        newCadencePulse = false;
+        lastCalculation = currentTime;
+    }
+
+    return lastValidCadence;
 }
 
 // --- Funkcja do aktualizacji bieżących danych ---
@@ -1459,29 +1356,6 @@ void handleSaveClockSettings() {
     server.send(200, "text/html", html);
 }
 
-// Walidacja daty
-// bool isValidDate(int year, int month, int day, int hour, int minute, int second) {
-//   if (year < 2020 || year > 2100) return false;
-//   if (month < 1 || month > 12) return false;
-
-//   int daysInMonth = 31;
-//   if (month == 4 || month == 6 || month == 9 || month == 11) {
-//     daysInMonth = 30;
-//   } else if (month == 2) {
-//     if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
-//       daysInMonth = 29;
-//     } else {
-//       daysInMonth = 28;
-//     }
-//   }
-
-//   if (day < 1 || day > daysInMonth) return false;
-//   if (hour < 0 || hour > 23) return false;
-//   if (minute < 0 || minute > 59) return false;
-
-//   return true;
-// }
-
 void printRTCDateTime() {
   DateTime now = rtc.now();
 
@@ -1556,4 +1430,185 @@ void checkDaylightSavingTime(DateTime now) {
     rtc.adjust(DateTime(now.year(), now.month(), now.day(), now.hour() - 1, now.minute(), now.second()));
     Serial.println("Przełączono na czas zimowy.");
   }
+}
+
+// --- Pętla konfiguracji ---
+void setup() {
+  Serial.begin(115200);
+  
+  // Tworzenie konfiguracji Watchdog Timer
+  // Sprawdzenie, czy Watchdog nie jest już zainicjalizowany
+  if (esp_task_wdt_status(NULL) == ESP_OK) {
+    // Watchdog już zainicjowany, nie inicjalizujemy go ponownie
+    #if DEBUG
+    Serial.println("Watchdog już został zainicjalizowany.");
+    #endif 
+  } else {
+    // Tworzenie konfiguracji Watchdog Timer
+    const esp_task_wdt_config_t wdtConfig = {
+      .timeout_ms = 8000,        // Timeout w milisekundach (8 sekund)
+      .idle_core_mask = 0,       // Maskowanie rdzeni (nie maskujemy)
+      .trigger_panic = true      // Resetowanie systemu w razie zablokowania
+    };
+    esp_task_wdt_init(&wdtConfig);  // Inicjalizacja Watchdog Timer
+    esp_task_wdt_add(NULL);         // Dodanie głównego tasku do WDT
+    #if DEBUG
+    Serial.println("Watchdog zainicjalizowany.");
+    #endif
+  }
+
+  // I2C
+  Wire.begin(8, 9);  //SDA = GPIO 8, SCL = GPIO 9
+
+  // Inicjalizacja RTC (zegar czasu rzeczywistego)
+  if (!rtc.begin()) {  // Sprawdzenie, czy zegar RTC został poprawnie zainicjalizowany
+    #if DEBUG
+    Serial.println("Couldn't find RTC");
+    #endif
+    while (1);  // Zatrzymaj działanie w przypadku błędu
+  }
+
+  DateTime now = rtc.now();  // Odczyt aktualnego czasu
+  if (now.year() < 2024) {  // Jeśli zegar nie jest prawidłowo ustawiony, ustaw domyślną datę
+    #if DEBUG
+    Serial.println("Zegar nie jest prawidłowo ustawiony. Ustawiam na 1 stycznia 2024 00:00:00.");
+    #endif
+    rtc.adjust(DateTime(2024, 1, 1, 0, 0, 0));  // Ustawienie domyślnej daty
+  }
+  
+  // Inicjalizacja czujnika temperatury DS18B20
+  initializeDS18B20();
+  //sensors.begin();
+
+  // Inicjalizacja EEPROM i wczytanie ustawień
+  EEPROM.begin(512);
+  loadSettingsFromEEPROM();  // Wczytaj ustawienia z EEPROM
+  
+  // Tworzenie taska BLE
+  xTaskCreate(
+    BLETask,           // Funkcja taska BLE
+    "BLE Task",        // Nazwa taska
+    4096,              // Rozmiar stosu (4 KB)
+    NULL,              // Parametry taska (NULL, bo nie są potrzebne)
+    1,                 // Priorytet taska
+    NULL               // Uchwyt taska (NULL, jeśli nie potrzebujemy uchwytu)
+  );
+
+  // Tworzenie taska WiFi/WebServer
+  xTaskCreate(
+    WiFiTask,          // Funkcja taska WiFi/WebServer
+    "WiFi Task",       // Nazwa taska
+    4096,              // Rozmiar stosu (4 KB)
+    NULL,              // Parametry taska (NULL, bo nie są potrzebne)
+    1,                 // Priorytet taska
+    NULL               // Uchwyt taska (NULL, jeśli nie potrzebujemy uchwytu)
+  );
+
+    // Kadencja
+    pinMode(CADENCE_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(CADENCE_PIN), handleCadenceInterrupt, FALLING);
+
+  // Prędkość
+  pinMode(speedPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(speedPin), countPulse, RISING);
+
+  // Inicjalizacja tablicy uśredniania prędkości
+  for (int i = 0; i < numSpeedReadings; i++) {
+    speedReadings[i] = 0;
+  }
+
+  // Inicjalizacja wyświetlacza OLED
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Inicjalizacja wyświetlacza
+    #if DEBUG
+      Serial.println(F("SSD1306 allocation failed"));
+    #endif
+    for (;;);  // Zatrzymaj działanie w przypadku błędu
+  }
+  display.clearDisplay();
+  display.display();
+  showWelcomeMessage();  // Wyświetlanie powitania na OLED
+
+  // Konfiguracja przycisków
+  pinMode(buttonPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(buttonPin), handleButtonISR, CHANGE);
+
+  // Konfiguracja świateł
+  pinMode(FrontDayPin, OUTPUT);
+  pinMode(FrontPin, OUTPUT);
+  pinMode(RealPin, OUTPUT);
+  setLights();
+}
+
+// --- PĘTLA GŁÓWNA ---
+void loop() {
+    DateTime now = rtc.now();     // Odczyt aktualnego czasu z RTC
+    checkDaylightSavingTime(now); // Sprawdzenie i ewentualna zmiana czasu
+
+    // Aktualizacja danych z czujników
+    unsigned long currentMillis = millis();
+ 
+    // Resetuj Watchdoga co cykl pętli, aby uniknąć restartu
+    static unsigned long lastWdtReset = 0;
+    if (millis() - lastWdtReset >= 1000) {
+        esp_task_wdt_reset();
+        lastWdtReset = millis();
+    }
+
+  // Obsługa krótkiego naciśnięcia
+  if (buttonPressed && !longPressHandled) {
+    // Sprawdź, czy przycisk jest nadal trzymany przez określony czas
+    if (currentMillis - buttonHoldStart >= holdTime) {
+      handleLongPress();       // Obsługa długiego naciśnięcia
+      longPressHandled = true; // Flaga, że długie naciśnięcie zostało obsłużone
+    } else if (buttonReleased) {
+      handleButton();          // Obsługa krótkiego naciśnięcia
+      buttonPressed = false;   // Reset flagi krótkiego naciśnięcia
+    }
+  }
+  
+  // Sprawdzanie i odczyt temperatury
+  if (isGroundTemperatureReady()) {
+    // Odczyt temperatury tylko jeśli jest gotowy
+    currentTemp = readGroundTemperature();
+    if (currentTemp != -999.0) {
+      #if DEBUG
+      Serial.print("Aktualna temperatura: ");
+      Serial.println(currentTemp);
+      #endif
+    }
+
+    // Po odczytaniu temperatury inicjujemy nowy pomiar
+    requestGroundTemperature();
+  }
+
+  // Aktualizacja ekranu
+  if (currentMillis - previousScreenMillis >= screenInterval) {
+    previousScreenMillis = currentMillis;
+    showScreen(currentScreen);
+  }
+
+  // Detekcja postoju - gdy prędkość wynosi 0 przez dłuższy czas
+  if (speedKmh < 0.1) {
+    if (currentMillis - lastStationaryTime > 10000) {
+      stationary = true;
+    }
+  } else {
+    lastStationaryTime = currentMillis;
+    stationary = false;
+  }
+
+  // Jeśli rower nie jest w trybie postoju, kontynuujemy aktualizację
+  if (!stationary && currentMillis - lastUpdateTime >= updateInterval) {
+    lastUpdateTime = currentMillis;
+
+    // Dynamiczne dostosowanie interwału aktualizacji
+    adjustUpdateInterval(speedKmh);
+
+    // Przykładowa aktualizacja danych (zastąp rzeczywistymi danymi)
+    updateData(current, voltage, speedKmh);
+
+    // Obliczanie zasięgu
+    range = calculateRange();
+  }
+  calculateSpeed();
 }
