@@ -11,6 +11,12 @@
   GPIO 21 - LED PCB WS2812
 */
 
+// Dodaj te definicje po innych #define, przed bibliotekami
+#define BMS_BUFFER_SIZE 64
+#define SERVICE_UUID "0000ff00-0000-1000-8000-00805f9b34fb"
+#define CHAR_TX_UUID "0000ff02-0000-1000-8000-00805f9b34fb"
+#define CHAR_RX_UUID "0000ff01-0000-1000-8000-00805f9b34fb"
+
 #define DEBUG 1 // 1 - włączone debugowanie, 0 - wyłączone debugowanie
 
 // --- Biblioteki ---
@@ -66,6 +72,14 @@ const uint32_t MIN_REVOLUTION_TIME_US = 150000; // 150ms
 
 // --- Wersja systemu --- 
 const char systemVersion[] PROGMEM = "8.12.2024";
+
+// Dodaj definicje timeoutów
+#define SPEED_TIMEOUT_US (SPEED_TIMEOUT * 1000)   // Konwersja ms na us
+#define CADENCE_TIMEOUT_US (RPM_TIMEOUT * 1000)   // Konwersja ms na us
+
+// Dodaj zmienne globalne
+int numSpeedReadings = 10;  // Domyślna wartość dla liczby odczytów prędkości
+bool isMoving = false;      // Stan ruchu pojazdu
 
 // --- Watchdog i logging ---
 #define WDT_TIMEOUT 8000              // Timeout watchdoga (8 sekund)
@@ -408,9 +422,13 @@ static volatile uint32_t interruptFlags = 0;
 bool outUSB = false;
 
 // --- BMS ---
-#define MAX_BMS_BUFFER_SIZE 100                 // Maksymalny rozmiar bufora danych z BMS
+#define BUFFER_SIZE 300
+#define MAX_BMS_BUFFER_SIZE 64
+#define WATERMARK_HIGH 90  // 90% pojemności
+#define WATERMARK_LOW 70   // 70% pojemności
 #define RECONNECT_INTERVAL_MS 5000              // Interwał ponownego połączenia w ms
 #define DATA_REQUEST_INTERVAL_MS 5000           // Interwał wysyłania zapytań do BMS w ms
+
 BLEClient *bleClient;                           // Wskaźnik na klienta BLE
 BLERemoteCharacteristic *bleCharacteristicTx;   // Charakterystyka do wysyłania danych
 BLERemoteCharacteristic *bleCharacteristicRx;   // Charakterystyka do odbierania danych
@@ -431,41 +449,148 @@ float power = 0;
 float remainingEnergy = 0;
 float soc = 0;
 
+// Struktura do przechowywania danych kadencji
+struct CadenceData {
+    uint32_t lastValidCadence;
+    uint32_t totalCadence;
+    uint32_t cadenceReadings;
+    uint32_t maxCadence;
+    float averageCadence;
+
+    CadenceData() : 
+        lastValidCadence(0),
+        totalCadence(0),
+        cadenceReadings(0),
+        maxCadence(0),
+        averageCadence(0.0f) {}
+};
+
+static CadenceData cadenceData;
+
 class BMSData {
 private:
     static const size_t MAX_PACKETS = 4;
     uint8_t dataBuffer[BMS_BUFFER_SIZE];
-    size_t dataSize = 0;
+    size_t dataSize;
+    uint32_t lastUpdateTime;
+    bool dataValid;
     
 public:
+    BMSData() : dataSize(0), lastUpdateTime(0), dataValid(false) {}
+
     bool addPacket(const uint8_t* data, size_t length) {
-        if (dataSize + length > BMS_BUFFER_SIZE) return false;
+        if (!data || length == 0 || (dataSize + length) > BMS_BUFFER_SIZE) {
+            systemManager.addLog(LOG_ERROR, 7); // Log błędu danych
+            return false;
+        }
+
         memcpy(dataBuffer + dataSize, data, length);
         dataSize += length;
+        lastUpdateTime = millis();
         return true;
+    }
+
+    void processData() {
+        if (dataSize < 7 || dataBuffer[0] != 0xDD) {
+            reset();
+            return;
+        }
+
+        // Sprawdzenie sumy kontrolnej
+        uint8_t checksum = 0;
+        for (size_t i = 0; i < dataSize - 1; i++) {
+            checksum += dataBuffer[i];
+        }
+        
+        if (checksum != dataBuffer[dataSize - 1]) {
+            systemManager.addLog(LOG_ERROR, 8); // Log błędu sumy kontrolnej
+            reset();
+            return;
+        }
+
+        dataValid = true;
     }
 
     void reset() {
         dataSize = 0;
+        dataValid = false;
     }
 
+    bool isValid() const { return dataValid && (millis() - lastUpdateTime < 5000); }
     const uint8_t* getData() const { return dataBuffer; }
     size_t getSize() const { return dataSize; }
 };
 
 class OptimizedBMSConnection {
-    private:
-        uint8_t txBuffer[32];
-        uint8_t rxBuffer[64];
-        bool dataReady;
-        
-    public:
-        void handleData() {
-            if (!dataReady) return;
-            // Przetwarzanie tylko gdy są nowe dane
+private:
+    BMSData bmsData;
+    uint8_t txBuffer[32];
+    uint8_t rxBuffer[64];
+    bool dataReady;
+    TimeoutHandler operationTimeout;
+    uint8_t retryCount;
+    static const uint8_t MAX_RETRIES = 3;
+    
+public:
+    OptimizedBMSConnection() : 
+        dataReady(false), 
+        retryCount(0),
+        operationTimeout(1000) {} // 1 sekunda timeout
+
+    void handleData() {
+        if (!dataReady) return;
+
+        // Przetwarzanie tylko gdy są nowe dane
+        if (bmsData.isValid()) {
             processReceivedData();
-            dataReady = false;
         }
+        dataReady = false;
+    }
+
+    void processReceivedData() {
+        const uint8_t* data = bmsData.getData();
+        size_t size = bmsData.getSize();
+
+        if (size < 7) return; // Minimalny rozmiar pakietu
+
+        // Parsowanie danych BMS
+        if (data[1] == 0x03) {  // Sprawdzenie typu pakietu
+            // Odczyt napięcia (jednostka: 10 mV)
+            uint16_t voltageRaw = (data[4] << 8) | data[5];
+            voltage = SafeMath::clamp(voltageRaw / 100.0f, MIN_VOLTAGE, MAX_VOLTAGE);
+
+            // Odczyt natężenia (jednostka: 10 mA)
+            int16_t currentRaw = (data[6] << 8) | data[7];
+            current = SafeMath::clamp(currentRaw / 100.0f, -MAX_CURRENT, MAX_CURRENT);
+
+            // Odczyt pozostałej pojemności (jednostka: 10 mAh)
+            uint16_t remainingCapacityRaw = (data[8] << 8) | data[9];
+            remainingCapacity = SafeMath::clamp(remainingCapacityRaw / 100.0f, 0.0f, bikeSettings.batteryCapacity);
+
+            // Odczyt SOC
+            soc = SafeMath::clamp(data[23], 0.0f, 100.0f);
+
+            systemManager.addLog(LOG_INFO, 3); // Log sukcesu przetwarzania danych
+        }
+    }
+
+    bool sendRequest(uint8_t* data, size_t length) {
+        if (retryCount >= MAX_RETRIES) {
+            systemManager.addLog(LOG_ERROR, 9); // Log przekroczenia liczby prób
+            return false;
+        }
+
+        operationTimeout.start();
+        bool success = bmsConnection.sendRequest(data, length);
+        
+        if (!success) {
+            retryCount++;
+            return false;
+        }
+
+        retryCount = 0;
+        return true;
+    }
 };
 
 // --- zasieg i srednie ---
@@ -509,66 +634,112 @@ public:
     void clear() { count = 0; head = 0; }
 };
 
+// Zmodyfikowana klasa SafeBuffer z dodatkowym mechanizmem zabezpieczeń
 template<typename T, size_t MAX_SIZE>
 class SafeBuffer {
 private:
-    static const size_t WATERMARK_HIGH = MAX_SIZE * 90 / 100; // 90% pojemności
-    static const size_t WATERMARK_LOW = MAX_SIZE * 70 / 100;  // 70% pojemności
-    CircularDataBuffer<T, MAX_SIZE> buffer;
+    T data[MAX_SIZE];
+    size_t head;
+    size_t count;
     bool overflowFlag;
-    
+    const size_t watermarkHigh;
+    const size_t watermarkLow;
+
 public:
-    SafeBuffer() : overflowFlag(false) {}
-    
+    SafeBuffer() : 
+        head(0), 
+        count(0), 
+        overflowFlag(false),
+        watermarkHigh(MAX_SIZE * WATERMARK_HIGH / 100),
+        watermarkLow(MAX_SIZE * WATERMARK_LOW / 100) {}
+
     bool push(const T& value) {
-        if (buffer.size() >= MAX_SIZE) {
+        if (count >= MAX_SIZE) {
             overflowFlag = true;
-            systemManager.addLog(LOG_WARNING, 5); // Log ostrzeżenia o przepełnieniu
+            systemManager.addLog(LOG_WARNING, 5, static_cast<float>(MAX_SIZE)); // Log przepełnienia
             return false;
         }
-        
-        buffer.push(value);
-        
+
+        data[head] = value;
+        head = (head + 1) % MAX_SIZE;
+        if (count < MAX_SIZE) count++;
+
         // Sprawdzenie wysokiego poziomu zapełnienia
-        if (buffer.size() >= WATERMARK_HIGH) {
-            systemManager.addLog(LOG_WARNING, 6); // Log ostrzeżenia o wysokim poziomie
+        if (count >= watermarkHigh && !overflowFlag) {
+            systemManager.addLog(LOG_WARNING, 6, static_cast<float>(count)); // Log ostrzeżenia
         }
-        
+
         return true;
     }
-    
-    bool pop(T& value) {
-        if (buffer.size() == 0) {
-            return false;
+
+    T get(size_t index) const {
+        if (index >= count) {
+            systemManager.addLog(LOG_ERROR, 10, static_cast<float>(index)); // Log błędu indeksu
+            return T();
         }
-        
-        value = buffer.get(0);
-        buffer.clear();
-        
-        // Jeśli poziom spadł poniżej dolnego progu
-        if (buffer.size() <= WATERMARK_LOW) {
-            overflowFlag = false;
-        }
-        
-        return true;
+        return data[(MAX_SIZE + head - count + index) % MAX_SIZE];
     }
-    
+
     void clear() {
-        buffer.clear();
+        head = 0;
+        count = 0;
         overflowFlag = false;
     }
-    
+
+    // Gettery
+    size_t size() const { return count; }
+    bool isEmpty() const { return count == 0; }
+    bool isFull() const { return count >= MAX_SIZE; }
     bool isOverflow() const { return overflowFlag; }
-    size_t size() const { return buffer.size(); }
-    bool isEmpty() const { return buffer.size() == 0; }
-    bool isFull() const { return buffer.size() >= MAX_SIZE; }
+    
+    // Sprawdzenie poziomu zapełnienia
+    bool isNearCapacity() const { return count >= watermarkHigh; }
+
+    // Obliczenie średniej wartości w buforze
+    float getAverage() const {
+        if (count == 0) return 0.0f;
+        
+        float sum = 0.0f;
+        for (size_t i = 0; i < count; i++) {
+            sum += static_cast<float>(get(i));
+        }
+        return sum / static_cast<float>(count);
+    }
 };
 
-// Zastąpienie istniejących buforów
+// Zdefiniowanie bezpiecznych buforów
 SafeBuffer<float, BUFFER_SIZE> energyHistory;
 SafeBuffer<float, BUFFER_SIZE> powerHistory;
 SafeBuffer<float, BUFFER_SIZE> speedHistory;
 SafeBuffer<uint8_t, MAX_BMS_BUFFER_SIZE> bmsBuffer;
+
+// Funkcja do bezpiecznego dodawania danych do buforów
+void updateBuffers(float energy, float power, float speed) {
+    bool energyPushed = energyHistory.push(energy);
+    bool powerPushed = powerHistory.push(power);
+    bool speedPushed = speedHistory.push(speed);
+
+    // Sprawdzenie czy którykolwiek bufor jest bliski zapełnienia
+    if (energyHistory.isNearCapacity() || 
+        powerHistory.isNearCapacity() || 
+        speedHistory.isNearCapacity()) {
+        systemManager.addLog(LOG_WARNING, 7); // Ostrzeżenie o wysokim wykorzystaniu buforów
+    }
+
+    // Sprawdzenie błędów zapisu
+    if (!energyPushed || !powerPushed || !speedPushed) {
+        systemManager.addLog(LOG_ERROR, 11); // Błąd zapisu do buforów
+    }
+}
+
+// Funkcja do czyszczenia wszystkich buforów
+void clearAllBuffers() {
+    energyHistory.clear();
+    powerHistory.clear();
+    speedHistory.clear();
+    bmsBuffer.clear();
+    systemManager.addLog(LOG_INFO, 4); // Log wyczyszczenia buforów
+}
 
 // --- Zmienne do statystyk ---
 float totalWh = 0;           // Zużycie energii od początku jazdy
@@ -587,12 +758,17 @@ const char* apPassword = "#mamrower";
 
 // --- WiFi serwer www ---
 WebServer server(80);
+
 // Deklaracja zmiennych globalnych dla czasu
 int currentHour;
 int currentMinute;
 int currentDay;
 int currentMonth;
 int currentYear;
+
+// Dodaj stałe dla kadencji jeśli jeszcze nie ma
+const uint8_t MIN_VALID_CADENCE = 20;    // Minimalna sensowna kadencja
+const uint8_t MAX_VALID_CADENCE = 150;   // Maksymalna sensowna kadencja
 
 class SafeTimer {
 private:
@@ -999,9 +1175,18 @@ public:
 
     // Sprawdzenie czy liczba jest w bezpiecznym zakresie
     static bool isInRange(float value, float min, float max) {
-        return isfinite(value) && value >= min && value <= max;
+        if (!isfinite(value)) return false;
+        return value >= min && value <= max;
     }
-}
+
+    // Bezpieczne ograniczenie wartości do zakresu
+    static float clamp(float value, float min, float max) {
+        if (!isfinite(value)) return min;
+        if (value < min) return min;
+        if (value > max) return max;
+        return value;
+    }
+}; // Dodany średnik
 
 // Stałe obliczane w czasie kompilacji - dodaj je na początku kodu
 constexpr float SPEED_FACTOR = WHEEL_CIRCUMFERENCE * 3.6f / 1000000.0f;  // Przelicznik dla prędkości
@@ -1254,21 +1439,77 @@ void handleSpeed() {
 
 // Obsługa przerwania kadencji
 void handleCadence() {
-    // Odczyt i przetworzenie danych z czujnika kadencji
     portENTER_CRITICAL(&cadenceMux);
     bool newData = cadenceSensor.newPulse;
     cadenceSensor.newPulse = false;
     portEXIT_CRITICAL(&cadenceMux);
 
-    if (newData) {
-        uint8_t currentCadence = calculateCadence();
-        // Możesz tu dodać dodatkową logikę przetwarzania kadencji
+    if (!newData) return;
+
+    uint8_t currentCadence = calculateCadence();
+    
+    // Walidacja i aktualizacja danych kadencji
+    if (currentCadence >= MIN_VALID_CADENCE && currentCadence <= MAX_VALID_CADENCE) {
+        cadenceData.lastValidCadence = currentCadence;
+        cadenceData.totalCadence += currentCadence;
+        cadenceData.cadenceReadings++;
+        
+        // Aktualizacja maksymalnej kadencji
+        if (currentCadence > cadenceData.maxCadence) {
+            cadenceData.maxCadence = currentCadence;
+        }
+        
+        // Obliczenie średniej kadencji
+        cadenceData.averageCadence = SafeMath::safeDivide(
+            static_cast<float>(cadenceData.totalCadence),
+            static_cast<float>(cadenceData.cadenceReadings)
+        );
+
+        // Sprawdzenie czy kadencja jest w optymalnym zakresie
+        if (currentCadence < cadenceMin) {
+            systemManager.addLog(LOG_WARNING, 10); // Kadencja za niska
+        } else if (currentCadence > cadenceMax) {
+            systemManager.addLog(LOG_WARNING, 11); // Kadencja za wysoka
+        }
+    }
+
+    // Reset liczników jeśli minął określony czas bez impulsów
+    if (millis() - cadenceSensor.lastPulseTime > CADENCE_TIMEOUT_US/1000) {
+        cadenceData.lastValidCadence = 0;
     }
 }
 
+// Funkcja do odczytu aktualnej kadencji
+uint8_t getCurrentCadence() {
+    return cadenceData.lastValidCadence;
+}
+
+// Funkcja do odczytu średniej kadencji
+float getAverageCadence() {
+    return cadenceData.averageCadence;
+}
+
+// Funkcja do odczytu maksymalnej kadencji
+uint32_t getMaxCadence() {
+    return cadenceData.maxCadence;
+}
+
+// Zmodyfikowana funkcja calculateAndDisplayCadence
 void calculateAndDisplayCadence() {
-    uint8_t currentCadence = calculateCadence();
-    // Logika wyświetlania już jest zaimplementowana w showScreen()
+    uint8_t currentCadence = getCurrentCadence();
+    
+    // Aktualizacja wyświetlacza tylko jeśli są nowe dane
+    if (currentCadence > 0) {
+        // Logika wyświetlania jest już w showScreen()
+        state.displayNeedsUpdate = true;
+    }
+}
+
+// Reset statystyk kadencji
+void resetCadenceStats() {
+    portENTER_CRITICAL(&cadenceMux);
+    cadenceData = CadenceData(); // Reset wszystkich wartości
+    portEXIT_CRITICAL(&cadenceMux);
 }
 
 // Obsługa krótkiego naciśnięcia przycisku
