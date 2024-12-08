@@ -520,23 +520,23 @@ void showScreen(int screen) {
       break;
 
     case 1: // Kadencja prędkość
-      switch (subScreen) {
-
-        case 0:  // Kadencja
+    
+        case 0:  // Kadencja          
           display.setFont(&FreeSans9pt7b);
           display.setCursor(2, 12);
           display.print("Kadencja");
           display.setCursor(2, 31);
+          uint8_t cadence = calculateCadence();
           if (cadence < 10) {
             display.print(" ");
-            display.print(cadence, 0);
+            display.print(cadence);
           } else if (cadence < 100) {
             display.print("  ");
-            display.print(cadence, 0);
+            display.print(cadence);
           } else {
-            display.print(cadence, 0);
+            display.print(cadence);
           }
-          display.print(" obr/min");
+          display.print(" RPM");
 
           // Wyświetlanie strzałki lub OK w zależności od kadencji
           if (cadence > 0) {
@@ -558,7 +558,8 @@ void showScreen(int screen) {
           display.setCursor(2, 12);
           display.print("Predkosc");
           display.setCursor(2, 31);
-          display.print(speedKmh, 1);
+          float speed = calculateSpeed();
+          display.print(speed, 1);
           display.print(" km/h");
           break;
       }  
@@ -1507,10 +1508,10 @@ void setup() {
     // Kadencja
     pinMode(CADENCE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CADENCE_PIN), handleCadenceInterrupt, FALLING);
-
-  // Prędkość
-  pinMode(speedPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(speedPin), countPulse, RISING);
+  
+    // Prędkość
+    pinMode(SPEED_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(SPEED_PIN), handleSpeedInterrupt, FALLING);
 
   // Inicjalizacja tablicy uśredniania prędkości
   for (int i = 0; i < numSpeedReadings; i++) {
