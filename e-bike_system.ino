@@ -50,6 +50,14 @@ portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE speedMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
 
+static volatile uint32_t mux = portMUX_INITIALIZER_UNLOCKED;  // Brakujący mutex
+float displayedRange = 0.0f;                                  // Brakująca zmienna
+float speedKmh = 0.0f;                                       // Brakująca zmienna
+bool stationary = false;                                     // Brakująca zmienna
+uint32_t updateInterval = 1000;                             // Brakująca zmienna
+#define STOP_TIMEOUT 3000                                    // Brakująca stała
+#define DEFAULT_UPDATE_INTERVAL 1000                         // Brakująca stała
+
 // Stałe czasowe (w mikrosekundach)
 const uint32_t DEBOUNCE_TIME_US = 50000;  // 50ms
 const uint32_t HOLD_TIME_US = 1000000;    // 1s
@@ -885,9 +893,6 @@ void connectToBms() {
 }
 
 // --- Obsługa przerwania przycisku ---
-// Zmienne volatile dla bezpiecznej komunikacji między ISR a główną pętlą
-static volatile bool buttonState = true;
-static volatile uint32_t lastButtonChangeTime = 0;
 
 // Zoptymalizowana obsługa przerwania przycisku
 void IRAM_ATTR handleButtonISR() {
@@ -955,6 +960,39 @@ void handleLongPress() {
   } else {
     subScreen = 0;
   }
+}
+
+// Obsługa przerwania prędkości
+void handleSpeed() {
+    // Odczyt i przetworzenie danych z czujnika prędkości
+    portENTER_CRITICAL(&speedMux);
+    bool newData = speedSensor.newPulse;
+    speedSensor.newPulse = false;
+    portEXIT_CRITICAL(&speedMux);
+
+    if (newData) {
+        updateSpeed();  // Aktualizacja prędkości tylko gdy są nowe dane
+    }
+}
+
+// Obsługa przerwania kadencji
+void handleCadence() {
+    // Odczyt i przetworzenie danych z czujnika kadencji
+    portENTER_CRITICAL(&cadenceMux);
+    bool newData = cadenceSensor.newPulse;
+    cadenceSensor.newPulse = false;
+    portEXIT_CRITICAL(&cadenceMux);
+
+    if (newData) {
+        uint8_t currentCadence = calculateCadence();
+        // Możesz tu dodać dodatkową logikę przetwarzania kadencji
+    }
+}
+
+// Obsługa krótkiego naciśnięcia przycisku
+void handleShortPress() {
+    handleButton();  // Wywołanie istniejącej funkcji obsługi przycisku
+    state.displayNeedsUpdate = true;  // Oznaczenie że wyświetlacz wymaga aktualizacji
 }
 
 // --- Funkcja do czyszczenia i aktualizacji wyświetlacza OLED tylko przy zmianach ---
