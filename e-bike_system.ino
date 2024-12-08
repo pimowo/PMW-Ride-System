@@ -140,6 +140,15 @@ bool buttonReleased = true;        // Flaga sygnalizująca, że przycisk został
 unsigned long debounceDelay = 50; // Opóźnienie do debounce
 unsigned long holdTime = 1000;     // Czas trzymania przycisku
 
+// Stałe definiujące bezpieczne zakresy
+constexpr float MAX_SPEED = 99.9f;         // Maksymalna prędkość w km/h
+constexpr float MAX_CADENCE = 200;         // Maksymalna kadencja w RPM
+constexpr float MAX_RANGE = 200.0f;        // Maksymalny zasięg w km
+constexpr float MAX_POWER = 2000.0f;       // Maksymalna moc w W
+constexpr float MIN_VOLTAGE = 1.0f;        // Minimalne napięcie w V
+constexpr float MAX_VOLTAGE = 100.0f;      // Maksymalne napięcie w V
+constexpr float MAX_CURRENT = 50.0f;       // Maksymalny prąd w A
+
 // Zmienne volatile dla bezpiecznej komunikacji między ISR a główną pętlą
 static volatile bool buttonState = true;
 static volatile uint32_t lastButtonChangeTime = 0;
@@ -350,6 +359,236 @@ struct SafeCounter {
 // Liczniki dla prędkości i kadencji
 SafeCounter speedCounter;
 SafeCounter cadenceCounter;
+
+class TimeoutHandler {
+private:
+    uint32_t startTime;
+    uint32_t timeoutPeriod;
+    bool isRunning;
+
+public:
+    TimeoutHandler(uint32_t timeout_ms = 0) : 
+        startTime(0), 
+        timeoutPeriod(timeout_ms), 
+        isRunning(false) {}
+
+    void start(uint32_t timeout_ms = 0) {
+        if (timeout_ms > 0) timeoutPeriod = timeout_ms;
+        startTime = esp_timer_get_time() / 1000;
+        isRunning = true;
+    }
+
+    bool isExpired() {
+        if (!isRunning) return false;
+        return (esp_timer_get_time() / 1000 - startTime) >= timeoutPeriod;
+    }
+
+    void stop() {
+        isRunning = false;
+    }
+
+    uint32_t getElapsed() {
+        if (!isRunning) return 0;
+        return (esp_timer_get_time() / 1000 - startTime);
+    }
+};
+
+// Stałe dla timeoutów BLE
+const uint32_t BLE_CONNECT_TIMEOUT = 5000;    // 5 sekund na połączenie
+const uint32_t BLE_OPERATION_TIMEOUT = 1000;  // 1 sekunda na operację
+const uint8_t BLE_MAX_RETRIES = 3;           // Maksymalna liczba prób
+
+class BMSConnection {
+private:
+    TimeoutHandler connectTimeout;
+    TimeoutHandler operationTimeout;
+    uint8_t retryCount;
+    bool isConnecting;
+
+public:
+    BMSConnection() : 
+        connectTimeout(BLE_CONNECT_TIMEOUT),
+        operationTimeout(BLE_OPERATION_TIMEOUT),
+        retryCount(0),
+        isConnecting(false) {}
+
+    bool connect() {
+        if (bleClient->isConnected()) return true;
+        if (isConnecting && !connectTimeout.isExpired()) return false;
+
+        isConnecting = true;
+        connectTimeout.start();
+        retryCount = 0;
+
+        while (retryCount < BLE_MAX_RETRIES) {
+            if (connectTimeout.isExpired()) {
+                #if DEBUG
+                Serial.println("Timeout połączenia BLE");
+                #endif
+                break;
+            }
+
+            if (bleClient->connect(bmsMacAddress)) {
+                isConnecting = false;
+                return initializeServices();
+            }
+
+            retryCount++;
+            delay(100); // Krótkie opóźnienie między próbami
+        }
+
+        isConnecting = false;
+        return false;
+    }
+
+    bool initializeServices() {
+        operationTimeout.start();
+
+        // Inicjalizacja usług BLE
+        bleService = bleClient->getService(SERVICE_UUID);
+        if (!bleService) {
+            #if DEBUG
+            Serial.println("Nie znaleziono usługi BMS");
+            #endif
+            return false;
+        }
+
+        // Inicjalizacja charakterystyk
+        if (!initializeCharacteristics()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool initializeCharacteristics() {
+        if (operationTimeout.isExpired()) return false;
+
+        bleCharacteristicTx = bleService->getCharacteristic(CHAR_TX_UUID);
+        bleCharacteristicRx = bleService->getCharacteristic(CHAR_RX_UUID);
+
+        if (!bleCharacteristicTx || !bleCharacteristicRx) {
+            #if DEBUG
+            Serial.println("Nie znaleziono charakterystyk BLE");
+            #endif
+            return false;
+        }
+
+        // Rejestracja notyfikacji
+        if (bleCharacteristicRx->canNotify()) {
+            bleCharacteristicRx->registerForNotify(notificationCallback);
+            return true;
+        }
+
+        return false;
+    }
+
+    bool sendRequest(uint8_t* data, size_t length) {
+        if (!bleClient->isConnected()) return false;
+
+        operationTimeout.start();
+        notificationReceived = false;
+
+        if (!bleCharacteristicTx->writeValue(data, length)) {
+            #if DEBUG
+            Serial.println("Błąd wysyłania danych");
+            #endif
+            return false;
+        }
+
+        // Czekaj na odpowiedź z timeoutem
+        while (!notificationReceived) {
+            if (operationTimeout.isExpired()) {
+                #if DEBUG
+                Serial.println("Timeout odpowiedzi BMS");
+                #endif
+                return false;
+            }
+            delay(1);
+        }
+
+        return true;
+    }
+};
+
+class TemperatureSensor {
+private:
+    TimeoutHandler conversionTimeout;
+    TimeoutHandler readTimeout;
+    bool conversionInProgress;
+
+public:
+    TemperatureSensor() : 
+        conversionTimeout(DS18B20_CONVERSION_DELAY),
+        readTimeout(1000),  // 1 sekunda na odczyt
+        conversionInProgress(false) {}
+
+    void requestTemperature() {
+        if (conversionInProgress) return;
+        
+        sensors.requestTemperatures();
+        conversionTimeout.start();
+        conversionInProgress = true;
+    }
+
+    bool isReady() {
+        if (!conversionInProgress) return false;
+        if (conversionTimeout.isExpired()) {
+            conversionInProgress = false;
+            return true;
+        }
+        return false;
+    }
+
+    float readTemperature() {
+        if (!conversionInProgress) return -999.0;
+
+        readTimeout.start();
+        float temp = sensors.getTempCByIndex(0);
+
+        if (readTimeout.isExpired()) {
+            #if DEBUG
+            Serial.println("Timeout odczytu temperatury");
+            #endif
+            return -999.0;
+        }
+
+        conversionInProgress = false;
+        return isValidTemperature(temp) ? temp : -999.0;
+    }
+};
+
+// Utworzenie obiektów globalnych
+BMSConnection bmsConnection;
+TemperatureSensor tempSensor;
+
+// Klasa pomocnicza do bezpiecznych operacji matematycznych
+class SafeMath {
+public:
+    // Bezpieczne dzielenie zmiennoprzecinkowe
+    static float safeDivide(float numerator, float denominator, float defaultValue = 0.0f) {
+        if (abs(denominator) < 0.000001f || !isfinite(denominator)) {
+            return defaultValue;
+        }
+        float result = numerator / denominator;
+        return isfinite(result) ? result : defaultValue;
+    }
+
+    // Bezpieczne dzielenie całkowitoliczbowe
+    static uint32_t safeDivide(uint32_t numerator, uint32_t denominator, uint32_t defaultValue = 0) {
+        if (denominator == 0) {
+            return defaultValue;
+        }
+        return numerator / denominator;
+    }
+
+    // Sprawdzenie czy liczba jest w bezpiecznym zakresie
+    static bool isInRange(float value, float min, float max) {
+        return isfinite(value) && value >= min && value <= max;
+    }
+};
+
+
 
 // --- Funkcje inicjalizujące i konfigurujące ---
 // void showWelcomeMessage();           // Wyświetlenie wiadomości powitalnej na ekranie OLED
@@ -1139,29 +1378,29 @@ void IRAM_ATTR handleSpeedInterrupt() {
 
 // Obliczanie prędkości
 float calculateSpeed() {
-    static SafeTimer speedCalcTimer;
-    static float lastValidSpeed = 0.0;
+    static float lastValidSpeed = 0.0f;
     
-    // Sprawdzenie timeoutu - brak ruchu
-    if (speedCalcTimer.elapsed(SPEED_TIMEOUT)) {
-        return 0.0;
-    }
-
-    // Pobierz i resetuj licznik impulsów
     portENTER_CRITICAL(&speedMux);
-    uint32_t pulseCount = speedCounter.getAndReset();
     uint32_t interval = speedSensor.pulseInterval;
+    uint32_t pulseCount = speedSensor.pulseCount;
     portEXIT_CRITICAL(&speedMux);
 
-    if (pulseCount > 0) {
-        // Obliczenie prędkości z uwzględnieniem liczby impulsów
-        float speed = (float)(WHEEL_CIRCUMFERENCE * pulseCount * 3.6) / 
-                     (float)(interval / 1000.0); // Konwersja na km/h
-        
-        if (speed < 99.9) { // Limit prędkości
-            lastValidSpeed = speed;
-            speedCalcTimer.reset();
-        }
+    // Brak impulsów lub zbyt długi interwał
+    if (pulseCount == 0 || interval > SPEED_TIMEOUT_US) {
+        return 0.0f;
+    }
+
+    // Obliczenie prędkości z zabezpieczeniem przed dzieleniem przez zero
+    // (obwód koła [mm] * 3.6) / (czas między impulsami [us] / 1000000)
+    float speed = SafeMath::safeDivide(
+        WHEEL_CIRCUMFERENCE * 3.6f * pulseCount,
+        interval / 1000000.0f,
+        0.0f
+    );
+
+    // Walidacja wyniku
+    if (SafeMath::isInRange(speed, 0.0f, MAX_SPEED)) {
+        lastValidSpeed = speed;
     }
 
     return lastValidSpeed;
@@ -1207,15 +1446,13 @@ void updateSpeed() {
 
 // Funkcja zwracająca średnią prędkość
 float getAverageSpeed() {
-    static uint32_t sampleCount = 0;
-    static float speedSum = 0.0;
+    if (dataCount == 0) return 0.0f;
     
-    if (currentSpeed > 0) {
-        speedSum += currentSpeed;
-        sampleCount++;
-        return speedSum / sampleCount;
-    }
-    return (sampleCount > 0) ? speedSum / sampleCount : 0;
+    return SafeMath::safeDivide(
+        totalDistance,
+        dataCount,
+        0.0f
+    );
 }
 
 // --- Funkcja do obliczania i wyświetlania kadencji ---
@@ -1253,29 +1490,28 @@ bool getSensorData(SensorData* sensor, portMUX_TYPE* mux, uint32_t* interval, ui
 
 // Funkcja obliczająca kadencję
 uint8_t calculateCadence() {
-    static uint32_t lastCalculation = 0;
     static uint8_t lastValidCadence = 0;
-    uint32_t currentTime = millis();
 
-    // Sprawdź czy nie minął timeout
-    if (currentTime - lastCadencePulseTime > RPM_TIMEOUT) {
-        lastValidCadence = 0;
-        newCadencePulse = false;
+    portENTER_CRITICAL(&cadenceMux);
+    uint32_t interval = cadenceSensor.pulseInterval;
+    portEXIT_CRITICAL(&cadenceMux);
+
+    // Sprawdzenie warunków brzegowych
+    if (interval == 0 || interval > CADENCE_TIMEOUT_US) {
         return 0;
     }
 
-    // Aktualizuj tylko gdy jest nowy impuls
-    if (newCadencePulse && currentTime - lastCalculation > 250) {  // Aktualizacja max 4 razy na sekundę
-        // Obliczenie RPM: (60 sekund * 1000ms) / (interwał * liczba magnesów)
-        uint8_t rpm = (uint32_t)60000 / (cadencePulseInterval * MAGNETS);
-        
-        // Filtr dla wartości odstających
-        if (rpm < 200) {  // Maksymalna realna kadencja
-            lastValidCadence = rpm;
-        }
-        
-        newCadencePulse = false;
-        lastCalculation = currentTime;
+    // Obliczenie kadencji (RPM) z zabezpieczeniem
+    // (60 * 1000000) / (interwał [us] * liczba magnesów)
+    uint32_t rpm = SafeMath::safeDivide(
+        60000000U,
+        interval * MAGNETS,
+        0
+    );
+
+    // Walidacja wyniku
+    if (rpm < MAX_CADENCE) {
+        lastValidCadence = rpm;
     }
 
     return lastValidCadence;
@@ -1327,64 +1563,51 @@ float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
 unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
 
 float calculateRange() {
-    unsigned long currentTime = millis();
+    if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+        return lastValidRange;
+    }
+
+    float whPerKm = 0.0f;
     
-    // Aktualizuj tylko w określonych interwałach
-    if (currentTime - lastRangeUpdate < RANGE_UPDATE_INTERVAL) {
-        return smoothedRange;
-    }
-    lastRangeUpdate = currentTime;
-
-    // Jeśli stoimy w miejscu lub nie ma zużycia energii
-    if (avgSpeed < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
-        return smoothedRange;  // Zachowaj ostatnią wartość
-    }
-
-    // Oblicz bieżące zużycie energii na kilometr
-    float whPerKm = 0;
+    // Obliczenie zużycia energii na kilometr
     if (speedHistory.size() > 0 && energyHistory.size() > 0) {
-        float totalEnergy = 0;
-        float totalDistance = 0;
+        float totalEnergy = 0.0f;
+        float totalDistance = 0.0f;
         
-        // Oblicz średnie z historii
-        for (int i = 0; i < energyHistory.size(); i++) {
+        // Sumowanie historii
+        for (size_t i = 0; i < energyHistory.size(); i++) {
             totalEnergy += energyHistory[i];
             if (i < speedHistory.size()) {
-                totalDistance += speedHistory[i] / 3600.0; // km
+                totalDistance += SafeMath::safeDivide(speedHistory[i], 3600.0f, 0.0f);
             }
         }
         
-        if (totalDistance > 0) {
-            whPerKm = (totalEnergy * 3600.0) / totalDistance;
+        // Obliczenie średniego zużycia na km
+        if (totalDistance > 0.0f) {
+            whPerKm = SafeMath::safeDivide(
+                totalEnergy * 3600.0f,
+                totalDistance,
+                0.0f
+            );
         }
-    } else {
-        // Brak historii - użyj bieżących wartości
-        whPerKm = (power * 3600.0) / speedKmh;
     }
 
-    // Oblicz teoretyczny zasięg
-    float theoreticalRange = 0;
-    if (whPerKm > 0) {
-        theoreticalRange = remainingEnergy / whPerKm;
+    // Obliczenie teoretycznego zasięgu
+    float theoreticalRange = 0.0f;
+    if (whPerKm > 0.0f) {
+        theoreticalRange = SafeMath::safeDivide(
+            remainingEnergy,
+            whPerKm,
+            0.0f
+        );
     }
 
-    // Zastosuj ograniczenia i wygładzanie
-    if (theoreticalRange > 0) {
-        // Ogranicz maksymalny zasięg do rozsądnej wartości
-        theoreticalRange = min(theoreticalRange, 200.0f);  // Max 200 km
-        
-        // Wygładź zmiany
-        if (smoothedRange == 0) {
-            smoothedRange = theoreticalRange;
-        } else {
-            smoothedRange = RANGE_SMOOTH_FACTOR * theoreticalRange + 
-                          (1 - RANGE_SMOOTH_FACTOR) * smoothedRange;
-        }
-        
-        lastValidRange = smoothedRange;
+    // Walidacja i ograniczenie zasięgu
+    if (SafeMath::isInRange(theoreticalRange, 0.0f, MAX_RANGE)) {
+        lastValidRange = theoreticalRange;
     }
 
-    return smoothedRange;
+    return lastValidRange;
 }
 
 // Funkcja do resetowania obliczeń zasięgu
@@ -1398,20 +1621,24 @@ void resetRangeCalculations() {
 
 // --- Funkcja do obliczenia średniego zużycia Wh ---
 float getAverageWh() {
-  if (dataCount > 0) {
-    return (totalWh / dataCount) * 3600;  // Zwracamy zużycie energii na godzinę
-  } else {
-    return 0;
-  }
+    if (dataCount == 0) return 0.0f;
+    
+    return SafeMath::safeDivide(
+        totalWh * 3600.0f,
+        dataCount,
+        0.0f
+    );
 }
 
 // --- Funkcja do obliczenia średniej mocy --- 
 float getAveragePower() {
-  if (dataCount > 0) {
-    return totalPower / dataCount;  // Średnia moc, zakładamy, że totalPower jest w W
-  } else {
-    return 0;
-  }
+    if (dataCount == 0) return 0.0f;
+    
+    return SafeMath::safeDivide(
+        totalPower,
+        dataCount,
+        0.0f
+    );
 }
 
 // --- Funkcja do aktualizacji odczytów kadencji ---
@@ -1857,6 +2084,21 @@ void setup() {
 // }
 
 void loop() {
+    // Obsługa BMS
+    if (!bmsConnection.connect()) {
+        // Obsługa błędu połączenia
+        #if DEBUG
+        Serial.println("Nie można połączyć z BMS");
+        #endif
+    }
+
+    // Obsługa czujnika temperatury
+    if (!tempSensor.isReady()) {
+        tempSensor.requestTemperature();
+    } else {
+        currentTemp = tempSensor.readTemperature();
+    }
+  
     // Aktualizacja ekranu
     if (screenTimer.elapsed(SCREEN_UPDATE_INTERVAL)) {
         showScreen(currentScreen);
