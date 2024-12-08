@@ -112,6 +112,21 @@ public:
     const uint8_t* getBuffer() const { return buffer; }
 };
 
+// Buforowanie i aktualizacja tylko zmienionych części ekranu
+class OptimizedDisplay {
+    private:
+        uint8_t oldBuffer[SCREEN_WIDTH * SCREEN_HEIGHT / 8];
+        bool needsFullUpdate;
+    
+    public:
+        void updateIfNeeded() {
+            if (memcmp(display.getBuffer(), oldBuffer, sizeof(oldBuffer)) != 0) {
+                display.display();
+                memcpy(oldBuffer, display.getBuffer(), sizeof(oldBuffer));
+            }
+        }
+};
+
 struct SystemState {
     uint8_t currentScreen : 4;    // 4 bity (16 ekranów max)
     uint8_t subScreen : 3;        // 3 bity (8 pod-ekranów max)
@@ -251,6 +266,12 @@ volatile unsigned long lastPulseTime = 0;
 const unsigned long debounceInterval = 50;
 volatile unsigned long lastInterruptTime = 0;  // Czas ostatniego przerwania
 
+// Dodanie flag do obsługi przerwań
+static volatile uint32_t interruptFlags = 0;
+#define FLAG_SPEED    0x01
+#define FLAG_CADENCE  0x02
+#define FLAG_BUTTON   0x04
+
 // --- Ładowarka USB ---
 bool outUSB = false;
 
@@ -298,6 +319,21 @@ public:
 
     const uint8_t* getData() const { return dataBuffer; }
     size_t getSize() const { return dataSize; }
+};
+
+class OptimizedBMSConnection {
+    private:
+        uint8_t txBuffer[32];
+        uint8_t rxBuffer[64];
+        bool dataReady;
+        
+    public:
+        void handleData() {
+            if (!dataReady) return;
+            // Przetwarzanie tylko gdy są nowe dane
+            processReceivedData();
+            dataReady = false;
+        }
 };
 
 // --- zasieg i srednie ---
@@ -681,6 +717,10 @@ public:
         return isfinite(value) && value >= min && value <= max;
     }
 }
+
+// Stałe obliczane w czasie kompilacji - dodaj je na początku kodu
+constexpr float SPEED_FACTOR = WHEEL_CIRCUMFERENCE * 3.6f / 1000000.0f;  // Przelicznik dla prędkości
+constexpr float POWER_FACTOR = 1.0f / 3600.0f;                          // Przelicznik dla mocy
 
 // --- Funkcja wyświetlania animacji powitania ---
 void showWelcomeMessage() {
@@ -1415,6 +1455,7 @@ void setupSpeedSensor() {
 
 // Obsługa przerwania dla czujnika prędkości
 void IRAM_ATTR handleSpeedInterrupt() {
+    interruptFlags |= FLAG_SPEED;
     uint32_t currentTime = esp_timer_get_time(); // Użycie precyzyjniejszego timera
     
     portENTER_CRITICAL_ISR(&speedMux);
@@ -1443,13 +1484,8 @@ float calculateSpeed() {
         return 0.0f;
     }
 
-    // Obliczenie prędkości z zabezpieczeniem przed dzieleniem przez zero
-    // (obwód koła [mm] * 3.6) / (czas między impulsami [us] / 1000000)
-    float speed = SafeMath::safeDivide(
-        WHEEL_CIRCUMFERENCE * 3.6f * pulseCount,
-        interval / 1000000.0f,
-        0.0f
-    );
+    // Zoptymalizowane obliczenie prędkości
+    float speed = SPEED_FACTOR * (1000000.0f / interval);
 
     // Walidacja wyniku
     if (SafeMath::isInRange(speed, 0.0f, MAX_SPEED)) {
@@ -1573,7 +1609,7 @@ uint8_t calculateCadence() {
 // --- Funkcja do aktualizacji bieżących danych ---
 void updateData(float current, float voltage, float speedKmh) {
     power = current * voltage;  // Moc w W (watty)
-    wh = power / 3600;    // Zużycie energii w Wh na sekundę
+    wh = power * POWER_FACTOR; // Zoptymalizowane obliczenie zużycia energii
 
     // Zbieranie danych historycznych
     energyHistory.push(wh);
@@ -2046,6 +2082,20 @@ void setup() {
 
 // --- PĘTLA GŁÓWNA ---
 void loop() {
+    static uint32_t lastUpdate = 0;
+    uint32_t now = esp_timer_get_time() / 1000;
+    
+    // Obsługa przerwań za pomocą flag
+    uint32_t flags;
+    portENTER_CRITICAL(&mux);
+    flags = interruptFlags;
+    interruptFlags = 0;
+    portEXIT_CRITICAL(&mux);
+    
+    if (flags & FLAG_SPEED) handleSpeed();
+    if (flags & FLAG_CADENCE) handleCadence();
+    if (flags & FLAG_BUTTON) handleButton();
+    
     // Obsługa BMS
     if (!bmsConnection.connect()) {
         // Obsługa błędu połączenia
