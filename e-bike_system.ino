@@ -210,6 +210,13 @@ bool buttonReleased = true;        // Flaga sygnalizująca, że przycisk został
 unsigned long debounceDelay = 50; // Opóźnienie do debounce
 unsigned long holdTime = 1000;     // Czas trzymania przycisku
 
+#define NUM_READINGS 10
+float speedReadings[NUM_READINGS];  // Tablica do uśredniania prędkości
+unsigned long lastMeasurementTime = 0;  // Czas ostatniego pomiaru
+int readIndex = 0;                      // Indeks dla tablicy odczytów
+float totalDistance = 0.0f;  // Całkowita przebyta odległość
+const uint32_t MEASUREMENT_INTERVAL = 500; // Interwał pomiarów (ms)
+
 // Stałe definiujące bezpieczne zakresy
 constexpr float MAX_SPEED = 99.9f;         // Maksymalna prędkość w km/h
 constexpr float MAX_CADENCE = 200;         // Maksymalna kadencja w RPM
@@ -987,6 +994,11 @@ void handleCadence() {
         uint8_t currentCadence = calculateCadence();
         // Możesz tu dodać dodatkową logikę przetwarzania kadencji
     }
+}
+
+void calculateAndDisplayCadence() {
+    uint8_t currentCadence = calculateCadence();
+    // Logika wyświetlania już jest zaimplementowana w showScreen()
 }
 
 // Obsługa krótkiego naciśnięcia przycisku
