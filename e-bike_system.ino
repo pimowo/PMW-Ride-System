@@ -1358,14 +1358,15 @@ void connectToBms() {
 
 // Zoptymalizowana obsługa przerwania przycisku
 void IRAM_ATTR handleButtonISR() {
+    static InterruptManager buttonInterruptManager;
+    
+    if (!buttonInterruptManager.shouldHandleInterrupt()) {
+        return;
+    }
+
     portENTER_CRITICAL_ISR(&buttonMux);
-    
-    // Zapisz aktualny stan przycisku
     buttonState = digitalRead(buttonPin);
-    
-    // Zapisz czas zmiany stanu używając esp_timer dla większej dokładności
-    lastButtonChangeTime = esp_timer_get_time();
-    
+    lastButtonChangeTime = timeManager.getTimestamp();
     portEXIT_CRITICAL_ISR(&buttonMux);
 }
 
@@ -2014,20 +2015,98 @@ void setupSpeedSensor() {
     attachInterrupt(digitalPinToInterrupt(SPEED_PIN), handleSpeedInterrupt, FALLING);
 }
 
-// Obsługa przerwania dla czujnika prędkości
-void IRAM_ATTR handleSpeedInterrupt() {
-    interruptFlags |= FLAG_SPEED;
-    uint32_t currentTime = esp_timer_get_time(); // Użycie precyzyjniejszego timera
-    
-    portENTER_CRITICAL_ISR(&speedMux);
-    uint32_t interval = currentTime - speedSensor.lastPulseTime;
-    
-    if (interval > MIN_PULSE_TIME * 1000) { // Konwersja na mikrosekundy
-        speedSensor.pulseInterval = interval;
-        speedSensor.lastPulseTime = currentTime;
-        speedSensor.pulseCount++;
-        speedSensor.newPulse = true;
+// Dodaj na początku pliku po innych definicjach
+#define TIMESTAMP_ROLLOVER_VALUE 0xFFFFFFFF
+#define MIN_INTERRUPT_INTERVAL_US 50  // 50 mikrosekund minimalna przerwa między przerwaniami
+
+// Klasa do bezpiecznego zarządzania znacznikami czasu
+class TimeStampManager {
+private:
+    uint32_t lastRolloverCheck;
+    uint32_t rollovers;
+
+public:
+    TimeStampManager() : lastRolloverCheck(0), rollovers(0) {}
+
+    // Bezpieczne pobranie czasu z obsługą przepełnienia
+    uint32_t getTimestamp() {
+        uint32_t currentTime = esp_timer_get_time() / 1000; // Konwersja na ms
+        
+        // Sprawdź przepełnienie
+        if (currentTime < lastRolloverCheck) {
+            rollovers++;
+            systemManager.addLog(LOG_INFO, 5); // Log przepełnienia licznika
+        }
+        
+        lastRolloverCheck = currentTime;
+        return currentTime;
     }
+
+    // Bezpieczne obliczanie różnicy czasu
+    uint32_t getElapsedTime(uint32_t startTime) {
+        uint32_t currentTime = getTimestamp();
+        
+        if (currentTime < startTime) {
+            // Obsługa przepełnienia
+            return (TIMESTAMP_ROLLOVER_VALUE - startTime) + currentTime;
+        }
+        
+        return currentTime - startTime;
+    }
+};
+
+// Klasa do zarządzania przerwaniami
+class InterruptManager {
+private:
+    static const uint8_t MAX_DEBOUNCE_COUNT = 3;
+    volatile uint32_t lastInterruptTime;
+    volatile uint8_t debounceCount;
+    TimeStampManager timeManager;
+
+public:
+    InterruptManager() : lastInterruptTime(0), debounceCount(0) {}
+
+    // Sprawdź czy przerwanie powinno być obsłużone
+    bool shouldHandleInterrupt() {
+        uint32_t currentTime = timeManager.getTimestamp();
+        uint32_t timeSinceLastInterrupt = timeManager.getElapsedTime(lastInterruptTime);
+
+        if (timeSinceLastInterrupt < MIN_INTERRUPT_INTERVAL_US) {
+            debounceCount++;
+            if (debounceCount >= MAX_DEBOUNCE_COUNT) {
+                systemManager.addLog(LOG_WARNING, 12); // Log zbyt częstych przerwań
+                debounceCount = 0;
+            }
+            return false;
+        }
+
+        debounceCount = 0;
+        lastInterruptTime = currentTime;
+        return true;
+    }
+};
+
+// Utworzenie globalnych instancji
+TimeStampManager timeManager;
+InterruptManager interruptManager;
+
+// Obsługa przerwania dla czujnika prędkości
+// Zmodyfikowane funkcje obsługi przerwań
+void IRAM_ATTR handleSpeedInterrupt() {
+    static InterruptManager speedInterruptManager;
+    
+    if (!speedInterruptManager.shouldHandleInterrupt()) {
+        return;
+    }
+
+    portENTER_CRITICAL_ISR(&speedMux);
+    uint32_t currentTime = timeManager.getTimestamp();
+    
+    speedSensor.pulseInterval = timeManager.getElapsedTime(speedSensor.lastPulseTime);
+    speedSensor.lastPulseTime = currentTime;
+    speedSensor.pulseCount++;
+    speedSensor.newPulse = true;
+    
     portEXIT_CRITICAL_ISR(&speedMux);
 }
 
@@ -2108,17 +2187,20 @@ float getAverageSpeed() {
 // --- Funkcja do obliczania i wyświetlania kadencji ---
 // Przerwanie dla kadencji
 void IRAM_ATTR handleCadenceInterrupt() {
-    uint32_t currentTime = esp_timer_get_time();
+    static InterruptManager cadenceInterruptManager;
     
-    portENTER_CRITICAL_ISR(&cadenceMux);
-    uint32_t interval = currentTime - cadenceSensor.lastPulseTime;
-    
-    if (interval > MIN_REVOLUTION_TIME * 1000) {
-        cadenceSensor.pulseInterval = interval;
-        cadenceSensor.lastPulseTime = currentTime;
-        cadenceSensor.pulseCount++;
-        cadenceSensor.newPulse = true;
+    if (!cadenceInterruptManager.shouldHandleInterrupt()) {
+        return;
     }
+
+    portENTER_CRITICAL_ISR(&cadenceMux);
+    uint32_t currentTime = timeManager.getTimestamp();
+    
+    cadenceSensor.pulseInterval = timeManager.getElapsedTime(cadenceSensor.lastPulseTime);
+    cadenceSensor.lastPulseTime = currentTime;
+    cadenceSensor.pulseCount++;
+    cadenceSensor.newPulse = true;
+    
     portEXIT_CRITICAL_ISR(&cadenceMux);
 }
 
