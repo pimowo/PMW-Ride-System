@@ -83,7 +83,7 @@ bool isMoving = false;      // Stan ruchu pojazdu
 
 // --- Watchdog i logging ---
 #define WDT_TIMEOUT 8000              // Timeout watchdoga (8 sekund)
-#define LOG_BUFFER_SIZE 10            // Ilość ostatnich logów do przechowania
+#define LOG_BUFFER_SIZE 5            // Ilość ostatnich logów do przechowania
 #define SYSTEM_CHECK_INTERVAL 5000    // Interwał sprawdzania systemu (5 sekund)
 
 // Typy logów systemowych
@@ -375,7 +375,7 @@ static SensorData cadenceSensor = {0, 0, 0, false};
 
 // --- Kadencja ---
 // Stałe dla kadencji
-const uint8_t CADENCE_PIN = 5;  // Pin dla czujnika Hall
+const uint8_t CADENCE_PIN = 27;  // Pin dla czujnika Hall
 const uint16_t RPM_TIMEOUT = 3000;  // Timeout w ms (3 sekundy)
 const uint8_t MAGNETS = 1;  // Liczba magnesów (domyślnie 1)
 const uint16_t MIN_REVOLUTION_TIME = 150;  // Minimalny czas obrotu w ms (zabezpieczenie przed szumem)
@@ -422,8 +422,8 @@ static volatile uint32_t interruptFlags = 0;
 bool outUSB = false;
 
 // --- BMS ---
-#define BUFFER_SIZE 300
-#define MAX_BMS_BUFFER_SIZE 64
+#define BUFFER_SIZE 200
+#define MAX_BMS_BUFFER_SIZE 32
 #define WATERMARK_HIGH 90  // 90% pojemności
 #define WATERMARK_LOW 70   // 70% pojemności
 #define RECONNECT_INTERVAL_MS 5000              // Interwał ponownego połączenia w ms
@@ -607,8 +607,8 @@ unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
 
 // --- Bufory do przechowywania danych historycznych ---
 // Zmiana rozmiaru buforów na stałe wartości
-const size_t BUFFER_SIZE = 300;  // Ustalony rozmiar dla buforów danych
-const size_t BMS_BUFFER_SIZE = 64;  // Zoptymalizowany rozmiar dla danych BMS
+const size_t BUFFER_SIZE = 100;  // Ustalony rozmiar dla buforów danych
+const size_t BMS_BUFFER_SIZE = 32;  // Zoptymalizowany rozmiar dla danych BMS
 
 // Zoptymalizowana struktura dla danych historycznych
 template<typename T, size_t S>
@@ -2642,7 +2642,7 @@ void setup() {
   }
 
   // I2C
-  Wire.begin(8, 9);  //SDA = GPIO 8, SCL = GPIO 9
+  Wire.begin(21, 22);  //SDA = GPIO 21, SCL = GPIO 22
 
   // Inicjalizacja RTC (zegar czasu rzeczywistego)
   if (!rtc.begin()) {  // Sprawdzenie, czy zegar RTC został poprawnie zainicjalizowany
