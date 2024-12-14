@@ -200,7 +200,7 @@ public:
 
 // --- Ustawienia wyświetlacza OLED ---
 #define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 32
+#define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
@@ -225,13 +225,13 @@ char* getProgmemString(const char* str) {
 
 class DisplayBuffer {
 private:
-    static const size_t BUFFER_SIZE = 128 * 32 / 8;  // Rozmiar bufora dla OLED 128x32
+    static const size_t BUFFER_SIZE = 128 * 64 / 8;  // Rozmiar bufora dla OLED 128x32
     uint8_t buffer[BUFFER_SIZE];
     bool dirty = false;
 
 public:
     void setPixel(int16_t x, int16_t y, bool color) {
-        if (x < 0 || x >= 128 || y < 0 || y >= 32) return;
+        if (x < 0 || x >= 128 || y < 0 || y >= 64) return;
         
         if (color) {
             buffer[x + (y/8)*128] |= (1 << (y&7));
@@ -276,9 +276,9 @@ struct SystemState {
 } state;
 
 // --- Światła ---
-#define FrontDayPin 10 // światła dzienne
-#define FrontPin 11    // światła zwykłe
-#define RealPin 12     // tylne światło
+#define FrontDayPin 5 // światła dzienne
+#define FrontPin 18    // światła zwykłe
+#define RealPin 19     // tylne światło
 
 enum LightMode {
     LIGHTS_OFF = 0,
@@ -313,9 +313,9 @@ Settings bikeSettings;
 Settings storedSettings;
 
 // --- DS18B20 ---
-#define PIN_ONE_WIRE_BUS 3                             // Definiuje pin, do którego podłączony jest czujnik temperatury DS18B20
+#define PIN_ONE_WIRE_BUS 15                             // Definiuje pin, do którego podłączony jest czujnik temperatury DS18B20
 OneWire oneWire(PIN_ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
+DallasTemperature sensors5(&oneWire);
 unsigned long ds18b20RequestTime = 0;                  // Czas ostatniego żądania pomiaru DS18B20
 const unsigned long DS18B20_CONVERSION_DELAY_MS = 750; // Czas potrzebny na konwersję (w ms)
 float currentTemp = 0.0;                               // Aktualna temperatura
@@ -332,7 +332,7 @@ const long dataInterval = 5000;
 RTC_DS3231 rtc;
 
 // --- Przycisk ---
-const int buttonPin = 4;
+const int buttonPin = 12;
 unsigned long lastButtonPress = 0;
 unsigned long buttonHoldStart = 0;
 bool buttonPressed = false;        // Flaga przycisku dla krótkiego naciśnięcia
