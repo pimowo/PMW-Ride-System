@@ -40,12 +40,10 @@
 
 // Mutexy dla bezpiecznego dostępu do współdzielonych zasobów
 portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
-portMUX_TYPE speedMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
 
 static volatile uint32_t mux = portMUX_INITIALIZER_UNLOCKED;  // Brakujący mutex
 float displayedRange = 0.0f;                                  // Brakująca zmienna
-float speedKmh = 0.0f;                                       // Brakująca zmienna
 bool stationary = false;                                     // Brakująca zmienna
 uint32_t updateInterval = 1000;                             // Brakująca zmienna
 #define STOP_TIMEOUT 3000                                    // Brakująca stała
@@ -54,18 +52,14 @@ uint32_t updateInterval = 1000;                             // Brakująca zmienn
 // Stałe czasowe (w mikrosekundach)
 const uint32_t DEBOUNCE_TIME_US = 50000;  // 50ms
 const uint32_t HOLD_TIME_US = 1000000;    // 1s
-const uint32_t MIN_PULSE_TIME_US = 50000; // 50ms
-const uint32_t MIN_REVOLUTION_TIME_US = 150000; // 150ms
 
 // --- Wersja systemu --- 
 const char systemVersion[] PROGMEM = "8.12.2024";
 
 // Dodaj definicje timeoutów
-#define SPEED_TIMEOUT_US (SPEED_TIMEOUT * 1000)   // Konwersja ms na us
 #define CADENCE_TIMEOUT_US (RPM_TIMEOUT * 1000)   // Konwersja ms na us
 
 // Dodaj zmienne globalne
-int numSpeedReadings = 10;  // Domyślna wartość dla liczby odczytów prędkości
 bool isMoving = false;      // Stan ruchu pojazdu
 
 // --- Watchdog i logging ---
@@ -332,7 +326,6 @@ unsigned long debounceDelay = 50; // Opóźnienie do debounce
 unsigned long holdTime = 1000;     // Czas trzymania przycisku
 
 #define NUM_READINGS 10
-float speedReadings[NUM_READINGS];  // Tablica do uśredniania prędkości
 unsigned long lastMeasurementTime = 0;  // Czas ostatniego pomiaru
 int readIndex = 0;                      // Indeks dla tablicy odczytów
 float totalDistance = 0.0f;  // Całkowita przebyta odległość
@@ -380,18 +373,10 @@ const int cadenceMax = 80; // Maksymalna kadencja
 
 // --- Prędkość ---
 // Stałe dla pomiaru prędkości
-const uint8_t SPEED_PIN = 6;
 const uint16_t WHEEL_CIRCUMFERENCE = 2100;  // mm
 const uint16_t SPEED_TIMEOUT = 3000;        // ms
 const uint16_t MIN_PULSE_TIME = 50;         // ms (eliminacja drgań)
-const float KMH_CONVERSION = 3.6;           // Przelicznik m/s na km/h
-
-// Zmienne dla pomiaru prędkości (volatile dla zmiennych używanych w przerwaniu)
-volatile uint32_t lastSpeedPulseTime = 0;
-volatile uint32_t speedPulseInterval = 0;
-volatile bool newSpeedPulse = false;
-float currentSpeed = 0.0;
-float smoothedSpeed = 0.0;               
+const float KMH_CONVERSION = 3.6;           // Przelicznik m/s na km/h          
 
 // --- Licznik kilometrów ---
 float totalDistanceKm = 0;              
@@ -404,7 +389,6 @@ volatile unsigned long lastInterruptTime = 0;  // Czas ostatniego przerwania
 
 // Dodanie flag do obsługi przerwań
 static volatile uint32_t interruptFlags = 0;
-#define FLAG_SPEED    0x01
 #define FLAG_CADENCE  0x02
 #define FLAG_BUTTON   0x04
 
@@ -700,7 +684,6 @@ public:
 // Zdefiniowanie bezpiecznych buforów
 SafeBuffer<float, BUFFER_SIZE> energyHistory;
 SafeBuffer<float, BUFFER_SIZE> powerHistory;
-SafeBuffer<float, BUFFER_SIZE> speedHistory;
 SafeBuffer<uint8_t, MAX_BMS_BUFFER_SIZE> bmsBuffer;
 
 // Funkcja do bezpiecznego dodawania danych do buforów
@@ -1415,19 +1398,6 @@ void handleLongPress() {
   }
 }
 
-// Obsługa przerwania prędkości
-void handleSpeed() {
-    // Odczyt i przetworzenie danych z czujnika prędkości
-    portENTER_CRITICAL(&speedMux);
-    bool newData = speedSensor.newPulse;
-    speedSensor.newPulse = false;
-    portEXIT_CRITICAL(&speedMux);
-
-    if (newData) {
-        updateSpeed();  // Aktualizacja prędkości tylko gdy są nowe dane
-    }
-}
-
 // Obsługa przerwania kadencji
 void handleCadence() {
     portENTER_CRITICAL(&cadenceMux);
@@ -1594,8 +1564,9 @@ void showScreen(int screen) {
           display.setCursor(2, 12);
           display.print("Predkosc");
           display.setCursor(2, 31);
-          float speed = calculateSpeed();
-          display.print(speed, 1);
+          //float speed = calculateSpeed();
+          //display.print(speed, 1);
+          display.print("25.5");          
           display.print(" km/h");
           break;
       }  
@@ -1999,12 +1970,6 @@ float readGroundTemperature() {
   return -999.0; // Zwraca -999.0, jeśli odczyt nie jest gotowy
 }
 
-// --- Obliczenia prędkości ---
-void setupSpeedSensor() {
-    pinMode(SPEED_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(SPEED_PIN), handleSpeedInterrupt, FALLING);
-}
-
 // Dodaj na początku pliku po innych definicjach
 #define TIMESTAMP_ROLLOVER_VALUE 0xFFFFFFFF
 #define MIN_INTERRUPT_INTERVAL_US 50  // 50 mikrosekund minimalna przerwa między przerwaniami
@@ -2079,100 +2044,6 @@ public:
 // Utworzenie globalnych instancji
 TimeStampManager timeManager;
 InterruptManager interruptManager;
-
-// Obsługa przerwania dla czujnika prędkości
-// Zmodyfikowane funkcje obsługi przerwań
-void IRAM_ATTR handleSpeedInterrupt() {
-    static InterruptManager speedInterruptManager;
-    
-    if (!speedInterruptManager.shouldHandleInterrupt()) {
-        return;
-    }
-
-    portENTER_CRITICAL_ISR(&speedMux);
-    uint32_t currentTime = timeManager.getTimestamp();
-    
-    speedSensor.pulseInterval = timeManager.getElapsedTime(speedSensor.lastPulseTime);
-    speedSensor.lastPulseTime = currentTime;
-    speedSensor.pulseCount++;
-    speedSensor.newPulse = true;
-    
-    portEXIT_CRITICAL_ISR(&speedMux);
-}
-
-// Obliczanie prędkości
-float calculateSpeed() {
-    static float lastValidSpeed = 0.0f;
-    
-    portENTER_CRITICAL(&speedMux);
-    uint32_t interval = speedSensor.pulseInterval;
-    uint32_t pulseCount = speedSensor.pulseCount;
-    portEXIT_CRITICAL(&speedMux);
-
-    // Brak impulsów lub zbyt długi interwał
-    if (pulseCount == 0 || interval > SPEED_TIMEOUT_US) {
-        return 0.0f;
-    }
-
-    // Zoptymalizowane obliczenie prędkości
-    float speed = SPEED_FACTOR * (1000000.0f / interval);
-
-    // Walidacja wyniku
-    if (SafeMath::isInRange(speed, 0.0f, MAX_SPEED)) {
-        lastValidSpeed = speed;
-    }
-
-    return lastValidSpeed;
-}
-
-// Aktualizacja prędkości z wygładzaniem
-void updateSpeed() {
-    static uint32_t lastUpdate = 0;
-    uint32_t currentTime = millis();
-    
-    // Sprawdź czy pojazd stoi
-    if (currentTime - lastSpeedPulseTime > STOP_TIMEOUT) {
-        if (isMoving) {  // Zmiana stanu z ruchu na stop
-            isMoving = false;
-            currentSpeed = 0;
-            smoothedSpeed = 0;
-            // Można dodać zapis statystyk jazdy
-        }
-        return;  // Nie wykonuj dalszych obliczeń
-    }
-
-    // Aktualizuj co 250ms tylko jeśli są impulsy
-    if (currentTime - lastUpdate >= 250 && newSpeedPulse) {
-        float newSpeed = calculateSpeed();
-        
-        // Filtrowanie małych prędkości
-        if (newSpeed < MIN_SPEED) {
-            newSpeed = 0;
-        }
-        
-        // Wygładzanie tylko dla rzeczywistego ruchu
-        if (newSpeed > 0) {
-            float alpha = (newSpeed > 25.0) ? 0.3 : 0.2;
-            smoothedSpeed = alpha * newSpeed + (1.0 - alpha) * smoothedSpeed;
-            isMoving = true;
-        }
-        
-        currentSpeed = smoothedSpeed;
-        newSpeedPulse = false;
-        lastUpdate = currentTime;
-    }
-}
-
-// Funkcja zwracająca średnią prędkość
-float getAverageSpeed() {
-    if (dataCount == 0) return 0.0f;
-    
-    return SafeMath::safeDivide(
-        totalDistance,
-        dataCount,
-        0.0f
-    );
-}
 
 // --- Funkcja do obliczania i wyświetlania kadencji ---
 // Przerwanie dla kadencji
@@ -2259,17 +2130,6 @@ void updateData(float current, float voltage, float speedKmh) {
 
     // Aktualizacja przejechanych kilometrów
     totalDistanceKm += speedKmh * (updateInterval / 3600000.0);  // km = km/h * h
-}
-
-// Funkcja do dynamicznej aktualizacji interwału
-void adjustUpdateInterval(float speedKmh) {
-  if (speedKmh > 20) {
-    updateInterval = 500;  // Szybsze aktualizacje przy wyższych prędkościach
-  } else if (speedKmh < 5) {
-    updateInterval = 2000;  // Wolniejsze aktualizacje przy niskich prędkościach
-  } else {
-    updateInterval = DEFAULT_UPDATE_INTERVAL;  // Standardowy interwał
-  }
 }
 
 // --- Funkcja do obliczania zasięgu ---
@@ -2682,10 +2542,6 @@ void setup() {
     pinMode(CADENCE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CADENCE_PIN), handleCadenceInterrupt, FALLING);
   
-    // Prędkość
-    pinMode(SPEED_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(SPEED_PIN), handleSpeedInterrupt, FALLING);
-
   // Inicjalizacja tablicy uśredniania prędkości
   for (int i = 0; i < numSpeedReadings; i++) {
     speedReadings[i] = 0;
@@ -2733,7 +2589,6 @@ void loop() {
     interruptFlags = 0;
     portEXIT_CRITICAL(&mux);
     
-    if (flags & FLAG_SPEED) handleSpeed();
     if (flags & FLAG_CADENCE) handleCadence();
     if (flags & FLAG_BUTTON) handleButton();
     
@@ -2763,16 +2618,6 @@ void loop() {
             currentTemp = readGroundTemperature();
             requestGroundTemperature();
         }
-    }
-
-    // Detekcja postoju
-    if (speedKmh < 0.1) {
-        if (stationaryTimer.getElapsedTime() > STATIONARY_TIMEOUT) {
-            stationary = true;
-        }
-    } else {
-        stationaryTimer.reset();
-        stationary = false;
     }
 
     // Aktualizacja danych jeśli nie jest w trybie postoju
