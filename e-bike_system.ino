@@ -38,6 +38,12 @@
 // ---
 #include "esp_timer.h"
 
+// Na początku pliku, po bibliotekach
+class SystemManager;  // Deklaracja wyprzedzająca
+class TimeStampManager;
+class BMSConnection;
+class TemperatureSensor;
+
 // Mutexy dla bezpiecznego dostępu do współdzielonych zasobów
 portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
@@ -145,7 +151,7 @@ public:
         lastSystemCheck = now;
 
         // Sprawdź RTC
-        if (!rtc.isrunning()) {
+        if (!rtc->isrunning()) {
             systemFlags.rtcOk = false;
             addLog(LOG_ERROR, 1, 0);
         } else {
@@ -153,7 +159,7 @@ public:
         }
 
         // Sprawdź temperaturę systemu
-        float temp = tempSensor.readTemperature();
+        float temp = tempSensor->readTemperature();
         if (temp > 80.0f) {  // Temperatura krytyczna
             systemFlags.systemOverheat = true;
             addLog(LOG_CRITICAL, 2, temp);
@@ -1996,30 +2002,20 @@ private:
 public:
     TimeStampManager() : lastRolloverCheck(0), rollovers(0) {}
 
-    // Bezpieczne pobranie czasu z obsługą przepełnienia
     uint32_t getTimestamp() {
-        uint32_t currentTime = esp_timer_get_time() / 1000; // Konwersja na ms
-        
-        // Sprawdź przepełnienie
+        uint32_t currentTime = esp_timer_get_time() / 1000;
         if (currentTime < lastRolloverCheck) {
             rollovers++;
-            systemManager.addLog(LOG_INFO, 5); // Log przepełnienia licznika
         }
-        
         lastRolloverCheck = currentTime;
         return currentTime;
     }
 
-    // Bezpieczne obliczanie różnicy czasu
     uint32_t getElapsedTime(uint32_t startTime) {
         uint32_t currentTime = getTimestamp();
-        
-        if (currentTime < startTime) {
-            // Obsługa przepełnienia
-            return (TIMESTAMP_ROLLOVER_VALUE - startTime) + currentTime;
-        }
-        
-        return currentTime - startTime;
+        return (currentTime >= startTime) ? 
+            (currentTime - startTime) : 
+            (UINT32_MAX - startTime + currentTime);
     }
 };
 
@@ -2527,6 +2523,13 @@ void setup() {
     rtc.adjust(DateTime(2024, 1, 1, 0, 0, 0));  // Ustawienie domyślnej daty
   }
   
+  // Inicjalizacja menedżera systemu
+  systemManager = new SystemManager();
+  if (!systemManager) {
+      Serial.println("Failed to create SystemManager");
+      while(1);
+  }
+
   // Inicjalizacja czujnika temperatury DS18B20
   initializeDS18B20();
   //sensors.begin();
@@ -2601,6 +2604,12 @@ void loop() {
     static uint32_t lastUpdate = 0;
     uint32_t now = esp_timer_get_time() / 1000;
     
+    // Sprawdzenie systemu
+    if (!systemManager->checkSystem()) {
+        // Obsługa błędu systemu
+        ESP.restart();
+    }
+
     // Obsługa przerwań za pomocą flag
     uint32_t flags;
     portENTER_CRITICAL(&mux);
