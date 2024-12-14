@@ -1,16 +1,3 @@
-/* 
-  GPIO  15 - DS18B20
-  GPIO  12 - przycisk
-  GPIO  5 - kadencja
-  GPIO  6 - prędkość
-  GPIO  21 - I2C SDA
-  GPIO  22 - I2C SCL
-  GPIO 5 - światło dzienne
-  GPIO 18 - światło zwykłe
-  GPIO 19 - światło tył
-  GPIO 21 - LED PCB WS2812
-*/
-
 // Dodaj te definicje po innych #define, przed bibliotekami
 #define BMS_BUFFER_SIZE 64
 #define SERVICE_UUID "0000ff00-0000-1000-8000-00805f9b34fb"
@@ -104,7 +91,8 @@ struct SystemLog {
 
 class SystemManager {
 private:
-    CircularDataBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
+    //CircularDataBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
+    CircularBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
     uint32_t lastSystemCheck;
     uint32_t systemStartTime;
     uint16_t resetCount;
@@ -197,6 +185,8 @@ public:
         ESP.restart();  // Reset systemu
     }
 };
+
+TimeStampManager timeManager;
 
 // --- Ustawienia wyświetlacza OLED ---
 #define SCREEN_WIDTH 128
