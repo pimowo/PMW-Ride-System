@@ -42,12 +42,20 @@
 portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
 
-static volatile uint32_t mux = portMUX_INITIALIZER_UNLOCKED;  // Brakujący mutex
+static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+
 float displayedRange = 0.0f;                                  // Brakująca zmienna
 bool stationary = false;                                     // Brakująca zmienna
 uint32_t updateInterval = 1000;                             // Brakująca zmienna
 #define STOP_TIMEOUT 3000                                    // Brakująca stała
 #define DEFAULT_UPDATE_INTERVAL 1000                         // Brakująca stała
+
+extern RTC_DS3231 rtc;
+extern TemperatureSensor tempSensor;
+extern BMSConnection bmsConnection;
+
+uint8_t currentScreen = 0;
+uint8_t subScreen = 0;
 
 // Stałe czasowe (w mikrosekundach)
 const uint32_t DEBOUNCE_TIME_US = 50000;  // 50ms
@@ -1165,6 +1173,11 @@ public:
 constexpr float SPEED_FACTOR = WHEEL_CIRCUMFERENCE * 3.6f / 1000000.0f;  // Przelicznik dla prędkości
 constexpr float POWER_FACTOR = 1.0f / 3600.0f;                          // Przelicznik dla mocy
 
+void toggleLightMode();
+void toggleUSBMode();
+uint8_t getSubScreenCount(int screen);
+float calculateCadence();
+
 // --- Funkcja wyświetlania animacji powitania ---
 void showWelcomeMessage() {
   display.clearDisplay();
@@ -2010,6 +2023,8 @@ public:
     }
 };
 
+TimeStampManager timeManager;
+
 // Klasa do zarządzania przerwaniami
 class InterruptManager {
 private:
@@ -2217,6 +2232,8 @@ float getAveragePower() {
         0.0f
     );
 }
+
+static unsigned long cadenceReadings[NUM_READINGS];
 
 // --- Funkcja do aktualizacji odczytów kadencji ---
 void updateReadings(unsigned long currentTime) {
@@ -2576,6 +2593,8 @@ void setup() {
         while (1);
     }
 }
+
+SystemManager systemManager;
 
 // --- PĘTLA GŁÓWNA ---
 void loop() {
