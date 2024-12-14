@@ -44,11 +44,10 @@ class TimeStampManager;
 class BMSConnection;
 class TemperatureSensor;
 
-// Mutexy dla bezpiecznego dostępu do współdzielonych zasobów
+// --- Mutexy ---
+portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE buttonMux = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE cadenceMux = portMUX_INITIALIZER_UNLOCKED;
-
-static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 float displayedRange = 0.0f;                                  // Brakująca zmienna
 bool stationary = false;                                     // Brakująca zmienna
@@ -99,48 +98,16 @@ struct SystemLog {
 
 class SystemManager {
 private:
-    //CircularDataBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
     CircularBuffer<SystemLog, LOG_BUFFER_SIZE> logs;
     uint32_t lastSystemCheck;
-    uint32_t systemStartTime;
     uint16_t resetCount;
-    
-    // Flagi stanu systemu
-    struct {
-        bool rtcOk : 1;
-        bool displayOk : 1;
-        bool bmsConnected : 1;
-        bool tempSensorOk : 1;
-        bool lowBattery : 1;
-        bool systemOverheat : 1;
-    } systemFlags;
 
 public:
-    SystemManager() : 
-        lastSystemCheck(0),
-        systemStartTime(0),
-        resetCount(0) {
-        memset(&systemFlags, 0, sizeof(systemFlags));
-    }
+    SystemManager() : lastSystemCheck(0), resetCount(0) {}
 
     void begin() {
         systemStartTime = esp_timer_get_time() / 1000;
-        loadSystemState();  // Wczytaj poprzedni stan z EEPROM
-    }
-
-    void addLog(LogType type, uint16_t code, float value = 0.0f) {
-        SystemLog log = {
-            .timestamp = esp_timer_get_time() / 1000,
-            .type = type,
-            .code = code,
-            .value = value
-        };
-        logs.push(log);
-        
-        // Dla błędów krytycznych, zapisz natychmiast do EEPROM
-        if (type == LOG_CRITICAL) {
-            saveSystemState();
-        }
+        loadSystemState();
     }
 
     bool checkSystem() {
@@ -151,24 +118,20 @@ public:
         lastSystemCheck = now;
 
         // Sprawdź RTC
-        if (!rtc->isrunning()) {
-            systemFlags.rtcOk = false;
-            addLog(LOG_ERROR, 1, 0);
-        } else {
-            systemFlags.rtcOk = true;
+        if (!rtc.isrunning()) {
+            addLog(LOG_ERROR, 1);
+            return false;
         }
 
-        // Sprawdź temperaturę systemu
-        float temp = tempSensor->readTemperature();
-        if (temp > 80.0f) {  // Temperatura krytyczna
-            systemFlags.systemOverheat = true;
+        // Sprawdź temperaturę
+        float temp = currentTemp;
+        if (temp > 80.0f) {
             addLog(LOG_CRITICAL, 2, temp);
             return false;
         }
 
-        // Sprawdź napięcie systemu
-        if (voltage < 3.0f) {  // Krytycznie niskie napięcie
-            systemFlags.lowBattery = true;
+        // Sprawdź napięcie
+        if (voltage < 3.0f) {
             addLog(LOG_CRITICAL, 3, voltage);
             return false;
         }
@@ -176,25 +139,18 @@ public:
         return true;
     }
 
-    void saveSystemState() {
-        // Zapisz ważne dane systemu do EEPROM
-        EEPROM.put(450, resetCount);  // Użyj adresu po innych danych
-        EEPROM.commit();
-    }
-
-    void loadSystemState() {
-        // Wczytaj dane systemu z EEPROM
-        EEPROM.get(450, resetCount);
-    }
-
-    void handleSystemFailure() {
-        saveSystemState();  // Zapisz stan przed resetem
-        resetCount++;
-        ESP.restart();  // Reset systemu
+    void addLog(LogType type, uint16_t code, float value = 0.0f) {
+        SystemLog log = {
+            .timestamp = esp_timer_get_time() / 1000,
+            .type = type,
+            .code = code,
+            .value = value
+        };
+        logs.push(log);
     }
 };
 
-TimeStampManager timeManager;
+SystemManager systemManager;
 
 // --- Ustawienia wyświetlacza OLED ---
 #define SCREEN_WIDTH 128
@@ -434,6 +390,9 @@ float voltage = 0;
 float current = 0;
 float remainingCapacity = 0;
 float power = 0;
+float wh = 0.0;
+float avgWh = 0.0;
+float range = 0.0;
 float remainingEnergy = 0;
 float soc = 0;
 
@@ -695,6 +654,11 @@ public:
     }
 };
 
+// --- Bufory ---
+constexpr size_t BUFFER_SIZE = 100;
+constexpr size_t BMS_BUFFER_SIZE = 32;
+constexpr size_t LOG_BUFFER_SIZE = 5;
+
 // Zdefiniowanie bezpiecznych buforów
 SafeBuffer<float, BUFFER_SIZE> energyHistory;
 SafeBuffer<float, BUFFER_SIZE> powerHistory;
@@ -716,6 +680,30 @@ void updateBuffers(float energy, float power, float speed) {
     // Sprawdzenie błędów zapisu
     if (!energyPushed || !powerPushed || !speedPushed) {
         systemManager.addLog(LOG_ERROR, 11); // Błąd zapisu do buforów
+    }
+}
+
+float getAverageWh() {
+    if (dataCount == 0) return 0.0f;
+    return SafeMath::safeDivide(totalWh, static_cast<float>(dataCount), 0.0f);
+}
+
+float getAveragePower() {
+    if (dataCount == 0) return 0.0f;
+    return SafeMath::safeDivide(totalPower, static_cast<float>(dataCount), 0.0f);
+}
+
+uint8_t getSubScreenCount(int screen) {
+    switch (screen) {
+        case 0: return 2;  // Zegar, Data
+        case 1: return 2;  // Kadencja i Prędkość
+        case 2: return 2;  // Temperatura, wersja systemu
+        case 3: return 2;  // Zasięg, przebieg
+        case 4: return 5;  // Wh, Ah, %, A, V
+        case 5: return 3;  // W, W AVG, W MAX
+        case 6: return 3;  // Wh, Wh AVG, Wh MAX
+        case 7: return 2;  // Ciśnienie, napięcie i temperatura
+        default: return 0;
     }
 }
 
@@ -1143,37 +1131,18 @@ SystemManager systemManager;
 // Klasa pomocnicza do bezpiecznych operacji matematycznych
 class SafeMath {
 public:
-    // Bezpieczne dzielenie zmiennoprzecinkowe
-    static float safeDivide(float numerator, float denominator, float defaultValue = 0.0f) {
-        if (abs(denominator) < 0.000001f || !isfinite(denominator)) {
-            return defaultValue;
-        }
-        float result = numerator / denominator;
-        return isfinite(result) ? result : defaultValue;
-    }
-
-    // Bezpieczne dzielenie całkowitoliczbowe
-    static uint32_t safeDivide(uint32_t numerator, uint32_t denominator, uint32_t defaultValue = 0) {
-        if (denominator == 0) {
-            return defaultValue;
-        }
-        return numerator / denominator;
-    }
-
-    // Sprawdzenie czy liczba jest w bezpiecznym zakresie
-    static bool isInRange(float value, float min, float max) {
-        if (!isfinite(value)) return false;
-        return value >= min && value <= max;
-    }
-
-    // Bezpieczne ograniczenie wartości do zakresu
     static float clamp(float value, float min, float max) {
-        if (!isfinite(value)) return min;
         if (value < min) return min;
         if (value > max) return max;
         return value;
     }
-}; // Dodany średnik
+
+    static float safeDivide(float numerator, float denominator, float defaultValue = 0.0f) {
+        if (abs(denominator) < 0.000001f) return defaultValue;
+        float result = numerator / denominator;
+        return isfinite(result) ? result : defaultValue;
+    }
+};
 
 // Stałe obliczane w czasie kompilacji - dodaj je na początku kodu
 constexpr float SPEED_FACTOR = WHEEL_CIRCUMFERENCE * 3.6f / 1000000.0f;  // Przelicznik dla prędkości
@@ -1827,34 +1796,28 @@ int getSubScreenCount(int screen) {
 }
 
 // --- Funkcja obsługi powiadomień z BMS ---
-void notificationCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
-  if (length == 0 || pData == nullptr) {
-    #if DEBUG
-    Serial.println("Otrzymano niepoprawne dane lub brak danych.");
-    #endif
-    return;
-  }
+void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
+                        uint8_t* pData, size_t length, bool isNotify) {
+    if (length == 0 || pData == nullptr) return;
 
-  // Sprawdzenie początku pakietu
-  if (bmsDataReceivedLength == 0 && pData[0] == 0xDD) {
-    bmsExpectedDataLength = pData[3];  // Oczekiwana długość danych z BMS
-  }
-
-  // Dodanie danych do bufora
-  if (appendBmsDataPacket(pData, length)) {
-    // Sprawdzenie, czy wszystkie dane zostały odebrane
-    if (bmsDataReceivedLength == bmsExpectedDataLength + 7) {
-      printBatteryStatistics(bmsDataBuffer, bmsDataReceivedLength);  // Wyświetlenie danych baterii
-      bmsDataReceivedLength = 0;              // Resetowanie bufora po odebraniu pełnych danych
-      bmsExpectedDataLength = 0;
+    if (bmsDataReceivedLength == 0 && pData[0] == 0xDD) {
+        bmsExpectedDataLength = pData[3];
     }
-  } else {
-    #if DEBUG
-    Serial.println("Błąd podczas dodawania pakietu danych do bufora.");
-    #endif
-    bmsDataReceivedLength = 0;
-    bmsExpectedDataLength = 0;
-  }
+
+    // Dodanie danych do bufora z weryfikacją rozmiaru
+    if (bmsDataReceivedLength + length <= BMS_BUFFER_SIZE) {
+        memcpy(bmsDataBuffer + bmsDataReceivedLength, pData, length);
+        bmsDataReceivedLength += length;
+
+        if (bmsDataReceivedLength == bmsExpectedDataLength + 7) {
+            processBmsData();
+            bmsDataReceivedLength = 0;
+            bmsExpectedDataLength = 0;
+        }
+    } else {
+        bmsDataReceivedLength = 0;
+        bmsExpectedDataLength = 0;
+    }
 }
 
 // --- Funkcja dodająca pakiet danych do bufora ---
@@ -2010,14 +1973,9 @@ public:
         lastRolloverCheck = currentTime;
         return currentTime;
     }
-
-    uint32_t getElapsedTime(uint32_t startTime) {
-        uint32_t currentTime = getTimestamp();
-        return (currentTime >= startTime) ? 
-            (currentTime - startTime) : 
-            (UINT32_MAX - startTime + currentTime);
-    }
 };
+
+TimeStampManager timeManager;
 
 TimeStampManager timeManager;
 
