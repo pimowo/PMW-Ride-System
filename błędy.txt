@@ -1,0 +1,490 @@
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:45:26: error: scalar object 'mux' requires one element in initializer
+   45 | static volatile uint32_t mux = portMUX_INITIALIZER_UNLOCKED;  // Brakujący mutex
+      |                          ^~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool SystemManager::checkSystem()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:140:14: error: 'rtc' was not declared in this scope
+  140 |         if (!rtc.isrunning()) {
+      |              ^~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:148:22: error: 'tempSensor' was not declared in this scope
+  148 |         float temp = tempSensor.readTemperature();
+      |                      ^~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:156:13: error: 'voltage' was not declared in this scope
+  156 |         if (voltage < 3.0f) {  // Krytycznie niskie napięcie
+      |             ^~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: At global scope:
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:183:1: error: 'TimeStampManager' does not name a type
+  183 | TimeStampManager timeManager;
+      | ^~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool BMSData::addPacket(const uint8_t*, size_t)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:457:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  457 |             systemManager.addLog(LOG_ERROR, 7); // Log błędu danych
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void BMSData::processData()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:480:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  480 |             systemManager.addLog(LOG_ERROR, 8); // Log błędu sumy kontrolnej
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: At global scope:
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:504:5: error: 'TimeoutHandler' does not name a type
+  504 |     TimeoutHandler operationTimeout;
+      |     ^~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In constructor 'OptimizedBMSConnection::OptimizedBMSConnection()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:512:9: error: class 'OptimizedBMSConnection' does not have any field named 'operationTimeout'
+  512 |         operationTimeout(1000) {} // 1 sekunda timeout
+      |         ^~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void OptimizedBMSConnection::processReceivedData()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:534:23: error: 'SafeMath' has not been declared
+  534 |             voltage = SafeMath::clamp(voltageRaw / 100.0f, MIN_VOLTAGE, MAX_VOLTAGE);
+      |                       ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:538:23: error: 'SafeMath' has not been declared
+  538 |             current = SafeMath::clamp(currentRaw / 100.0f, -MAX_CURRENT, MAX_CURRENT);
+      |                       ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:542:33: error: 'SafeMath' has not been declared
+  542 |             remainingCapacity = SafeMath::clamp(remainingCapacityRaw / 100.0f, 0.0f, bikeSettings.batteryCapacity);
+      |                                 ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:545:19: error: 'SafeMath' has not been declared
+  545 |             soc = SafeMath::clamp(data[23], 0.0f, 100.0f);
+      |                   ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:547:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  547 |             systemManager.addLog(LOG_INFO, 3); // Log sukcesu przetwarzania danych
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool OptimizedBMSConnection::sendRequest(uint8_t*, size_t)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:553:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  553 |             systemManager.addLog(LOG_ERROR, 9); // Log przekroczenia liczby prób
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:557:9: error: 'operationTimeout' was not declared in this scope
+  557 |         operationTimeout.start();
+      |         ^~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:558:24: error: 'bmsConnection' was not declared in this scope
+  558 |         bool success = bmsConnection.sendRequest(data, length);
+      |                        ^~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: At global scope:
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:399:21: error: expected unqualified-id before numeric constant
+  399 | #define BUFFER_SIZE 200
+      |                     ^~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:584:14: note: in expansion of macro 'BUFFER_SIZE'
+  584 | const size_t BUFFER_SIZE = 100;  // Ustalony rozmiar dla buforów danych
+      |              ^~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2:25: error: expected unqualified-id before numeric constant
+    2 | #define BMS_BUFFER_SIZE 64
+      |                         ^~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:585:14: note: in expansion of macro 'BMS_BUFFER_SIZE'
+  585 | const size_t BMS_BUFFER_SIZE = 32;  // Zoptymalizowany rozmiar dla danych BMS
+      |              ^~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool SafeBuffer<T, MAX_SIZE>::push(const T&)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:633:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  633 |             systemManager.addLog(LOG_WARNING, 5, static_cast<float>(MAX_SIZE)); // Log przepełnienia
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:643:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  643 |             systemManager.addLog(LOG_WARNING, 6, static_cast<float>(count)); // Log ostrzeżenia
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'T SafeBuffer<T, MAX_SIZE>::get(size_t) const':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:651:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  651 |             systemManager.addLog(LOG_ERROR, 10, static_cast<float>(index)); // Log błędu indeksu
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void updateBuffers(float, float, float)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:693:24: error: 'speedHistory' was not declared in this scope; did you mean 'powerHistory'?
+  693 |     bool speedPushed = speedHistory.push(speed);
+      |                        ^~~~~~~~~~~~
+      |                        powerHistory
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:699:9: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  699 |         systemManager.addLog(LOG_WARNING, 7); // Ostrzeżenie o wysokim wykorzystaniu buforów
+      |         ^~~~~~~~~~~~~
+      |         SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:704:9: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  704 |         systemManager.addLog(LOG_ERROR, 11); // Błąd zapisu do buforów
+      |         ^~~~~~~~~~~~~
+      |         SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void clearAllBuffers()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:712:5: error: 'speedHistory' was not declared in this scope; did you mean 'powerHistory'?
+  712 |     speedHistory.clear();
+      |     ^~~~~~~~~~~~
+      |     powerHistory
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:714:5: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  714 |     systemManager.addLog(LOG_INFO, 4); // Log wyczyszczenia buforów
+      |     ^~~~~~~~~~~~~
+      |     SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool BMSConnection::connect()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:934:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  934 |             systemManager.addLog(LOG_ERROR, 2, recoveryAttempts); // Log błędu
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:945:17: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  945 |                 systemManager.addLog(LOG_INFO, 1); // Log sukcesu
+      |                 ^~~~~~~~~~~~~
+      |                 SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool BMSConnection::sendRequest(uint8_t*, size_t)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:961:45: error: could not convert 'bleCharacteristicTx->BLERemoteCharacteristic::writeValue(data, length, 0)' from 'void' to 'bool'
+  961 |         if (!bleCharacteristicTx->writeValue(data, length)) {
+      |              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
+      |                                             |
+      |                                             void
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:961:45: error: in argument to unary !
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:962:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  962 |             systemManager.addLog(LOG_ERROR, 5); // Log błędu wysyłania
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:969:17: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  969 |                 systemManager.addLog(LOG_ERROR, 6); // Log timeout odpowiedzi
+      |                 ^~~~~~~~~~~~~
+      |                 SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void BMSConnection::startRecovery()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:985:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+  985 |             systemManager.addLog(LOG_WARNING, 7); // Log rozpoczęcia recovery
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void BMSConnection::exitRecoveryMode()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1003:9: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+ 1003 |         systemManager.addLog(LOG_INFO, 2); // Log zakończenia recovery
+      |         ^~~~~~~~~~~~~
+      |         SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void BMSConnection::restoreLastState()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1027:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+ 1027 |             systemManager.addLog(LOG_WARNING, 8); // Log o przestarzałych danych
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool BMSConnection::initializeServices()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1037:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+ 1037 |             systemManager.addLog(LOG_ERROR, 3); // Log błędu usługi
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1043:13: error: 'systemManager' was not declared in this scope; did you mean 'SystemManager'?
+ 1043 |             systemManager.addLog(LOG_ERROR, 4); // Log błędu charakterystyk
+      |             ^~~~~~~~~~~~~
+      |             SystemManager
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'bool BMSConnection::initializeCharacteristics()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1065:52: error: 'notificationCallback' was not declared in this scope
+ 1065 |             bleCharacteristicRx->registerForNotify(notificationCallback);
+      |                                                    ^~~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'void TemperatureSensor::requestTemperature()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1088:9: error: 'sensors' was not declared in this scope; did you mean 'sensors5'?
+ 1088 |         sensors.requestTemperatures();
+      |         ^~~~~~~
+      |         sensors5
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In member function 'float TemperatureSensor::readTemperature()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1106:22: error: 'sensors' was not declared in this scope; did you mean 'sensors5'?
+ 1106 |         float temp = sensors.getTempCByIndex(0);
+      |                      ^~~~~~~
+      |                      sensors5
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1116:16: error: 'isValidTemperature' was not declared in this scope; did you mean 'readTemperature'?
+ 1116 |         return isValidTemperature(temp) ? temp : -999.0;
+      |                ^~~~~~~~~~~~~~~~~~
+      |                readTemperature
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void connectToBms()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1310:48: error: 'notificationCallback' was not declared in this scope
+ 1310 |         bleCharacteristicRx->registerForNotify(notificationCallback);
+      |                                                ^~~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void handleButtonISR()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1334:12: error: 'InterruptManager' does not name a type
+ 1334 |     static InterruptManager buttonInterruptManager;
+      |            ^~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1336:10: error: 'buttonInterruptManager' was not declared in this scope
+ 1336 |     if (!buttonInterruptManager.shouldHandleInterrupt()) {
+      |          ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1342:28: error: 'timeManager' was not declared in this scope
+ 1342 |     lastButtonChangeTime = timeManager.getTimestamp();
+      |                            ^~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void handleButton()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1380:3: error: 'subScreen' was not declared in this scope; did you mean 'showScreen'?
+ 1380 |   subScreen = 0;                            // Zresetuj pod-ekrany
+      |   ^~~~~~~~~
+      |   showScreen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1381:3: error: 'currentScreen' was not declared in this scope; did you mean 'currentYear'?
+ 1381 |   currentScreen = (currentScreen + 1) % 10; // Przełączanie głównych ekranów
+      |   ^~~~~~~~~~~~~
+      |   currentYear
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void handleLongPress()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1387:7: error: 'currentScreen' was not declared in this scope; did you mean 'currentYear'?
+ 1387 |   if (currentScreen == 8) {
+      |       ^~~~~~~~~~~~~
+      |       currentYear
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1388:5: error: 'toggleLightMode' was not declared in this scope
+ 1388 |     toggleLightMode(); // Zmień tryb świateł
+      |     ^~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1390:5: error: 'toggleUSBMode' was not declared in this scope
+ 1390 |     toggleUSBMode();   // Przełącz wyjście USB
+      |     ^~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1394:25: error: 'currentScreen' was not declared in this scope; did you mean 'currentYear'?
+ 1394 |   if (getSubScreenCount(currentScreen) > 0) {
+      |                         ^~~~~~~~~~~~~
+      |                         currentYear
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1394:7: error: 'getSubScreenCount' was not declared in this scope
+ 1394 |   if (getSubScreenCount(currentScreen) > 0) {
+      |       ^~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1395:5: error: 'subScreen' was not declared in this scope; did you mean 'showScreen'?
+ 1395 |     subScreen = (subScreen + 1) % getSubScreenCount(currentScreen);
+      |     ^~~~~~~~~
+      |     showScreen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1397:5: error: 'subScreen' was not declared in this scope; did you mean 'showScreen'?
+ 1397 |     subScreen = 0;
+      |     ^~~~~~~~~
+      |     showScreen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void handleCadence()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1410:30: error: 'calculateCadence' was not declared in this scope; did you mean 'handleCadence'?
+ 1410 |     uint8_t currentCadence = calculateCadence();
+      |                              ^~~~~~~~~~~~~~~~
+      |                              handleCadence
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void showScreen(int)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1496:11: error: 'currentScreen' was not declared in this scope; did you mean 'currentYear'?
+ 1496 |   switch (currentScreen) {
+      |           ^~~~~~~~~~~~~
+      |           currentYear
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1499:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1499 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1535:29: error: 'calculateCadence' was not declared in this scope; did you mean 'handleCadence'?
+ 1535 |           uint8_t cadence = calculateCadence();
+      |                             ^~~~~~~~~~~~~~~~
+      |                             handleCadence
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1562:14: error: jump to case label
+ 1562 |         case 1:  // Prędkość
+      |              ^
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1535:19: note:   crosses initialization of 'uint8_t cadence'
+ 1535 |           uint8_t cadence = calculateCadence();
+      |                   ^~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1573:7: error: break statement not within loop or switch
+ 1573 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1575:5: error: case label '2' not within a switch statement
+ 1575 |     case 2:  // Temperatura i wersja programu
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1576:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1576 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1600:7: error: break statement not within loop or switch
+ 1600 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1602:9: error: case label '3' not within a switch statement
+ 1602 |         case 3: // Zasięg i przebieg dzienny
+      |         ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1603:21: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1603 |             switch (subScreen) {
+      |                     ^~~~~~~~~
+      |                     screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1622:13: error: break statement not within loop or switch
+ 1622 |             break;
+      |             ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1624:5: error: case label '4' not within a switch statement
+ 1624 |     case 4: // Akumulator
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1625:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1625 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1672:7: error: break statement not within loop or switch
+ 1672 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1674:5: error: case label '5' not within a switch statement
+ 1674 |     case 5: // Moc
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1675:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1675 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1691:25: error: 'getAveragePower' was not declared in this scope; did you mean 'getAverageCadence'?
+ 1691 |           display.print(getAveragePower(), 1);
+      |                         ^~~~~~~~~~~~~~~
+      |                         getAverageCadence
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1704:7: error: break statement not within loop or switch
+ 1704 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1706:5: error: case label '6' not within a switch statement
+ 1706 |     case 6: // Zużycie
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1707:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1707 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1723:25: error: 'getAverageWh' was not declared in this scope
+ 1723 |           display.print(getAverageWh(), 1);
+      |                         ^~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1736:7: error: break statement not within loop or switch
+ 1736 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1738:5: error: case label '7' not within a switch statement
+ 1738 |     case 7: // Czujniki ciśnienia kół
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1739:15: error: 'subScreen' was not declared in this scope; did you mean 'screen'?
+ 1739 |       switch (subScreen) {
+      |               ^~~~~~~~~
+      |               screen
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1761:7: error: break statement not within loop or switch
+ 1761 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1763:5: error: case label '8' not within a switch statement
+ 1763 |     case 8: // Wyświetlanie trybu świateł
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1773:7: error: break statement not within loop or switch
+ 1773 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1775:5: error: case label '9' not within a switch statement
+ 1775 |     case 9: // Ładowarka USB
+      |     ^~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1781:7: error: break statement not within loop or switch
+ 1781 |       break;
+      |       ^~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: At global scope:
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1783:3: error: 'display' does not name a type
+ 1783 |   display.display(); // Wyślij zawartość bufora do wyświetlacza
+      |   ^~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1784:1: error: expected declaration before '}' token
+ 1784 | }
+      | ^
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void notificationCallback(BLERemoteCharacteristic*, uint8_t*, size_t, bool)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1825:7: error: 'appendBmsDataPacket' was not declared in this scope
+ 1825 |   if (appendBmsDataPacket(pData, length)) {
+      |       ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1828:7: error: 'printBatteryStatistics' was not declared in this scope
+ 1828 |       printBatteryStatistics(bmsDataBuffer, bmsDataReceivedLength);  // Wyświetlenie danych baterii
+      |       ^~~~~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void countPulse()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1908:5: error: 'pulseCount' was not declared in this scope; did you mean 'pulseIn'?
+ 1908 |     pulseCount++;
+      |     ^~~~~~~~~~
+      |     pulseIn
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void initializeDS18B20()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1918:3: error: 'sensors' was not declared in this scope; did you mean 'sensors5'?
+ 1918 |   sensors.begin(); // Inicjalizacja czujnika DS18B20
+      |   ^~~~~~~
+      |   sensors5
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void requestGroundTemperature()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1924:3: error: 'sensors' was not declared in this scope; did you mean 'sensors5'?
+ 1924 |   sensors.requestTemperatures();
+      |   ^~~~~~~
+      |   sensors5
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'float readGroundTemperature()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:1960:25: error: 'sensors' was not declared in this scope; did you mean 'sensors5'?
+ 1960 |     float temperature = sensors.getTempCByIndex(0); // Odczytaj temperaturę
+      |                         ^~~~~~~
+      |                         sensors5
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void updateData(float, float, float)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2121:5: error: 'speedHistory' was not declared in this scope; did you mean 'powerHistory'?
+ 2121 |     speedHistory.push(speedKmh);
+      |     ^~~~~~~~~~~~
+      |     powerHistory
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: At global scope:
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2138:7: error: redefinition of 'float smoothedRange'
+ 2138 | float smoothedRange = 0.0;           // Wygładzony zasięg
+      |       ^~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:578:7: note: 'float smoothedRange' previously defined here
+  578 | float smoothedRange = 0.0;           // Wygładzony zasięg
+      |       ^~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2139:7: error: redefinition of 'float lastValidRange'
+ 2139 | float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
+      |       ^~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:579:7: note: 'float lastValidRange' previously defined here
+  579 | float lastValidRange = 0.0;          // Ostatni prawidłowy zasięg
+      |       ^~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2140:15: error: redefinition of 'long unsigned int lastRangeUpdate'
+ 2140 | unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
+      |               ^~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:580:15: note: 'long unsigned int lastRangeUpdate' previously defined here
+  580 | unsigned long lastRangeUpdate = 0;   // Czas ostatniej aktualizacji
+      |               ^~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'float calculateRange()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:51: error: the value of 'MIN_SPEED_FOR_RANGE' is not usable in a constant expression
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |                                                   ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:572:13: note: 'MIN_SPEED_FOR_RANGE' was not declared 'constexpr'
+  572 | const float MIN_SPEED_FOR_RANGE = 0.1;        // Minimalna prędkość do obliczeń [km/h]
+      |             ^~~~~~~~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2143:9: error: 'speedKmh' was not declared in this scope
+ 2143 |     if (speedKmh < MIN_SPEED_FOR_RANGE || power < MIN_POWER_FOR_RANGE) {
+      |         ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2150:9: error: 'speedHistory' was not declared in this scope; did you mean 'powerHistory'?
+ 2150 |     if (speedHistory.size() > 0 && energyHistory.size() > 0) {
+      |         ^~~~~~~~~~~~
+      |         powerHistory
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2156:41: error: no match for 'operator[]' (operand types are 'SafeBuffer<float, 200>' and 'size_t' {aka 'unsigned int'})
+ 2156 |             totalEnergy += energyHistory[i];
+      |                                         ^
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void resetRangeCalculations()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2195:5: error: 'speedHistory' was not declared in this scope; did you mean 'powerHistory'?
+ 2195 |     speedHistory.clear();
+      |     ^~~~~~~~~~~~
+      |     powerHistory
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void updateReadings(long unsigned int)':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2226:5: error: 'cadenceReadings' was not declared in this scope; did you mean 'updateReadings'?
+ 2226 |     cadenceReadings[readIndex] = currentTime;
+      |     ^~~~~~~~~~~~~~~
+      |     updateReadings
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void setup()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2546:23: error: 'numSpeedReadings' was not declared in this scope; did you mean 'updateReadings'?
+ 2546 |   for (int i = 0; i < numSpeedReadings; i++) {
+      |                       ^~~~~~~~~~~~~~~~
+      |                       updateReadings
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2547:5: error: 'speedReadings' was not declared in this scope
+ 2547 |     speedReadings[i] = 0;
+      |     ^~~~~~~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino: In function 'void loop()':
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2612:20: error: 'currentScreen' was not declared in this scope; did you mean 'currentYear'?
+ 2612 |         showScreen(currentScreen);
+      |                    ^~~~~~~~~~~~~
+      |                    currentYear
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2626:30: error: 'speedKmh' was not declared in this scope
+ 2626 |         adjustUpdateInterval(speedKmh);
+      |                              ^~~~~~~~
+C:\Users\piotrek\Documents\Arduino\e_Bike_System_14_12_24\e_Bike_System_14_12_24.ino:2626:9: error: 'adjustUpdateInterval' was not declared in this scope; did you mean 'updateInterval'?
+ 2626 |         adjustUpdateInterval(speedKmh);
+      |         ^~~~~~~~~~~~~~~~~~~~
+      |         updateInterval
+
+exit status 1
+
+Compilation error: scalar object 'mux' requires one element in initializer
