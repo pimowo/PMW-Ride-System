@@ -1,13 +1,13 @@
 /* 
-  GPIO  3 - DS18B20
-  GPIO  4 - przycisk
+  GPIO  15 - DS18B20
+  GPIO  12 - przycisk
   GPIO  5 - kadencja
   GPIO  6 - prędkość
-  GPIO  8 - I2C SDA
-  GPIO  9 - I2C SCL
-  GPIO 10 - światło dzienne
-  GPIO 11 - światło zwykłe
-  GPIO 12 - światło tył
+  GPIO  21 - I2C SDA
+  GPIO  22 - I2C SCL
+  GPIO 5 - światło dzienne
+  GPIO 18 - światło zwykłe
+  GPIO 19 - światło tył
   GPIO 21 - LED PCB WS2812
 */
 
