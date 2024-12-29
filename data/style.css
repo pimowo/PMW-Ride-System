@@ -176,7 +176,6 @@ select:focus {
     }
 }
 
-/* Dodatkowe style dla tooltipów i overlay */
 .overlay {
     position: fixed;
     top: 0;
@@ -223,4 +222,25 @@ select:focus {
 .tooltip:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
+}
+
+footer {
+    background-color: var(--header-background);
+    color: var(--text-color);
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+footer a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+footer a:hover {
+    color: var(--secondary-color);
 }
