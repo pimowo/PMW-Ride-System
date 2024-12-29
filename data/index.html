@@ -14,10 +14,17 @@
 
         <main>
             <section class="dashboard">
-                <div class="card speed">
-                    <h2>Prędkość</h2>
-                    <div class="value">0.0</div>
-                    <div class="unit">km/h</div>
+                <div class="card clock-config">
+                    <h2>Konfiguracja zegara</h2>
+                    <div class="rtc-row">
+                        <label>Czas:</label>
+                        <input type="time" id="rtc-time" step="1">
+                    </div>
+                    <div class="rtc-row">
+                        <label>Data:</label>
+                        <input type="date" id="rtc-date">
+                    </div>
+                    <button class="btn-save" onclick="saveRTCConfig()">Zapisz</button>
                 </div>
 
                 <div class="card temperature">
