@@ -78,9 +78,9 @@ WiFiSettings wifiSettings;
 // Czujnik temperatury powietrza
 #define ONE_WIRE_BUS 15  // Pin do którego podłączony jest DS18B20
 
-const uint8_t* czcionka_duza = u8g2_font_fur17_tr;
+const uint8_t* czcionka_mala = u8g2_font_profont11_mf;  // opis ekranów
 const uint8_t* czcionka_srednia = u8g2_font_pxplusibmvga9_mf; // górna belka
-const uint8_t* czcionka_mala = u8g2_font_profont11_tr;  // opis ekranów
+const uint8_t* czcionka_duza = u8g2_font_fub20_tr;
 
 bool legalMode = false;  // false = normalny tryb, true = tryb legal
 uint8_t displayBrightness = 16; // Wartość od 0 do 255
@@ -330,34 +330,6 @@ void handleSettings(AsyncWebServerRequest *request);
 void handleSaveClockSettings(AsyncWebServerRequest *request);
 void handleSaveBikeSettings(AsyncWebServerRequest *request);
 
-// void toggleLegalMode() {
-//     legalMode = !legalMode;
-    
-//     display.clearBuffer();
-//     display.setFont(czcionka_srednia);
-    
-//     // Obliczamy szerokość każdego tekstu
-//     int width1 = display.getStrWidth("Tryb legalny");
-//     int width2 = display.getStrWidth("zostal");
-//     int width3 = display.getStrWidth(legalMode ? "wlaczony" : "wylaczony");
-    
-//     // Obliczamy pozycje x dla wycentrowania (szerokość ekranu - szerokość tekstu) / 2
-//     int x1 = (128 - width1) / 2;
-//     int x2 = (128 - width2) / 2;
-//     int x3 = (128 - width3) / 2;
-    
-//     // Wyświetlamy wycentrowane teksty
-//     display.drawStr(x1, 23, "Tryb legalny");
-//     display.drawStr(x2, 38, "zostal");
-//     display.drawStr(x3, 53, legalMode ? "wlaczony" : "wylaczony");
-    
-//     display.sendBuffer();
-//     delay(2000);  // Pokazuj informację przez 2 sekundy
-    
-//     display.clearBuffer();
-//     display.sendBuffer();
-// }
-
 void toggleLegalMode() {
     legalMode = !legalMode;
     
@@ -482,151 +454,104 @@ void saveSettingsToEEPROM() {
 
 // Funkcje wyświetlacza
 void drawHorizontalLine() {
-  display.drawHLine(4, 15, 122);
-  display.drawHLine(4, 50, 122);
+    display.drawHLine(4, 15, 122);
+    display.drawHLine(4, 50, 122);
 }
 
 void drawVerticalLine() {
-  display.drawVLine(30, 20, 25);
-  display.drawVLine(73, 20, 25);
+    display.drawVLine(25, 20, 25);
+    display.drawVLine(67, 20, 25);
 }
 
 void drawTopBar() {
-  static bool colonVisible = true;
-  static unsigned long lastColonToggle = 0;
-  const unsigned long COLON_TOGGLE_INTERVAL = 500;  // Miganie co 500ms (pół sekundy)
+    static bool colonVisible = true;
+    static unsigned long lastColonToggle = 0;
+    const unsigned long COLON_TOGGLE_INTERVAL = 500;  // Miganie co 500ms (pół sekundy)
 
-  display.setFont(czcionka_srednia);
+    display.setFont(czcionka_srednia);
 
-  // Pobierz aktualny czas z RTC
-  DateTime now = rtc.now();
+    // Pobierz aktualny czas z RTC
+    DateTime now = rtc.now();
 
-  // Czas z migającym dwukropkiem
-  char timeStr[6];
-  if (colonVisible) {
-    sprintf(timeStr, "%02d:%02d", now.hour(), now.minute());
-  } else {
-    sprintf(timeStr, "%02d %02d", now.hour(), now.minute());
-  }
-  display.drawStr(0, 13, timeStr);
+    // Czas z migającym dwukropkiem
+    char timeStr[6];
+    if (colonVisible) {
+        sprintf(timeStr, "%02d:%02d", now.hour(), now.minute());
+    } else {
+        sprintf(timeStr, "%02d %02d", now.hour(), now.minute());
+    }
+    display.drawStr(0, 13, timeStr);
 
-  // Przełącz stan dwukropka co COLON_TOGGLE_INTERVAL
-  if (millis() - lastColonToggle >= COLON_TOGGLE_INTERVAL) {
-    colonVisible = !colonVisible;
-    lastColonToggle = millis();
-  }
+    // Przełącz stan dwukropka co COLON_TOGGLE_INTERVAL
+    if (millis() - lastColonToggle >= COLON_TOGGLE_INTERVAL) {
+        colonVisible = !colonVisible;
+        lastColonToggle = millis();
+    }
 
-  // Bateria
-  char battStr[5];
-  sprintf(battStr, "%d%%", battery_capacity_percent);
-  display.drawStr(60, 13, battStr);
+    // Bateria
+    char battStr[5];
+    sprintf(battStr, "%d%%", battery_capacity_percent);
+    display.drawStr(60, 13, battStr);
 
-  // Napięcie
-  char voltStr[6];
-  sprintf(voltStr, "%.0fV", battery_voltage);
-  display.drawStr(100, 13, voltStr);
+    // Napięcie
+    char voltStr[6];
+    sprintf(voltStr, "%.0fV", battery_voltage);
+    display.drawStr(100, 13, voltStr);
 }
 
 void drawLightStatus() {
-  display.setFont(czcionka_mala);
+    display.setFont(czcionka_mala);
 
-  switch (lightMode) {
-    case 1:
-      display.drawStr(35, 36, "X");
-      display.drawStr(35, 46, "Dzien");
-      break;
-    case 2:
-      display.drawStr(35, 46, "Noc");
-      break;
-  }
+    switch (lightMode) {
+        case 1:
+            display.drawUTF8(35, 36, "Swiatlo");
+            display.drawUTF8(35, 46, "Dzien");
+            break;
+        case 2:
+            display.drawUTF8(35, 36, "Swiatlo");
+            display.drawUTF8(35, 46, "Noc");
+            break;
+    }
 }
-
-// void drawAssistLevel() {
-//     display.setFont(czcionka_duza);
-
-//     if (assistLevelAsText) {
-//         display.drawStr(8, 38, "T");  // Tryb tekstowy - tylko litera T
-//     } else {
-//         // Wyświetlanie poziomu asysty
-//         if (legalMode) {
-//             // Tryb legal - wyświetlanie w negatywie
-//             int x = 15;
-//             int y = 35;
-//             int width = 18;   // Szerokość tła - dostosuj według potrzeb
-//             int height = 28;  // Wysokość tła - dostosuj według potrzeb
-
-//             // Rysuj białe tło
-//             display.setDrawColor(1);
-//             display.drawBox(x-2, y-height+5, width, height);
-
-//             // Wyświetl tekst w negatywie (czarny na białym)
-//             display.setDrawColor(0);
-//             char levelStr[2];
-//             sprintf(levelStr, "%d", assistLevel);
-//             display.drawStr(x, y, levelStr);
-
-//             // Przywróć normalny tryb rysowania
-//             display.setDrawColor(1);
-//         } else {
-//             // Normalny tryb
-//             char levelStr[2];
-//             sprintf(levelStr, "%d", assistLevel);
-//             display.drawStr(8, 38, levelStr);
-//         }
-//     }
-
-//     display.setFont(czcionka_mala);
-//     const char* modeText;
-//     switch (assistMode) {
-//         case 0:
-//             modeText = "PAS";
-//             break;
-//         case 1:
-//             modeText = "STOP";
-//             break;
-//         case 2:
-//             modeText = "GAZ";
-//             break;
-//         case 3:
-//             modeText = "P+G";
-//             break;
-//     }
-//     display.drawStr(35, 26, modeText);
-// }
 
 void drawAssistLevel() {
     display.setFont(czcionka_duza);
 
     if (assistLevelAsText) {
-        display.drawStr(8, 38, "T");  // Tryb tekstowy - tylko litera T
+         display.drawStr(5, 42, "T");
     } else {
         // Wyświetlanie poziomu asysty
         if (legalMode) {
-            // Tryb legal - wyświetlanie w negatywie
-            int x = 8;    // Ta sama pozycja x co w trybie normalnym
-            int y = 38;   // Ta sama pozycja y co w trybie normalnym
-            int width = 15;   // Szerokość tła
-            int height = 25;  // Wysokość tła
-
+            // Wymiary cyfry i tła
+            const int digit_height = 20;  // wysokość czcionki
+            const int padding = 3;        // margines wewnętrzny
+            const int total_width = 16 + (padding * 2);  // szerokość cyfry + marginesy
+            const int total_height = digit_height + (padding * 2);  // wysokość + marginesy
+            
+            int x = 5;
+            int y = 42;
+            
+            // Pozycja tła (box)
+            int box_x = x - padding;
+            int box_y = y - digit_height - padding;  // przesunięcie w górę o wysokość + padding
+            
             // Rysuj białe tło
             display.setDrawColor(1);
-            display.drawBox(x-2, y-height+5, width, height);
-
-            // Wyświetl tekst w negatywie (czarny na białym)
+            display.drawBox(box_x, box_y, total_width, total_height);
+            
+            // Wyświetl tekst w negatywie
             display.setDrawColor(0);
             char levelStr[2];
             sprintf(levelStr, "%d", assistLevel);
             display.drawStr(x, y, levelStr);
-
-            // Przywróć normalny tryb rysowania
             display.setDrawColor(1);
         } else {
             // Normalny tryb
             char levelStr[2];
             sprintf(levelStr, "%d", assistLevel);
-            display.drawStr(8, 38, levelStr);
+            display.drawStr(5, 42, levelStr);
         }
-    }
+    }    
 
     display.setFont(czcionka_mala);
     const char* modeText;
@@ -641,7 +566,7 @@ void drawAssistLevel() {
             modeText = "GAZ";
             break;
         case 3:
-            modeText = "P+G";
+            modeText = "MIX";
             break;
     }
     display.drawStr(35, 26, modeText);
@@ -682,17 +607,17 @@ void drawMainDisplay() {
                     case SPEED_KMH:
                         sprintf(valueStr, "%4.1f", speed_kmh);
                         unitStr = "km/h";
-                        descText = "> Predkosc";
+                        descText = ">Predkosc";
                         break;
                     case SPEED_AVG_KMH:
                         sprintf(valueStr, "%4.1f", speed_avg_kmh);
                         unitStr = "km/h";
-                        descText = "> Pred. AVG";
+                        descText = ">Pred. AVG";
                         break;
                     case SPEED_MAX_KMH:
                         sprintf(valueStr, "%4.1f", speed_max_kmh);
                         unitStr = "km/h";
-                        descText = "> Pred. MAX";
+                        descText = ">Pred. MAX";
                         break;
                 }
                 break;
@@ -702,12 +627,12 @@ void drawMainDisplay() {
                     case CADENCE_RPM:
                         sprintf(valueStr, "%4d", cadence_rpm);
                         unitStr = "RPM";
-                        descText = "> Kadencja";
+                        descText = ">Kadencja";
                         break;
                     case CADENCE_AVG_RPM:
                         sprintf(valueStr, "%4d", cadence_avg_rpm);
                         unitStr = "RPM";
-                        descText = "> Kad. AVG";
+                        descText = ">Kadencja AVG";
                         break;
                 }
                 break;
@@ -720,18 +645,18 @@ void drawMainDisplay() {
                         } else {
                             strcpy(valueStr, "---");
                         }
-                        unitStr = "°C";
-                        descText = "> Powietrze";
+                        unitStr = "C";
+                        descText = ">Powietrze";
                         break;
                     case TEMP_CONTROLLER:
                         sprintf(valueStr, "%4.1f", temp_controller);
-                        unitStr = "°C";
-                        descText = "> Sterownik";
+                        unitStr = "C";
+                        descText = ">Sterownik";
                         break;
                     case TEMP_MOTOR:
                         sprintf(valueStr, "%4.1f", temp_motor);
-                        unitStr = "°C";
-                        descText = "> Silnik";
+                        unitStr = "C";
+                        descText = ">Silnik";
                         break;
                 }
                 break;
@@ -741,17 +666,17 @@ void drawMainDisplay() {
                     case RANGE_KM:
                         sprintf(valueStr, "%4.1f", range_km);
                         unitStr = "km";
-                        descText = "> Zasieg";
+                        descText = ">Zasieg";
                         break;
                     case DISTANCE_KM:
                         sprintf(valueStr, "%4.1f", distance_km);
                         unitStr = "km";
-                        descText = "> Dystans";
+                        descText = ">Dystans";
                         break;
                     case ODOMETER_KM:
                         sprintf(valueStr, "%4.0f", odometer_km);
                         unitStr = "km";
-                        descText = "> Przebieg";
+                        descText = ">Przebieg";
                         break;
                 }
                 break;
@@ -761,27 +686,27 @@ void drawMainDisplay() {
                     case BATTERY_VOLTAGE:
                         sprintf(valueStr, "%4.1f", battery_voltage);
                         unitStr = "V";
-                        descText = "> Napiecie";
+                        descText = ">Napiecie";
                         break;
                     case BATTERY_CURRENT:
                         sprintf(valueStr, "%4.1f", battery_current);
                         unitStr = "A";
-                        descText = "> Natezenie";
+                        descText = ">Natezenie";
                         break;
                     case BATTERY_CAPACITY_WH:
                         sprintf(valueStr, "%4.0f", battery_capacity_wh);
                         unitStr = "Wh";
-                        descText = "> Energia";
+                        descText = ">Energia";
                         break;
                     case BATTERY_CAPACITY_AH:
                         sprintf(valueStr, "%4.1f", battery_capacity_wh);
                         unitStr = "Ah";
-                        descText = "> Pojemnosc";
+                        descText = ">Pojemnosc";
                         break;
                     case BATTERY_CAPACITY_PERCENT:
                         sprintf(valueStr, "%3d", battery_capacity_percent);
                         unitStr = "%";
-                        descText = "> Bateria";
+                        descText = ">Bateria";
                         break;
                 }
                 break;
@@ -791,17 +716,17 @@ void drawMainDisplay() {
                     case POWER_W:
                         sprintf(valueStr, "%4d", power_w);
                         unitStr = "W";
-                        descText = "> Moc";
+                        descText = ">Moc";
                         break;
                     case POWER_AVG_W:
                         sprintf(valueStr, "%4d", power_avg_w);
                         unitStr = "W";
-                        descText = "> Moc AVG";
+                        descText = ">Moc AVG";
                         break;
                     case POWER_MAX_W:
                         sprintf(valueStr, "%4d", power_max_w);
                         unitStr = "W";
-                        descText = "> Moc MAX";
+                        descText = ">Moc MAX";
                         break;
                 }
                 break;
@@ -813,19 +738,19 @@ void drawMainDisplay() {
                         sprintf(combinedStr, "%.2f/%.2f", pressure_bar, pressure_rear_bar);
                         strcpy(valueStr, combinedStr);
                         unitStr = "bar";
-                        descText = "> Cis.";
+                        descText = ">Cis.";
                         break;
                     case PRESSURE_VOLTAGE:
                         sprintf(combinedStr, "%.2f/%.2f", pressure_voltage, pressure_rear_voltage);
                         strcpy(valueStr, combinedStr);
                         unitStr = "V";
-                        descText = "> Bateria";
+                        descText = ">Bateria";
                         break;
                     case PRESSURE_TEMP:
                         sprintf(combinedStr, "%.1f/%.1f", pressure_temp, pressure_rear_temp);
                         strcpy(valueStr, combinedStr);
-                        unitStr = "°C";
-                        descText = "> Temp.";
+                        unitStr = "C";
+                        descText = ">Temp.";
                         break;
                 }
                 break;
@@ -838,13 +763,13 @@ void drawMainDisplay() {
             case SPEED_SCREEN:
                 sprintf(valueStr, "%4.1f", speed_kmh);
                 unitStr = "km/h";
-                descText = "Predkosc";
+                descText = " Predkosc";
                 break;
           
             case CADENCE_SCREEN:
                 sprintf(valueStr, "%4d", cadence_rpm);
                 unitStr = "RPM";
-                descText = "Kadencja";
+                descText = " Kadencja";
                 break;
 
             case TEMP_SCREEN:
@@ -853,50 +778,53 @@ void drawMainDisplay() {
                 } else {
                     strcpy(valueStr, "---");
                 }
-                unitStr = "°C";
-                descText = "Temperatura";
+                unitStr = "C";
+                descText = " Temperatura";
                 break;
 
             case RANGE_SCREEN:
                 sprintf(valueStr, "%4.1f", range_km);
                 unitStr = "km";
-                descText = "Zasieg";
+                descText = " Zasieg";
                 break;
 
             case BATTERY_SCREEN:
                 sprintf(valueStr, "%3d", battery_capacity_percent);
                 unitStr = "%";
-                descText = "Bateria";
+                descText = " Bateria";
                 break;
 
             case POWER_SCREEN:
                 sprintf(valueStr, "%4d", power_w);
                 unitStr = "W";
-                descText = "Moc";
+                descText = " Moc";
                 break;
 
             case PRESSURE_SCREEN:
                 sprintf(valueStr, "%.1f/%.1f", pressure_bar, pressure_rear_bar);
                 unitStr = "bar";
-                descText = "Kola";
+                descText = " Kola";
                 break;
 
             case USB_SCREEN:
                 display.setFont(czcionka_mala);
-                display.drawStr(73, 62, usbEnabled ? "Wlaczone" : "Wylaczone");
-                descText = "Wyjscie USB";
+                display.drawStr(72, 62, usbEnabled ? "Wlaczone" : "Wylaczone");
+                descText = " USB";
                 break;
         }
     }
+   
+    char speedStr[10]; // Bufor na sformatowaną prędkość
+    if (speed_kmh < 10.0) {
+        sprintf(speedStr, "  %2.1f", speed_kmh);  // Dodaj spację przed liczbą
+    } else {
+        sprintf(speedStr, "%2.1f", speed_kmh);   // Bez spacji
+    }
 
-    // Stały odczyt prędkości
-    char speedStr[10];
-    sprintf(speedStr, "%4.1f", speed_kmh);  // Formatowanie prędkości
-    
     // Wyświetl prędkość dużą czcionką
     display.setFont(czcionka_duza);
-    display.drawStr(80, 38, speedStr);
-    
+    display.drawStr(72, 38, speedStr);
+
     // Wyświetl jednostkę małą czcionką pod prędkością
     display.setFont(czcionka_mala);
     display.drawStr(105, 47, "km/h");
@@ -921,7 +849,7 @@ void showWelcomeMessage() {
     int welcomeX = (128 - welcomeWidth) / 2;
 
     // Tekst przewijany
-    String scrollText = "e-Bike System   ";
+    String scrollText = "e-Bike System PMW  ";
     int messageWidth = display.getStrWidth(scrollText.c_str());
     int x = 128; // Start poza prawą krawędzią
 
@@ -932,10 +860,10 @@ void showWelcomeMessage() {
             display.clearBuffer();
             
             // Statyczny tekst "Witaj!"
-            display.drawStr(welcomeX, 32, welcomeText.c_str());
+            display.drawStr(welcomeX, 30, welcomeText.c_str());
             
             // Przewijany tekst "e-Bike System"
-            display.drawStr(x, 53, scrollText.c_str());
+            display.drawStr(x, 50, scrollText.c_str());
             display.sendBuffer();
             
             x--; // Prędkość przewijania
@@ -1052,7 +980,7 @@ void handleButtons() {
         // Długie przytrzymanie (>3s) - wyłączenie
         display.clearBuffer();
         display.setFont(czcionka_srednia);
-        display.drawStr(5, 32, "Do widzenia :)");
+        display.drawStr(5, 32, "Do widzenia ;)");
         display.sendBuffer();
         messageStartTime = currentTime;
         setLongPressExecuted = true;
@@ -1136,21 +1064,46 @@ void checkConfigMode() {
 
 void activateConfigMode() {
     configModeActive = true;
-        
+    
+    // 1. Inicjalizacja LittleFS
+    if (!LittleFS.begin(true)) {
+        Serial.println("Błąd montowania LittleFS");
+        return;
+    }
+    Serial.println("LittleFS zainicjalizowany");
+
+    // 2. Włączenie WiFi w trybie AP
     WiFi.mode(WIFI_AP);
     WiFi.softAP("e-Bike System", "#mamrower");
+    Serial.println("Tryb AP aktywny");
+
+    // 3. Konfiguracja serwera - najpierw pliki statyczne
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
     
-    // Konfiguracja i uruchomienie serwera WWW
+    // Dodanie obsługi typów MIME
+    server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/style.css", "text/css");
+    });
+    
+    server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/script.js", "application/javascript");
+    });
+
+    // 4. Dodanie endpointów API
     setupWebServer();
+
+    // 5. Uruchomienie serwera
     server.begin();
+    Serial.println("Serwer WWW uruchomiony");
 }
 
 void deactivateConfigMode() {
     if (!configModeActive) return;
 
+    server.end();
     WiFi.softAPdisconnect(true);
-    server.end();  // Dla AsyncWebServer używamy end() zamiast stop()
     WiFi.mode(WIFI_OFF);
+    LittleFS.end();
     
     configModeActive = false;
     
@@ -1644,137 +1597,6 @@ void syncRTCWithNTP() {
     }
 }
 
-// void setup() {
-//   // Sprawdź przyczynę wybudzenia
-//   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-
-//   Serial.begin(115200);
-
-//   // Inicjalizacja I2C
-//   Wire.begin();
-
-//   // Inicjalizacja DS18B20
-//   initializeDS18B20();
-//   sensors.setWaitForConversion(false);  // Ważne - tryb nieblokujący
-//   sensors.setResolution(12);            // Ustaw najwyższą rozdzielczość
-//   tempSensor.requestTemperature();      // Pierwsze żądanie pomiaru
-
-//   // Inicjalizacja RTC
-//   if (!rtc.begin()) {
-//     Serial.println("Couldn't find RTC");
-//     while (1)
-//       ;
-//   }
-
-//   // Sprawdzenie RTC
-//   if (rtc.lostPower()) {
-//     Serial.println("RTC lost power, lets set the time!");
-//     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-//   }
-
-//   if (!LittleFS.begin(true)) {
-//     Serial.println("An Error has occurred while mounting LittleFS");
-//     return;
-//   }
-
-//   listFiles();
-
-//   // Dodaj obsługę serwera plików
-//   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
-
-//   // Dodaj obsługę MIME types
-//   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-//       request->send(LittleFS, "/style.css", "text/css");
-//   });
-
-//   server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-//       request->send(LittleFS, "/script.js", "application/javascript");
-//   });
-
-//   // Ładujemy konfigurację
-//   if(!loadConfig()) {
-//       Serial.println("Config load failed - using defaults");
-//   }
-
-//   configTime(3600, 3600, "pool.ntp.org"); // GMT+1 + DST
-//   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1); // Strefa czasowa dla Polski
-//   tzset();
-
-//   // Inicjalizacja domyślnych ustawień
-//   initializeDefaultSettings();
-
-//   // Wczytanie zapisanych ustawień
-//   loadSettings();
-
-//   // Endpoint testowy
-//   server.on("/test", HTTP_GET, [](AsyncWebServerRequest *request){
-//       request->send(200, "text/plain", "Server is running!");
-//   });
-
-//   // Konfiguracja pinów
-//   pinMode(BTN_UP, INPUT_PULLUP);
-//   pinMode(BTN_DOWN, INPUT_PULLUP);
-//   pinMode(BTN_SET, INPUT_PULLUP);
-
-//   // Konfiguracja pinów LED
-//   pinMode(FrontDayPin, OUTPUT);
-//   pinMode(FrontPin, OUTPUT);
-//   pinMode(RealPin, OUTPUT);
-//   digitalWrite(FrontDayPin, LOW);
-//   digitalWrite(FrontPin, LOW);
-//   digitalWrite(RealPin, LOW);
-//   setLights();
-
-//   // Ładowarka USB
-//   pinMode(UsbPin, OUTPUT);
-//   digitalWrite(UsbPin, LOW);
-
-//   // Inicjalizacja wyświetlacza
-//   display.begin();
-//   display.enableUTF8Print();
-//   display.setFontDirection(0);
-
-//   // Ustawienie jasności na 50%
-//   //ustawJasnosc(50);
-
-//   // Wyczyść wyświetlacz na starcie
-//   display.clearBuffer();
-//   display.sendBuffer();
-
-//   // Konfiguracja WiFi - dodaj po inicjalizacji wyświetlacza
-//   WiFi.mode(WIFI_AP);
-//   WiFi.softAP("e-Bike System", "#mamrower");  // Zmień nazwę i hasło według potrzeb
-
-//   // Konfiguracja serwera WWW
-//   setupWebServer();
-
-//   // Jeśli wybudzenie przez przycisk SET, poczekaj na długie naciśnięcie
-//   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
-//     unsigned long startTime = millis();
-//     while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
-//       if ((millis() - startTime) > SET_LONG_PRESS) {
-//         displayActive = true;
-//         showingWelcome = true;
-//         messageStartTime = millis();
-
-//         display.clearBuffer();
-//         display.setFont(czcionka_srednia);
-//         display.drawStr(40, 32, "Witaj!");
-//         display.sendBuffer();
-
-//         while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
-//           delay(10);
-//         }
-//         break;
-//       }
-//       delay(10);
-//     }
-//   }
-
-//   // Ustaw aktualną jasność podświetlenia
-//   updateBacklight();
-// }
-
 void handleSettings(AsyncWebServerRequest *request) {
     String html = "<!DOCTYPE html><html lang='pl'>";
     // ... (reszta kodu generującego stronę)
@@ -1844,10 +1666,18 @@ void setup() {
     // Inicjalizacja wyświetlacza
     display.begin();
     display.setContrast(displayBrightness); // Ustaw początkowy kontrast
-    display.enableUTF8Print();
+    //display.enableUTF8Print();
     display.setFontDirection(0);
     display.clearBuffer();
     display.sendBuffer();
+
+    // display.setFont(czcionka_mala);
+    // Serial.print("Szerokość cyfry: ");
+    // Serial.println(display.getStrWidth("0"));
+    // Serial.print("Szerokość spacji: ");
+    // Serial.println(display.getStrWidth(" "));
+    // Serial.print("Maksymalna szerokość znaku: ");
+    // Serial.println(display.getMaxCharWidth());
 
     // Jeśli wybudzenie przez przycisk SET
     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
@@ -1886,7 +1716,7 @@ void drawCenteredText(const char* text, int y, const uint8_t* font) {
     // Rysuje tekst w obliczonej pozycji
     // x - pozycja pozioma (wycentrowana)
     // y - pozycja pionowa (określona przez parametr)
-    display.drawStr(x, y, text);
+    display.drawUTF8(x, y, text);
 }
 
 void loop() {
@@ -1901,10 +1731,10 @@ void loop() {
         display.clearBuffer();
 
         // Wycentruj każdą linię tekstu
-        drawCenteredText("e-Bike System", 15, czcionka_srednia);
+        drawCenteredText("e-Bike System", 12, czcionka_srednia);
         drawCenteredText("Konfiguracja on-line", 25, czcionka_mala);
-        drawCenteredText("siec: e-Bike System", 42, czcionka_mala);
-        drawCenteredText("haslo: #mamrower", 52, czcionka_mala);
+        drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
+        drawCenteredText("haslo: #mamrower", 51, czcionka_mala);
         drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
 
         display.sendBuffer();
