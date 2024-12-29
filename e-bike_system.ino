@@ -64,8 +64,8 @@ struct WiFiSettings {
 // Struktura dla parametrów sterownika
 struct ControllerSettings {
     String type;  // "kt-lcd" lub "s866"
-    JsonObject ktParams;
-    JsonObject s866Params;
+    int ktParams[23];  // P1-P5, C1-C15, L1-L3
+    int s866Params[20];  // P1-P20
 };
 
 // Globalne instancje ustawień
@@ -1327,18 +1327,27 @@ void loadSettings() {
     strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
   }
 
+
     // Wczytywanie ustawień sterownika
-  if (doc.containsKey("controller")) {
-    controllerSettings.type = doc["controller"]["type"].as<String>();
-    
-    if (controllerSettings.type == "kt-lcd") {
-      controllerSettings.ktParams = doc["controller"]["params"].as<JsonObject>();
-    } else if (controllerSettings.type == "s866") {
-      controllerSettings.s866Params = doc["controller"]["params"].as<JsonObject>();
+    if (doc.containsKey("controller")) {
+      controllerSettings.type = doc["controller"]["type"] | "kt-lcd";
+      
+      if (controllerSettings.type == "kt-lcd") {
+        for (int i = 1; i <= 5; i++) {
+          controllerSettings.ktParams[i-1] = doc["controller"]["p"][String(i)] | 0;
+        }
+        for (int i = 1; i <= 15; i++) {
+          controllerSettings.ktParams[i+4] = doc["controller"]["c"][String(i)] | 0;
+        }
+        for (int i = 1; i <= 3; i++) {
+          controllerSettings.ktParams[i+19] = doc["controller"]["l"][String(i)] | 0;
+        }
+      } else {
+        for (int i = 1; i <= 20; i++) {
+          controllerSettings.s866Params[i-1] = doc["controller"]["p"][String(i)] | 0;
+        }
+      }
     }
-  } else {
-    controllerSettings.type = "kt-lcd"; // Domyślny typ
-  }
 
   configFile.close();
 }
@@ -1377,16 +1386,26 @@ void saveSettings() {
   wifiObj["ssid"] = wifiSettings.ssid;
   wifiObj["password"] = wifiSettings.password;
 
-  // Zapisywanie ustawień sterownika
-  JsonObject controllerObj = doc.createNestedObject("controller");
-  controllerObj["type"] = controllerSettings.type;
-  
-  JsonObject paramsObj = controllerObj.createNestedObject("params");
-  if (controllerSettings.type == "kt-lcd") {
-    paramsObj = controllerSettings.ktParams;
-  } else if (controllerSettings.type == "s866") {
-    paramsObj = controllerSettings.s866Params;
-  }
+    // Zapisywanie ustawień sterownika
+    JsonObject controllerObj = doc.createNestedObject("controller");
+    controllerObj["type"] = controllerSettings.type;
+    
+    JsonObject paramsObj = controllerObj.createNestedObject("params");
+    if (controllerSettings.type == "kt-lcd") {
+      for (int i = 1; i <= 5; i++) {
+        paramsObj["p"][String(i)] = controllerSettings.ktParams[i-1];
+      }
+      for (int i = 1; i <= 15; i++) {
+        paramsObj["c"][String(i)] = controllerSettings.ktParams[i+4];
+      }
+      for (int i = 1; i <= 3; i++) {
+        paramsObj["l"][String(i)] = controllerSettings.ktParams[i+19];
+      }
+    } else {
+      for (int i = 1; i <= 20; i++) {
+        paramsObj["p"][String(i)] = controllerSettings.s866Params[i-1];
+      }
+    }
 
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
@@ -1552,34 +1571,48 @@ server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     }
 });
 
-server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    if (request->hasParam("data", true)) {
-        String jsonString = request->getParam("data", true)->value();
-        StaticJsonDocument<512> doc;
-        DeserializationError error = deserializeJson(doc, jsonString);
+    server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (request->hasParam("data", true)) {
+          String jsonString = request->getParam("data", true)->value();
+          StaticJsonDocument<512> doc;
+          DeserializationError error = deserializeJson(doc, jsonString);
 
-        if (!error) {
-            String newType = doc["type"].as<String>();
-            controllerSettings.type = newType;
-
-            JsonObject paramsObj;
-            if (newType == "kt-lcd") {
-                paramsObj = doc["params"].as<JsonObject>();
-                controllerSettings.ktParams = paramsObj;
-            } else if (newType == "s866") {
-                paramsObj = doc["params"].as<JsonObject>();
-                controllerSettings.s866Params = paramsObj;
+          if (!error) {
+            controllerSettings.type = doc["type"].as<String>();
+            
+            if (controllerSettings.type == "kt-lcd") {
+              for (int i = 1; i <= 5; i++) {
+                if (doc["p"].containsKey(String(i))) {
+                  controllerSettings.ktParams[i-1] = doc["p"][String(i)].as<int>();
+                }
+              }
+              for (int i = 1; i <= 15; i++) {
+                if (doc["c"].containsKey(String(i))) {
+                  controllerSettings.ktParams[i+4] = doc["c"][String(i)].as<int>();
+                }
+              }
+              for (int i = 1; i <= 3; i++) {
+                if (doc["l"].containsKey(String(i))) {
+                  controllerSettings.ktParams[i+19] = doc["l"][String(i)].as<int>();
+                }
+              }
+            } else {
+              for (int i = 1; i <= 20; i++) {
+                if (doc["p"].containsKey(String(i))) {
+                  controllerSettings.s866Params[i-1] = doc["p"][String(i)].as<int>();
+                }
+              }
             }
-
+            
             saveSettings();
             request->send(200, "application/json", "{\"status\":\"ok\"}");
-        } else {
+          } else {
             request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+          }
+        } else {
+          request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
         }
-    } else {
-        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
-    }
-});
+      });
 
   ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
     switch (type) {
