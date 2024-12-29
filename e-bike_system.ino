@@ -353,63 +353,62 @@ void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uin
 
 // --- Połączenie z BMS ---
 void connectToBms() {
-  if (!bleClient->isConnected()) {
-#if DEBUG
-    Serial.println("Próba połączenia z BMS...");
-#endif
+    if (!bleClient->isConnected()) {
+        #if DEBUG
+        Serial.println("Próba połączenia z BMS...");
+        #endif
 
-    if (bleClient->connect(bmsMacAddress)) {
-#if DEBUG
-      Serial.println("Połączono z BMS");
-#endif
+        if (bleClient->connect(bmsMacAddress)) {
+            #if DEBUG
+            Serial.println("Połączono z BMS");
+            #endif
 
-      bleService = bleClient->getService("0000ff00-0000-1000-8000-00805f9b34fb");
-      if (bleService == nullptr) {
-#if DEBUG
-        Serial.println("Nie znaleziono usługi BMS");
-#endif
-        bleClient->disconnect();
-        return;
-      }
+            bleService = bleClient->getService("0000ff00-0000-1000-8000-00805f9b34fb");
+            if (bleService == nullptr) {
+                #if DEBUG
+                Serial.println("Nie znaleziono usługi BMS");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
 
-      bleCharacteristicTx = bleService->getCharacteristic("0000ff02-0000-1000-8000-00805f9b34fb");
-      if (bleCharacteristicTx == nullptr) {
-#if DEBUG
-        Serial.println("Nie znaleziono charakterystyki Tx");
-#endif
-        bleClient->disconnect();
-        return;
-      }
+            bleCharacteristicTx = bleService->getCharacteristic("0000ff02-0000-1000-8000-00805f9b34fb");
+            if (bleCharacteristicTx == nullptr) {
+                #if DEBUG
+                Serial.println("Nie znaleziono charakterystyki Tx");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
 
-      bleCharacteristicRx = bleService->getCharacteristic("0000ff01-0000-1000-8000-00805f9b34fb");
-      if (bleCharacteristicRx == nullptr) {
-#if DEBUG
-        Serial.println("Nie znaleziono charakterystyki Rx");
-#endif
-        bleClient->disconnect();
-        return;
-      }
+            bleCharacteristicRx = bleService->getCharacteristic("0000ff01-0000-1000-8000-00805f9b34fb");
+            if (bleCharacteristicRx == nullptr) {
+                #if DEBUG
+                Serial.println("Nie znaleziono charakterystyki Rx");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
 
-      // Rejestracja funkcji obsługi powiadomień BLE
-      if (bleCharacteristicRx->canNotify()) {
-        bleCharacteristicRx->registerForNotify(notificationCallback);
-#if DEBUG
-        Serial.println("Zarejestrowano powiadomienia dla Rx");
-#endif
-      } else {
-#if DEBUG
-        Serial.println("Charakterystyka Rx nie obsługuje powiadomień");
-#endif
-        bleClient->disconnect();
-        return;
-      }
-
-    } else {
-#if DEBUG
-      Serial.println("Nie udało się połączyć z BMS");
-#endif
+            // Rejestracja funkcji obsługi powiadomień BLE
+            if (bleCharacteristicRx->canNotify()) {
+                bleCharacteristicRx->registerForNotify(notificationCallback);
+                #if DEBUG
+                Serial.println("Zarejestrowano powiadomienia dla Rx");
+                #endif
+            } else {
+                #if DEBUG
+                Serial.println("Charakterystyka Rx nie obsługuje powiadomień");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
+        } else {
+          #if DEBUG
+          Serial.println("Nie udało się połączyć z BMS");
+          #endif
+        }
     }
-  }
 }
 
 void setDisplayBrightness(uint8_t brightness) {
@@ -421,35 +420,35 @@ void setDisplayBrightness(uint8_t brightness) {
 // Funkcje ustawień
 // Wczytywanie ustawień z EEPROM
 void loadSettingsFromEEPROM() {
-  // Wczytanie ustawień z EEPROM
-  EEPROM.get(0, bikeSettings);
+    // Wczytanie ustawień z EEPROM
+    EEPROM.get(0, bikeSettings);
 
-  // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
-  storedSettings = bikeSettings;
+    // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
+    storedSettings = bikeSettings;
 
-  // Możesz dodać weryfikację wczytanych danych
-  if (bikeSettings.wheelCircumference == 0) {
-    bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
-    bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
-    bikeSettings.daySetting = 0;
-    bikeSettings.nightSetting = 0;
-    bikeSettings.dayRearBlink = false;
-    bikeSettings.nightRearBlink = false;
-    bikeSettings.blinkInterval = 500;
-  }
+    // Możesz dodać weryfikację wczytanych danych
+    if (bikeSettings.wheelCircumference == 0) {
+        bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
+        bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
+        bikeSettings.daySetting = 0;
+        bikeSettings.nightSetting = 0;
+        bikeSettings.dayRearBlink = false;
+        bikeSettings.nightRearBlink = false;
+        bikeSettings.blinkInterval = 500;
+    }
 }
 
 // --- Funkcja zapisująca ustawienia do EEPROM ---
 void saveSettingsToEEPROM() {
-  // Porównaj aktualne ustawienia z poprzednio wczytanymi
-  if (memcmp(&storedSettings, &bikeSettings, sizeof(bikeSettings)) != 0) {
-    // Jeśli ustawienia się zmieniły, zapisz je do EEPROM
-    EEPROM.put(0, bikeSettings);
-    EEPROM.commit();
+    // Porównaj aktualne ustawienia z poprzednio wczytanymi
+    if (memcmp(&storedSettings, &bikeSettings, sizeof(bikeSettings)) != 0) {
+        // Jeśli ustawienia się zmieniły, zapisz je do EEPROM
+        EEPROM.put(0, bikeSettings);
+        EEPROM.commit();
 
-    // Zaktualizuj storedSettings po zapisie
-    storedSettings = bikeSettings;
-  }
+        // Zaktualizuj storedSettings po zapisie
+        storedSettings = bikeSettings;
+    }
 }
 
 // Funkcje wyświetlacza
@@ -495,8 +494,8 @@ void drawTopBar() {
 
     // Napięcie
     char voltStr[6];
-    sprintf(voltStr, "%.0fV", battery_voltage);
-    display.drawStr(100, 13, voltStr);
+    sprintf(voltStr, "%.1fV", battery_voltage);
+    display.drawStr(98, 13, voltStr);
 }
 
 void drawLightStatus() {
@@ -504,12 +503,12 @@ void drawLightStatus() {
 
     switch (lightMode) {
         case 1:
-            display.drawUTF8(35, 36, "Swiatlo");
-            display.drawUTF8(35, 46, "Dzien");
+            display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(22, 46, "Dzien");
             break;
         case 2:
-            display.drawUTF8(35, 36, "Swiatlo");
-            display.drawUTF8(35, 46, "Noc");
+            display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(22, 46, "Noc");
             break;
     }
 }
@@ -569,7 +568,7 @@ void drawAssistLevel() {
             modeText = "MIX";
             break;
     }
-    display.drawStr(35, 26, modeText);
+    display.drawStr(22, 26, modeText);
 }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
@@ -1067,15 +1066,21 @@ void activateConfigMode() {
     
     // 1. Inicjalizacja LittleFS
     if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
         Serial.println("Błąd montowania LittleFS");
+        #endif
         return;
     }
+    #ifdef DEBUG
     Serial.println("LittleFS zainicjalizowany");
+    #endif
 
     // 2. Włączenie WiFi w trybie AP
     WiFi.mode(WIFI_AP);
     WiFi.softAP("e-Bike System", "#mamrower");
+    #ifdef DEBUG
     Serial.println("Tryb AP aktywny");
+    #endif
 
     // 3. Konfiguracja serwera - najpierw pliki statyczne
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
@@ -1094,7 +1099,9 @@ void activateConfigMode() {
 
     // 5. Uruchomienie serwera
     server.begin();
+    #ifdef DEBUG
     Serial.println("Serwer WWW uruchomiony");
+    #endif
 }
 
 void deactivateConfigMode() {
@@ -1229,7 +1236,9 @@ void handleTemperature() {
 void loadSettings() {
   File configFile = LittleFS.open("/config.json", "r");
   if (!configFile) {
+    #ifdef DEBUG
     Serial.println("Failed to open config file");
+    #endif
     return;
   }
 
@@ -1237,7 +1246,9 @@ void loadSettings() {
   DeserializationError error = deserializeJson(doc, configFile);
 
   if (error) {
+    #ifdef DEBUG
     Serial.println("Failed to parse config file");
+    #endif
     return;
   }
 
@@ -1314,12 +1325,16 @@ void saveSettings() {
 
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
+    #ifdef DEBUG
     Serial.println("Failed to open config file for writing");
+    #endif
     return;
   }
 
   if (serializeJson(doc, configFile) == 0) {
+    #ifdef DEBUG
     Serial.println("Failed to write config file");
+    #endif
   }
 
   configFile.close();
@@ -1421,10 +1436,14 @@ void setupWebServer() {
   ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
     switch (type) {
         case WS_EVT_CONNECT:
+            #ifdef DEBUG
             Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+            #endif
             break;
         case WS_EVT_DISCONNECT:
+            #ifdef DEBUG
             Serial.printf("WebSocket client #%u disconnected\n", client->id());
+            #endif
             break;
     }
     });
@@ -1466,11 +1485,15 @@ void initializeDefaultSettings() {
 // Funkcja synchronizacji czasu przez NTP
 void synchronizeTime() {
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  #ifdef DEBUG
   Serial.println("Waiting for NTP time sync...");
+  #endif
   time_t now = time(nullptr);
   while (now < 8 * 3600 * 2) {
     delay(500);
+    #ifdef DEBUG
     Serial.print(".");
+    #endif
     now = time(nullptr);
   }
   Serial.println();
@@ -1510,41 +1533,59 @@ void updateBacklight() {
 // Sprawdzenie i formatowanie systemu plików przy starcie
 void initLittleFS() {
   if (!LittleFS.begin(true)) {
+    #ifdef DEBUG
     Serial.println("LittleFS Mount Failed");
+    #endif
     if (!LittleFS.format()) {
+      #ifdef DEBUG
       Serial.println("LittleFS Format Failed");
+      #endif
       return;
     }
     if (!LittleFS.begin()) {
+      #ifdef DEBUG
       Serial.println("LittleFS Mount Failed After Format");
+      #endif
       return;
     }
   }
+  #ifdef DEBUG
   Serial.println("LittleFS Mounted Successfully");
+  #endif
 }
 
 void listFiles() {
+  #ifdef DEBUG
   Serial.println("Files in LittleFS:");
+  #endif
   File root = LittleFS.open("/");
   if (!root) {
+    #ifdef DEBUG
     Serial.println("- Failed to open directory");
+    #endif
     return;
   }
   if (!root.isDirectory()) {
+    #ifdef DEBUG
     Serial.println(" - Not a directory");
+    #endif
     return;
   }
 
   File file = root.openNextFile();
   while (file) {
     if (file.isDirectory()) {
+      #ifdef DEBUG
       Serial.print("  DIR : ");
       Serial.println(file.name());
+      #endif
     } else {
+      #ifdef DEBUG
       Serial.print("  FILE: ");
       Serial.print(file.name());
       Serial.print("\tSIZE: ");
       Serial.println(file.size());
+      #endif
     }
     file = root.openNextFile();
   }
@@ -1552,7 +1593,9 @@ void listFiles() {
 
 bool loadConfig() {
     if(!LittleFS.exists("/config.json")) {
+        #ifdef DEBUG
         Serial.println("Creating default config file...");
+        #endif
         // Tworzymy domyślną konfigurację
         StaticJsonDocument<512> defaultConfig;
         defaultConfig["version"] = "1.0.0";
@@ -1561,7 +1604,9 @@ bool loadConfig() {
         
         File configFile = LittleFS.open("/config.json", "w");
         if(!configFile) {
+            #ifdef DEBUG
             Serial.println("Failed to create config file");
+            #endif
             return false;
         }
         serializeJson(defaultConfig, configFile);
@@ -1571,11 +1616,15 @@ bool loadConfig() {
     // Czytamy konfigurację
     File configFile = LittleFS.open("/config.json", "r");
     if(!configFile) {
+        #ifdef DEBUG
         Serial.println("Failed to open config file");
+        #endif
         return false;
     }
     
+    #ifdef DEBUG
     Serial.println("Config file loaded successfully");
+    #endif
     return true;
 }
 
@@ -1636,12 +1685,16 @@ void setup() {
 
     // Inicjalizacja RTC
     if (!rtc.begin()) {
+        #ifdef DEBUG
         Serial.println("Couldn't find RTC");
+        #endif
         while (1);
     }
 
     if (rtc.lostPower()) {
+        #ifdef DEBUG
         Serial.println("RTC lost power, lets set the time!");
+        #endif
         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     }
 
