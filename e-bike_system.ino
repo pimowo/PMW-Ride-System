@@ -15,6 +15,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <TimeLib.h>
+#include <map>
 
 #define DEBUG
 
@@ -60,21 +61,15 @@ struct WiFiSettings {
   char password[64];
 };
 
-// Struktura dla ustawień wyświetlacza
-struct DisplaySettings {
-    int dayBrightness;    // Jasność w trybie dziennym (0-100%)
-    int nightBrightness;  // Jasność w trybie nocnym (0-100%)
-    bool autoMode;        // Tryb automatyczny włączony/wyłączony
-};
-
-// Globalna zmienna przechowująca ustawienia wyświetlacza
-DisplaySettings displaySettings = {
-    .dayBrightness = 100,    // Domyślna jasność dzienna
-    .nightBrightness = 50,   // Domyślna jasność nocna
-    .autoMode = false        // Domyślnie tryb auto wyłączony
+// Struktura dla parametrów sterownika
+struct ControllerSettings {
+    String type;  // "kt-lcd" lub "s866"
+    JsonObject ktParams;
+    JsonObject s866Params;
 };
 
 // Globalne instancje ustawień
+ControllerSettings controllerSettings;
 TimeSettings timeSettings;
 LightSettings lightSettings;
 BacklightSettings backlightSettings;
@@ -1332,6 +1327,19 @@ void loadSettings() {
     strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
   }
 
+    // Wczytywanie ustawień sterownika
+  if (doc.containsKey("controller")) {
+    controllerSettings.type = doc["controller"]["type"].as<String>();
+    
+    if (controllerSettings.type == "kt-lcd") {
+      controllerSettings.ktParams = doc["controller"]["params"].as<JsonObject>();
+    } else if (controllerSettings.type == "s866") {
+      controllerSettings.s866Params = doc["controller"]["params"].as<JsonObject>();
+    }
+  } else {
+    controllerSettings.type = "kt-lcd"; // Domyślny typ
+  }
+
   configFile.close();
 }
 
@@ -1369,6 +1377,17 @@ void saveSettings() {
   wifiObj["ssid"] = wifiSettings.ssid;
   wifiObj["password"] = wifiSettings.password;
 
+  // Zapisywanie ustawień sterownika
+  JsonObject controllerObj = doc.createNestedObject("controller");
+  controllerObj["type"] = controllerSettings.type;
+  
+  JsonObject paramsObj = controllerObj.createNestedObject("params");
+  if (controllerSettings.type == "kt-lcd") {
+    paramsObj = controllerSettings.ktParams;
+  } else if (controllerSettings.type == "s866") {
+    paramsObj = controllerSettings.s866Params;
+  }
+
   File configFile = LittleFS.open("/config.json", "w");
   if (!configFile) {
     #ifdef DEBUG
@@ -1384,6 +1403,16 @@ void saveSettings() {
   }
 
   configFile.close();
+}
+
+// Dodaj funkcję pomocniczą do aktualizacji parametrów sterownika
+void updateControllerParam(const String& param, int value) {
+  if (controllerSettings.type == "kt-lcd") {
+    controllerSettings.ktParams[param] = value;
+  } else if (controllerSettings.type == "s866") {
+    controllerSettings.s866Params[param] = value;
+  }
+  saveSettings();
 }
 
 // W funkcji setup(), po inicjalizacji wyświetlacza, dodaj:
@@ -1506,19 +1535,43 @@ server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         DeserializationError error = deserializeJson(doc, jsonString);
 
         if (!error) {
-            // Zapisz konfigurację wyświetlacza
-            int dayBrightness = doc["dayBrightness"] | 100;
-            int nightBrightness = doc["nightBrightness"] | 50;
-            bool autoMode = doc["autoMode"] | false;
+            // Zapisz konfigurację podświetlenia używając istniejącej struktury backlightSettings
+            backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
+            backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
+            backlightSettings.autoMode = doc["autoMode"] | false;
 
-            // Zaktualizuj strukturę displaySettings
-            displaySettings.dayBrightness = dayBrightness;
-            displaySettings.nightBrightness = nightBrightness;
-            displaySettings.autoMode = autoMode;
-
-            // Zapisz ustawienia w EEPROM/LittleFS
+            // Zapisz ustawienia
             saveSettings();
 
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+        }
+    } else {
+        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
+    }
+});
+
+server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+    if (request->hasParam("data", true)) {
+        String jsonString = request->getParam("data", true)->value();
+        StaticJsonDocument<512> doc;
+        DeserializationError error = deserializeJson(doc, jsonString);
+
+        if (!error) {
+            String newType = doc["type"].as<String>();
+            controllerSettings.type = newType;
+
+            JsonObject paramsObj;
+            if (newType == "kt-lcd") {
+                paramsObj = doc["params"].as<JsonObject>();
+                controllerSettings.ktParams = paramsObj;
+            } else if (newType == "s866") {
+                paramsObj = doc["params"].as<JsonObject>();
+                controllerSettings.s866Params = paramsObj;
+            }
+
+            saveSettings();
             request->send(200, "application/json", "{\"status\":\"ok\"}");
         } else {
             request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
