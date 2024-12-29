@@ -84,19 +84,102 @@
     <button class="btn-save" onclick="saveLightConfig()">Zapisz</button>
 </div>
 
-                <div class="card battery-status">
-                    <h2>Bateria</h2>
-                    <div class="value">100</div>
-                    <div class="unit">%</div>
-                </div>
+<div class="card display-config">
+    <h2>Konfiguracja Wyświetlacza</h2>
+    
+    <!-- Podświetlenie dzień -->
+    <div class="display-row">
+        <label>Podświetlenie dzień:</label>
+        <div class="input-with-unit">
+            <input type="number" id="day-brightness" min="0" max="100" value="100">
+            <span class="unit">%</span>
+        </div>
+    </div>
 
-                <div class="card power">
-                    <h2>Moc</h2>
-                    <div class="value">0</div>
-                    <div class="unit">W</div>
+    <!-- Podświetlenie noc -->
+    <div class="display-row">
+        <label>Podświetlenie noc:</label>
+        <div class="input-with-unit">
+            <input type="number" id="night-brightness" min="0" max="100" value="50">
+            <span class="unit">%</span>
+        </div>
+    </div>
+
+    <!-- Tryb auto -->
+    <div class="display-row">
+        <label>Tryb auto:</label>
+        <div class="toggle-switch">
+            <input type="checkbox" id="auto-mode">
+            <label for="auto-mode"></label>
+        </div>
+    </div>
+
+    <button class="btn-save" onclick="saveDisplayConfig()">Zapisz</button>
+</div>
+
+<div class="card controller-config">
+    <h2>Konfiguracja sterownika</h2>
+    
+    <!-- Wybór typu sterownika -->
+    <div class="controller-row">
+        <label>Typ sterownika:</label>
+        <select id="controller-type" onchange="toggleControllerParams()">
+            <option value="kt-lcd">KT-LCD</option>
+            <option value="s866">S866</option>
+        </select>
+    </div>
+
+    <!-- Parametry KT-LCD -->
+    <div id="kt-lcd-params">
+        <!-- P1-P5 -->
+        <div class="params-group">
+            <h3>Parametry P</h3>
+            <div class="params-grid">
+                <div class="param-item" repeat="5">
+                    <label>P{i}:</label>
+                    <input type="number" id="kt-p{i}" class="param-input">
                 </div>
-            </section>
-        </main>
+            </div>
+        </div>
+
+        <!-- C1-C15 -->
+        <div class="params-group">
+            <h3>Parametry C</h3>
+            <div class="params-grid">
+                <div class="param-item" repeat="15">
+                    <label>C{i}:</label>
+                    <input type="number" id="kt-c{i}" class="param-input">
+                </div>
+            </div>
+        </div>
+
+        <!-- L1-L3 -->
+        <div class="params-group">
+            <h3>Parametry L</h3>
+            <div class="params-grid">
+                <div class="param-item" repeat="3">
+                    <label>L{i}:</label>
+                    <input type="number" id="kt-l{i}" class="param-input">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Parametry S866 -->
+    <div id="s866-params" style="display: none;">
+        <div class="params-group">
+            <h3>Parametry P</h3>
+            <div class="params-grid">
+                <div class="param-item" repeat="20">
+                    <label>P{i}:</label>
+                    <input type="number" id="s866-p{i}" class="param-input">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-save" onclick="saveControllerConfig()">Zapisz</button>
+</div>
         
         <footer>
             <a href="https://github.com/pimowo/eBikeSystem" target="_blank" rel="noopener noreferrer">
