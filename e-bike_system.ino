@@ -60,6 +60,20 @@ struct WiFiSettings {
   char password[64];
 };
 
+// Struktura dla ustawień wyświetlacza
+struct DisplaySettings {
+    int dayBrightness;    // Jasność w trybie dziennym (0-100%)
+    int nightBrightness;  // Jasność w trybie nocnym (0-100%)
+    bool autoMode;        // Tryb automatyczny włączony/wyłączony
+};
+
+// Globalna zmienna przechowująca ustawienia wyświetlacza
+DisplaySettings displaySettings = {
+    .dayBrightness = 100,    // Domyślna jasność dzienna
+    .nightBrightness = 50,   // Domyślna jasność nocna
+    .autoMode = false        // Domyślnie tryb auto wyłączony
+};
+
 // Globalne instancje ustawień
 TimeSettings timeSettings;
 LightSettings lightSettings;
@@ -1484,6 +1498,35 @@ server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
       }
     }
   });
+
+server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+    if (request->hasParam("data", true)) {
+        String jsonString = request->getParam("data", true)->value();
+        DynamicJsonDocument doc(200);
+        DeserializationError error = deserializeJson(doc, jsonString);
+
+        if (!error) {
+            // Zapisz konfigurację wyświetlacza
+            int dayBrightness = doc["dayBrightness"] | 100;
+            int nightBrightness = doc["nightBrightness"] | 50;
+            bool autoMode = doc["autoMode"] | false;
+
+            // Zaktualizuj strukturę displaySettings
+            displaySettings.dayBrightness = dayBrightness;
+            displaySettings.nightBrightness = nightBrightness;
+            displaySettings.autoMode = autoMode;
+
+            // Zapisz ustawienia w EEPROM/LittleFS
+            saveSettings();
+
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+        }
+    } else {
+        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
+    }
+});
 
   ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
     switch (type) {
