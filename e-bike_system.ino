@@ -1420,29 +1420,49 @@ void setupWebServer() {
   });
 
   // Endpoint dla ustawień świateł
-  server.on("/api/lights", HTTP_POST, [](AsyncWebServerRequest* request) {
+server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     if (request->hasParam("data", true)) {
-      StaticJsonDocument<200> doc;
-      DeserializationError error = deserializeJson(doc, request->getParam("data", true)->value());
+        String jsonString = request->getParam("data", true)->value();
+        DynamicJsonDocument doc(200);
+        DeserializationError error = deserializeJson(doc, jsonString);
 
-      if (!error) {
-        // Aktualizuj ustawienia świateł
-        if (doc.containsKey("frontDay")) {
-          digitalWrite(FrontDayPin, doc["frontDay"].as<bool>());
-        }
-        if (doc.containsKey("front")) {
-          digitalWrite(FrontPin, doc["front"].as<bool>());
-        }
-        if (doc.containsKey("rear")) {
-          digitalWrite(RealPin, doc["rear"].as<bool>());
-        }
+        if (!error) {
+            // Zapisz konfigurację świateł
+            String dayLights = doc["dayLights"].as<String>();
+            String nightLights = doc["nightLights"].as<String>();
+            bool dayBlink = doc["dayBlink"].as<bool>();
+            bool nightBlink = doc["nightBlink"].as<bool>();
+            int blinkFrequency = doc["blinkFrequency"] | 500;
 
-        request->send(200, "application/json", "{\"status\":\"ok\"}");
-      } else {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      }
+            // Zaktualizuj strukturę lightSettings
+            if (dayLights == "front-day") lightSettings.dayLights = LightSettings::FRONT;
+            else if (dayLights == "front-normal") lightSettings.dayLights = LightSettings::FRONT;
+            else if (dayLights == "rear") lightSettings.dayLights = LightSettings::REAR;
+            else if (dayLights == "front-day-rear") lightSettings.dayLights = LightSettings::BOTH;
+            else if (dayLights == "front-normal-rear") lightSettings.dayLights = LightSettings::BOTH;
+
+            // To samo dla świateł nocnych
+            if (nightLights == "front-day") lightSettings.nightLights = LightSettings::FRONT;
+            else if (nightLights == "front-normal") lightSettings.nightLights = LightSettings::FRONT;
+            else if (nightLights == "rear") lightSettings.nightLights = LightSettings::REAR;
+            else if (nightLights == "front-day-rear") lightSettings.nightLights = LightSettings::BOTH;
+            else if (nightLights == "front-normal-rear") lightSettings.nightLights = LightSettings::BOTH;
+
+            lightSettings.dayBlink = dayBlink;
+            lightSettings.nightBlink = nightBlink;
+            lightSettings.blinkFrequency = blinkFrequency;
+
+            // Zapisz ustawienia w EEPROM/LittleFS
+            saveSettings();
+
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+        }
+    } else {
+        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
     }
-  });
+});
 
   server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {
     if (request->hasParam("data", true)) {
