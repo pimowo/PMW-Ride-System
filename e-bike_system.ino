@@ -1424,14 +1424,34 @@ void saveSettings() {
   configFile.close();
 }
 
-// Dodaj funkcję pomocniczą do aktualizacji parametrów sterownika
+// Funkcja pomocnicza do konwersji parametru na indeks
+// Funkcja pomocnicza do konwersji parametru na indeks
+int getParamIndex(const String& param) {
+    if (param.startsWith("p")) {
+        return param.substring(1).toInt() - 1;
+    } else if (param.startsWith("c")) {
+        return param.substring(1).toInt() + 4;  // P1-P5 zajmują indeksy 0-4
+    } else if (param.startsWith("l")) {
+        return param.substring(1).toInt() + 19; // P1-P5 i C1-C15 zajmują indeksy 0-19
+    }
+    return -1;
+}
+
 void updateControllerParam(const String& param, int value) {
-  if (controllerSettings.type == "kt-lcd") {
-    controllerSettings.ktParams[param] = value;
-  } else if (controllerSettings.type == "s866") {
-    controllerSettings.s866Params[param] = value;
-  }
-  saveSettings();
+    if (controllerSettings.type == "kt-lcd") {
+        int index = getParamIndex(param);
+        if (index >= 0 && index < 23) { // 5 (P) + 15 (C) + 3 (L) = 23 parametry
+            controllerSettings.ktParams[index] = value;
+        }
+    } else if (controllerSettings.type == "s866") {
+        if (param.startsWith("p")) {
+            int index = param.substring(1).toInt() - 1;
+            if (index >= 0 && index < 20) {
+                controllerSettings.s866Params[index] = value;
+            }
+        }
+    }
+    saveSettings();
 }
 
 // W funkcji setup(), po inicjalizacji wyświetlacza, dodaj:
