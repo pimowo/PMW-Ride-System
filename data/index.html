@@ -27,11 +27,62 @@
                     <button class="btn-save" onclick="saveRTCConfig()">Zapisz</button>
                 </div>
 
-                <div class="card temperature">
-                    <h2>Temperatura</h2>
-                    <div class="value">25.0</div>
-                    <div class="unit">°C</div>
-                </div>
+<div class="card light-config">
+    <h2>Konfiguracja świateł</h2>
+    
+    <!-- Światła dzienne -->
+    <div class="light-row">
+        <label>Światła dzienne:</label>
+        <select id="day-lights">
+            <option value="none">Wyłączone</option>
+            <option value="front-day">Przód dzień</option>
+            <option value="front-normal">Przód zwykłe</option>
+            <option value="rear">Tył</option>
+            <option value="front-day-rear">Przód dzień + tył</option>
+            <option value="front-normal-rear">Przód zwykłe + tył</option>
+        </select>
+    </div>
+
+    <!-- Mruganie dla świateł dziennych -->
+    <div class="light-row">
+        <label>Mruganie tylnego światła (dzień):</label>
+        <div class="toggle-switch">
+            <input type="checkbox" id="day-blink">
+            <label for="day-blink"></label>
+        </div>
+    </div>
+
+    <!-- Światła nocne -->
+    <div class="light-row">
+        <label>Światła nocne:</label>
+        <select id="night-lights">
+            <option value="none">Wyłączone</option>
+            <option value="front-day">Przód dzień</option>
+            <option value="front-normal">Przód zwykłe</option>
+            <option value="rear">Tył</option>
+            <option value="front-day-rear">Przód dzień + tył</option>
+            <option value="front-normal-rear">Przód zwykłe + tył</option>
+        </select>
+    </div>
+
+    <!-- Mruganie dla świateł nocnych -->
+    <div class="light-row">
+        <label>Mruganie tylnego światła (noc):</label>
+        <div class="toggle-switch">
+            <input type="checkbox" id="night-blink">
+            <label for="night-blink"></label>
+        </div>
+    </div>
+
+    <!-- Częstotliwość mrugania -->
+    <div class="light-row">
+        <label>Częstotliwość mrugania:</label>
+        <input type="number" id="blink-frequency" min="100" max="2000" step="100" value="500">
+        <span class="unit">ms</span>
+    </div>
+
+    <button class="btn-save" onclick="saveLightConfig()">Zapisz</button>
+</div>
 
                 <div class="card battery-status">
                     <h2>Bateria</h2>
