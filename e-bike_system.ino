@@ -456,12 +456,12 @@ void saveSettingsToEEPROM() {
 // Funkcje wyświetlacza
 void drawHorizontalLine() {
     display.drawHLine(4, 12, 122);
-    display.drawHLine(4, 52, 122);
+    display.drawHLine(4, 48, 122);
 }
 
 void drawVerticalLine() {
-    display.drawVLine(25, 17, 28);
-    display.drawVLine(67, 17, 28);
+    display.drawVLine(25, 16, 28);
+    display.drawVLine(67, 16, 28);
 }
 
 void drawTopBar() {
@@ -492,7 +492,7 @@ void drawTopBar() {
     // Bateria
     char battStr[5];
     sprintf(battStr, "%d%%", battery_capacity_percent);
-    display.drawStr(60, 10, battStr);
+    display.drawStr(58, 10, battStr);
 
     // Napięcie
     char voltStr[6];
@@ -506,11 +506,11 @@ void drawLightStatus() {
     switch (lightMode) {
         case 1:
             //display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(30, 46, "Dzien");
+            display.drawUTF8(30, 44, "Dzien");
             break;
         case 2:
             //display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(30, 46, "Noc");
+            display.drawUTF8(30, 44, "Noc");
             break;
     }
 }
@@ -519,7 +519,7 @@ void drawAssistLevel() {
     display.setFont(czcionka_duza);
 
     if (assistLevelAsText) {
-         display.drawStr(5, 42, "T");
+         display.drawStr(2, 40, "T");
     } else {
         // Wyświetlanie poziomu asysty
         if (legalMode) {
@@ -529,8 +529,8 @@ void drawAssistLevel() {
             const int total_width = 16 + (padding * 2);  // szerokość cyfry + marginesy
             const int total_height = digit_height + (padding * 2);  // wysokość + marginesy
             
-            int x = 5;
-            int y = 42;
+            int x = 2;
+            int y = 40;
             
             // Pozycja tła (box)
             int box_x = x - padding;
@@ -550,7 +550,7 @@ void drawAssistLevel() {
             // Normalny tryb
             char levelStr[2];
             sprintf(levelStr, "%d", assistLevel);
-            display.drawStr(5, 42, levelStr);
+            display.drawStr(2, 40, levelStr);
         }
     }    
 
@@ -573,26 +573,53 @@ void drawAssistLevel() {
             modeText = "MIX";
             break;
     }
-    display.drawStr(30, 26, modeText);
+    display.drawStr(30, 24, modeText);
 }
 
+// void drawValueAndUnit(const char* valueStr, const char* unitStr) {
+//     display.setFont(czcionka_mala);
+//     int unitWidth = display.getStrWidth(unitStr);
+//     int valueWidth = display.getStrWidth(valueStr);
+//     int spaceWidth = display.getStrWidth(" ");  // szerokość spacji
+    
+//     // Całkowita szerokość = wartość + spacja + jednostka
+//     int totalWidth = valueWidth + spaceWidth + unitWidth;
+    
+//     // Pozycja początkowa dla wartości (od prawej strony)
+//     int xPosValue = 128 - totalWidth;
+    
+//     // Pozycja początkowa dla jednostki
+//     int xPosUnit = 128 - unitWidth;
+    
+//     // Rysowanie wartości i jednostki
+//     display.drawStr(xPosValue, 62, valueStr);
+//     display.drawStr(xPosUnit, 62, unitStr);
+// }
+
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
+    // Najpierw oblicz szerokość jednostki małą czcionką
     display.setFont(czcionka_mala);
     int unitWidth = display.getStrWidth(unitStr);
-    int valueWidth = display.getStrWidth(valueStr);
-    int spaceWidth = display.getStrWidth(" ");  // szerokość spacji
     
-    // Całkowita szerokość = wartość + spacja + jednostka
-    int totalWidth = valueWidth + spaceWidth + unitWidth;
+    // Następnie oblicz szerokość wartości średnią czcionką
+    display.setFont(czcionka_srednia);
+    int valueWidth = display.getStrWidth(valueStr);
+    
+    // Całkowita szerokość = wartość + jednostka
+    int totalWidth = valueWidth + unitWidth;
     
     // Pozycja początkowa dla wartości (od prawej strony)
     int xPosValue = 128 - totalWidth;
     
     // Pozycja początkowa dla jednostki
-    int xPosUnit = 128 - unitWidth;
+    int xPosUnit = xPosValue + valueWidth;
     
-    // Rysowanie wartości i jednostki
+    // Rysowanie wartości średnią czcionką
+    display.setFont(czcionka_srednia);
     display.drawStr(xPosValue, 62, valueStr);
+    
+    // Rysowanie jednostki małą czcionką
+    display.setFont(czcionka_mala);
     display.drawStr(xPosUnit, 62, unitStr);
 }
 
@@ -739,22 +766,22 @@ void drawMainDisplay() {
                 char combinedStr[16];
                 switch (currentSubScreen) {
                     case PRESSURE_BAR:
-                        sprintf(combinedStr, "%.2f/%.2f", pressure_bar, pressure_rear_bar);
+                        sprintf(combinedStr, "%.2f|%.2f", pressure_bar, pressure_rear_bar);
                         strcpy(valueStr, combinedStr);
                         unitStr = "bar";
-                        descText = ">Cis.";
+                        descText = ">Cis";
                         break;
                     case PRESSURE_VOLTAGE:
-                        sprintf(combinedStr, "%.2f/%.2f", pressure_voltage, pressure_rear_voltage);
+                        sprintf(combinedStr, "%.2f|%.2f", pressure_voltage, pressure_rear_voltage);
                         strcpy(valueStr, combinedStr);
                         unitStr = "V";
-                        descText = ">Bateria";
+                        descText = ">Bat";
                         break;
                     case PRESSURE_TEMP:
-                        sprintf(combinedStr, "%.1f/%.1f", pressure_temp, pressure_rear_temp);
+                        sprintf(combinedStr, "%.1f|%.1f", pressure_temp, pressure_rear_temp);
                         strcpy(valueStr, combinedStr);
                         unitStr = "C";
-                        descText = ">Temp.";
+                        descText = ">Temp";
                         break;
                 }
                 break;
@@ -811,8 +838,8 @@ void drawMainDisplay() {
                 break;
 
             case USB_SCREEN:
-                display.setFont(czcionka_mala);
-                display.drawStr(72, 62, usbEnabled ? "Wlaczone" : "Wylaczone");
+                display.setFont(czcionka_srednia);
+                display.drawStr(48, 61, usbEnabled ? "Wlaczone" : "Wylaczone");
                 descText = " USB";
                 break;
         }
@@ -902,7 +929,7 @@ void handleButtons() {
     if (displayActive && !showingWelcome && !upState && !setState) {
         if (legalModeStart == 0) {
             legalModeStart = currentTime;
-        } else if ((currentTime - legalModeStart) > 1000) { // 2 sekundy  przytrzymania
+        } else if ((currentTime - legalModeStart) > 500) { // 2 sekundy  przytrzymania
             toggleLegalMode();
             while (!digitalRead(BTN_UP) || !digitalRead(BTN_SET)) {
                 delay(10); // Czekaj na puszczenie przycisków
