@@ -224,6 +224,54 @@ select:focus {
     opacity: 1;
 }
 
+/* Style dla konfiguracji zegara */
+.clock-config {
+    padding: 20px;
+}
+
+.rtc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 15px 0;
+    padding: 0 10px;
+}
+
+.rtc-row label {
+    color: var(--text-color);
+    font-size: 1.2rem;
+    margin-right: 15px;
+}
+
+.rtc-row input {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 1.1rem;
+    width: 150px;
+}
+
+.btn-save {
+    background-color: var(--success-color);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 15px;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+    width: 100%;
+}
+
+.btn-save:hover {
+    background-color: #388e3c;
+}
+
+/* Style dla stopki */
 footer {
     background-color: var(--header-background);
     color: var(--text-color);
