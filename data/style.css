@@ -39,14 +39,9 @@ header {
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
-.status-bar {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 10px;
-    padding: 10px;
-    background-color: var(--card-background);
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
+header h1 {
+    text-align: center;
+    margin-bottom: 15px;
 }
 
 .dashboard {
