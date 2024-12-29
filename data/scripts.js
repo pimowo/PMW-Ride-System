@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Pobierz aktualny czas z RTC przy starcie
+    // Pobierz aktualny czas z RTC i konfigurację świateł przy starcie
     fetchRTCTime();
+    fetchLightConfig();
 
     // Obsługa WebSocket dla danych w czasie rzeczywistym
     const ws = new WebSocket(`ws://${window.location.hostname}/ws`);
@@ -12,10 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Aktualizacja danych na dashboardzie
     function updateDashboard(data) {
-        // Aktualizacja temperatury
-        if(data.temperature !== undefined) {
-            document.querySelector('.temperature .value').textContent = data.temperature.toFixed(1);
-        }
         // Aktualizacja baterii
         if(data.battery !== undefined) {
             document.querySelector('.battery-status .value').textContent = data.battery;
@@ -33,16 +30,6 @@ async function fetchRTCTime() {
         const response = await fetch('/api/status');
         const data = await response.json();
         if (data.time) {
-            // Ustawienie czasu
-            const date = new Date(
-                data.time.year, 
-                data.time.month - 1, 
-                data.time.day, 
-                data.time.hours, 
-                data.time.minutes, 
-                data.time.seconds
-            );
-            
             // Format czasu dla input type="time"
             const timeStr = String(data.time.hours).padStart(2, '0') + ':' +
                           String(data.time.minutes).padStart(2, '0') + ':' +
@@ -87,9 +74,7 @@ async function saveRTCConfig() {
 
         const data = await response.json();
         if (data.status === 'ok') {
-            // Pokaż komunikat o sukcesie
             alert('Zapisano ustawienia zegara');
-            // Odśwież wyświetlany czas
             fetchRTCTime();
         } else {
             alert('Błąd podczas zapisywania ustawień');
@@ -97,6 +82,55 @@ async function saveRTCConfig() {
     } catch (error) {
         console.error('Błąd podczas zapisywania konfiguracji RTC:', error);
         alert('Błąd podczas zapisywania ustawień');
+    }
+}
+
+// Funkcja pobierająca konfigurację świateł
+async function fetchLightConfig() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        if (data.lights) {
+            document.getElementById('day-lights').value = data.lights.dayLights;
+            document.getElementById('night-lights').value = data.lights.nightLights;
+            document.getElementById('day-blink').checked = data.lights.dayBlink;
+            document.getElementById('night-blink').checked = data.lights.nightBlink;
+            document.getElementById('blink-frequency').value = data.lights.blinkFrequency;
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji świateł:', error);
+    }
+}
+
+// Funkcja zapisująca konfigurację świateł
+async function saveLightConfig() {
+    try {
+        const data = {
+            dayLights: document.getElementById('day-lights').value,
+            nightLights: document.getElementById('night-lights').value,
+            dayBlink: document.getElementById('day-blink').checked,
+            nightBlink: document.getElementById('night-blink').checked,
+            blinkFrequency: parseInt(document.getElementById('blink-frequency').value)
+        };
+
+        const response = await fetch('/api/lights/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (result.status === 'ok') {
+            alert('Zapisano ustawienia świateł');
+            fetchLightConfig();
+        } else {
+            throw new Error('Błąd odpowiedzi serwera');
+        }
+    } catch (error) {
+        console.error('Błąd podczas zapisywania konfiguracji świateł:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
 
