@@ -16,6 +16,8 @@
 #include <ArduinoJson.h>
 #include <TimeLib.h>
 
+#define DEBUG
+
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
 AsyncWebServer server(80);
@@ -354,18 +356,18 @@ void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uin
 // --- Połączenie z BMS ---
 void connectToBms() {
     if (!bleClient->isConnected()) {
-        #if DEBUG
+        #ifdef DEBUG
         Serial.println("Próba połączenia z BMS...");
         #endif
 
         if (bleClient->connect(bmsMacAddress)) {
-            #if DEBUG
+            #ifdef DEBUG
             Serial.println("Połączono z BMS");
             #endif
 
             bleService = bleClient->getService("0000ff00-0000-1000-8000-00805f9b34fb");
             if (bleService == nullptr) {
-                #if DEBUG
+                #ifdef DEBUG
                 Serial.println("Nie znaleziono usługi BMS");
                 #endif
                 bleClient->disconnect();
@@ -374,7 +376,7 @@ void connectToBms() {
 
             bleCharacteristicTx = bleService->getCharacteristic("0000ff02-0000-1000-8000-00805f9b34fb");
             if (bleCharacteristicTx == nullptr) {
-                #if DEBUG
+                #ifdef DEBUG
                 Serial.println("Nie znaleziono charakterystyki Tx");
                 #endif
                 bleClient->disconnect();
@@ -383,7 +385,7 @@ void connectToBms() {
 
             bleCharacteristicRx = bleService->getCharacteristic("0000ff01-0000-1000-8000-00805f9b34fb");
             if (bleCharacteristicRx == nullptr) {
-                #if DEBUG
+                #ifdef DEBUG
                 Serial.println("Nie znaleziono charakterystyki Rx");
                 #endif
                 bleClient->disconnect();
@@ -393,18 +395,18 @@ void connectToBms() {
             // Rejestracja funkcji obsługi powiadomień BLE
             if (bleCharacteristicRx->canNotify()) {
                 bleCharacteristicRx->registerForNotify(notificationCallback);
-                #if DEBUG
+                #ifdef DEBUG
                 Serial.println("Zarejestrowano powiadomienia dla Rx");
                 #endif
             } else {
-                #if DEBUG
+                #ifdef DEBUG
                 Serial.println("Charakterystyka Rx nie obsługuje powiadomień");
                 #endif
                 bleClient->disconnect();
                 return;
             }
         } else {
-          #if DEBUG
+          #ifdef DEBUG
           Serial.println("Nie udało się połączyć z BMS");
           #endif
         }
@@ -453,13 +455,13 @@ void saveSettingsToEEPROM() {
 
 // Funkcje wyświetlacza
 void drawHorizontalLine() {
-    display.drawHLine(4, 15, 122);
-    display.drawHLine(4, 50, 122);
+    display.drawHLine(4, 12, 122);
+    display.drawHLine(4, 52, 122);
 }
 
 void drawVerticalLine() {
-    display.drawVLine(25, 20, 25);
-    display.drawVLine(67, 20, 25);
+    display.drawVLine(25, 17, 28);
+    display.drawVLine(67, 17, 28);
 }
 
 void drawTopBar() {
@@ -479,7 +481,7 @@ void drawTopBar() {
     } else {
         sprintf(timeStr, "%02d %02d", now.hour(), now.minute());
     }
-    display.drawStr(0, 13, timeStr);
+    display.drawStr(0, 10, timeStr);
 
     // Przełącz stan dwukropka co COLON_TOGGLE_INTERVAL
     if (millis() - lastColonToggle >= COLON_TOGGLE_INTERVAL) {
@@ -490,12 +492,12 @@ void drawTopBar() {
     // Bateria
     char battStr[5];
     sprintf(battStr, "%d%%", battery_capacity_percent);
-    display.drawStr(60, 13, battStr);
+    display.drawStr(60, 10, battStr);
 
     // Napięcie
     char voltStr[6];
-    sprintf(voltStr, "%.1fV", battery_voltage);
-    display.drawStr(98, 13, voltStr);
+    sprintf(voltStr, "%.0fV", battery_voltage);
+    display.drawStr(100, 10, voltStr);
 }
 
 void drawLightStatus() {
@@ -503,12 +505,12 @@ void drawLightStatus() {
 
     switch (lightMode) {
         case 1:
-            display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(22, 46, "Dzien");
+            //display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(30, 46, "Dzien");
             break;
         case 2:
-            display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(22, 46, "Noc");
+            //display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(30, 46, "Noc");
             break;
     }
 }
@@ -556,19 +558,22 @@ void drawAssistLevel() {
     const char* modeText;
     switch (assistMode) {
         case 0:
-            modeText = "PAS";
-            break;
-        case 1:
             modeText = "STOP";
             break;
-        case 2:
-            modeText = "GAZ";
+        case 1:
+            modeText = "PAS";
+            break;
+        case 2:           
+            modeText = "TENS";
             break;
         case 3:
+            modeText = "GAZ";
+            break;
+        case 4:
             modeText = "MIX";
             break;
     }
-    display.drawStr(22, 26, modeText);
+    display.drawStr(30, 26, modeText);
 }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
@@ -822,11 +827,11 @@ void drawMainDisplay() {
 
     // Wyświetl prędkość dużą czcionką
     display.setFont(czcionka_duza);
-    display.drawStr(72, 38, speedStr);
+    display.drawStr(72, 35, speedStr);
 
     // Wyświetl jednostkę małą czcionką pod prędkością
     display.setFont(czcionka_mala);
-    display.drawStr(105, 47, "km/h");
+    display.drawStr(105, 45, "km/h");
 
     // Wyświetl wartości tylko jeśli nie jesteśmy na ekranie USB
     if (currentMainScreen != USB_SCREEN) {
@@ -1864,7 +1869,7 @@ void loop() {
             battery_capacity_wh = 14.5 - (random(20) / 10.0);
             battery_capacity_percent = (battery_capacity_percent <= 0) ? 100 : battery_capacity_percent - 1;
             battery_voltage = (battery_voltage <= 42.0) ? 50.0 : battery_voltage - 0.1;
-            assistMode = (assistMode + 1) % 4;
+            assistMode = (assistMode + 1) % 5;
             lastUpdate = currentTime;
             pressure_bar = 2.0 + (random(20) / 10.0);
             pressure_rear_bar = 2.0 + (random(20) / 10.0);
