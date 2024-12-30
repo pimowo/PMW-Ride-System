@@ -147,6 +147,20 @@ async function fetchDisplayConfig() {
     }
 }
 
+function toggleAutoBrightness() {
+    const autoMode = document.getElementById('display-auto').value === 'true';
+    const autoBrightnessSection = document.getElementById('auto-brightness-section');
+    const normalBrightness = document.getElementById('brightness').parentElement.parentElement;
+    
+    if (autoMode) {
+        autoBrightnessSection.style.display = 'block';
+        normalBrightness.style.display = 'none';
+    } else {
+        autoBrightnessSection.style.display = 'none';
+        normalBrightness.style.display = 'flex';
+    }
+}
+
 // Funkcja zapisująca konfigurację wyświetlacza
 async function saveDisplayConfig() {
     try {
@@ -302,3 +316,69 @@ async function saveControllerConfig() {
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
+
+// Obiekt z informacjami dla każdego parametru
+const infoContent = {
+    'brightness-info': {
+        title: 'Podświetlenie wyświetlacza',
+        description: 'Ustaw jasność podświetlenia wyświetlacza w zakresie od 0% do 100%. ' +
+            'Wyższa wartość oznacza jaśniejszy wyświetlacz, ale również większe zużycie energii. ' +
+            'Zalecane ustawienie to 50-70% dla optymalnej widoczności i czasu pracy baterii.'
+    },
+    // Dodaj więcej opisów dla innych parametrów
+};
+
+// Obsługa modala
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('info-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    const modalTimestamp = document.getElementById('modal-timestamp');
+    const modalUser = document.getElementById('modal-user');
+    
+    // Otwieranie modala
+    document.querySelectorAll('.info-icon').forEach(button => {
+        button.addEventListener('click', function() {
+            const infoId = this.dataset.info;
+            const info = infoContent[infoId];
+            
+            modalTitle.textContent = info.title;
+            modalDescription.textContent = info.description;
+            modalTimestamp.textContent = new Date().toLocaleString('pl-PL');
+            modalUser.textContent = 'pimowo'; // lub pobierz z systemu
+            
+            modal.style.display = 'block';
+        });
+    });
+    
+    // Zamykanie modala
+    document.querySelector('.close-modal').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // Zamykanie po kliknięciu poza modalem
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+});
+
+// Funkcja pobierająca wersję systemu
+async function fetchSystemVersion() {
+    try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+        if (data.version) {
+            document.getElementById('system-version').textContent = data.version;
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania wersji systemu:', error);
+        document.getElementById('system-version').textContent = 'N/A';
+    }
+}
+
+// Wywołaj przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', function() {
+    fetchSystemVersion();
+});
