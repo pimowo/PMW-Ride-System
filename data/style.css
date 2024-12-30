@@ -143,7 +143,7 @@ header h1 {
     min-width: 30px;
 }
 
-/* Toggle Switch - nowy, bardziej nowoczesny wygląd */
+/* Toggle Switch - nowy styl dla selecta */
 .toggle-switch {
     margin-left: auto;
     width: 150px;
@@ -158,7 +158,6 @@ header h1 {
     border-radius: 4px;
     font-size: 1rem;
     cursor: pointer;
-    margin-left: auto;
 }
 
 .toggle-switch select:hover {
@@ -169,55 +168,6 @@ header h1 {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.toggle-switch label {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(255, 255, 255, 0.1);
-    transition: .3s;
-    border-radius: 10px; /* Połowa wysokości */
-    border: 1px solid var(--border-color);
-}
-
-.toggle-switch label:before {
-    position: absolute;
-    content: "";
-    height: 16px; /* Zmniejszona wysokość kółka */
-    width: 16px; /* Zmniejszona szerokość kółka */
-    left: 1px;
-    bottom: 1px;
-    background-color: white;
-    transition: .3s;
-    border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.toggle-switch input:checked + label {
-    background-color: var(--success-color);
-    border-color: var(--success-color);
-}
-
-.toggle-switch input:checked + label:before {
-    transform: translateX(20px); /* Dostosowana odległość przesunięcia */
-}
-
-.toggle-switch label:hover {
-    border-color: var(--primary-color);
-}
-
-.toggle-switch input:focus + label {
-    box-shadow: 0 0 1px var(--primary-color);
 }
 
 /* Grupy parametrów sterownika */
@@ -311,11 +261,87 @@ footer a:hover {
         margin-left: 0;
     }
     
-    .toggle-switch select {
-        width: 100%;
-    }
-    
     .card {
         padding: 15px;
+    }
+}
+
+/* Style dla ikonki info */
+.info-icon {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    padding: 0 5px;
+    font-size: 1rem;
+    transition: color 0.3s ease;
+}
+
+.info-icon:hover {
+    color: var(--secondary-color);
+}
+
+/* Style dla modala */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+}
+
+.modal-content {
+    background-color: var(--card-background);
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.modal-body {
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+.modal-footer {
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    color: var(--unit-color);
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+    .modal-content {
+        margin: 10% auto;
+        width: 95%;
+        max-height: 80vh;
+        overflow-y: auto;
     }
 }
