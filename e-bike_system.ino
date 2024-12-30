@@ -19,6 +19,9 @@
 
 #define DEBUG
 
+// --- Wersja systemu ---
+#define SYSTEM_VERSION "30.12.24"
+
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
 AsyncWebServer server(80);
@@ -1134,6 +1137,12 @@ void activateConfigMode() {
     server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send(LittleFS, "/script.js", "application/javascript");
     });
+
+// W setup() lub tam gdzie konfigurowany jest serwer
+server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String response = "{\"version\":\"" + String(SYSTEM_VERSION) + "\"}";
+    request.send(200, "application/json", response);
+});
 
     // 4. Dodanie endpointów API
     setupWebServer();
