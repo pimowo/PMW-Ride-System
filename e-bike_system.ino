@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-#define SYSTEM_VERSION "30.12.24"
+#define SYSTEM_VERSION "31.12.24"
 
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
