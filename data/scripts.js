@@ -659,7 +659,7 @@ const infoContent = {
 
     'kt-l2-info': {
         title: '⚡ L2 - Silniki wysokoobrotowe',
-        description: `Parametr dla silników o wysokich obrotach (>5000 RPM).
+        description: `Parametr dla silników o wysokich obrotach (>5000 RPM)
 
     Wartości:
     0: Tryb normalny
