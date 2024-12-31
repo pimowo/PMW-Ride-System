@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>e-Bike System PMW</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
@@ -16,12 +15,7 @@
         <main>
             <section class="dashboard">
                 <div class="card clock-config">
-                    <h2>
-                        Konfiguracja zegara
-                        <button class="info-icon" data-info="clock-config-info">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </h2>
+                    <h2>Konfiguracja zegara</h2>
                     <div class="rtc-row">
                         <label>Czas:</label>
                         <input type="time" id="rtc-time" step="1">
@@ -34,19 +28,11 @@
                 </div>
 
                 <div class="card light-config">
-                    <h2>
-                        Konfiguracja świateł
-                        <button class="info-icon" data-info="light-config-info">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
-                    </h2>
-                    
+                    <h2>Konfiguracja świateł</h2>                    
                     <div class="light-row">
                         <label>
                             Światła dzienne
-                            <button class="info-icon" data-info="day-lights-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="day-lights-info">ℹ</button>
                         </label>
                         <select id="day-lights">
                             <option value="none">Wyłączone</option>
@@ -61,9 +47,7 @@
                     <div class="light-row">
                         <label>
                             Mruganie tylnego światła (dzień)
-                            <button class="info-icon" data-info="day-blink-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="day-blink-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
                             <select id="day-blink">
@@ -76,9 +60,7 @@
                     <div class="light-row">
                         <label>
                             Światła nocne
-                            <button class="info-icon" data-info="night-lights-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="night-lights-info">ℹ</button>
                         </label>
                         <select id="night-lights">
                             <option value="none">Wyłączone</option>
@@ -93,9 +75,7 @@
                     <div class="light-row">
                         <label>
                             Mruganie tylnego światła (noc)
-                            <button class="info-icon" data-info="night-blink-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="night-blink-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
                             <select id="night-blink">
@@ -108,9 +88,7 @@
                     <div class="light-row">
                         <label>
                             Częstotliwość mrugania
-                            <button class="info-icon" data-info="blink-frequency-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="blink-frequency-info">ℹ</button>
                         </label>
                         <div class="input-with-unit">
                             <input type="number" id="blink-frequency" min="100" max="2000" step="100" value="500">
@@ -124,17 +102,13 @@
                 <div class="card display-config">
                     <h2>
                         Konfiguracja Wyświetlacza
-                        <button class="info-icon" data-info="display-config-info">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
+                        <button class="info-icon" data-info="display-config-info">ℹ</button>
                     </h2>
                     
                     <div class="display-row">
                         <label>
                             Podświetlenie
-                            <button class="info-icon" data-info="brightness-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="brightness-info">ℹ</button>
                         </label>
                         <div class="input-with-unit">
                             <input type="number" id="brightness" min="0" max="100" value="100">
@@ -145,9 +119,7 @@
                     <div class="display-row">
                         <label>
                             Tryb auto
-                            <button class="info-icon" data-info="display-auto-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="display-auto-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
                             <select id="display-auto" onchange="toggleAutoBrightness()">
@@ -161,9 +133,7 @@
                         <div class="display-row">
                             <label>
                                 Podświetlenie dzień
-                                <button class="info-icon" data-info="day-brightness-info">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
+                                <button class="info-icon" data-info="day-brightness-info">ℹ</button>
                             </label>
                             <div class="input-with-unit">
                                 <input type="number" id="day-brightness" min="0" max="100" value="100">
@@ -174,9 +144,7 @@
                         <div class="display-row">
                             <label>
                                 Podświetlenie noc
-                                <button class="info-icon" data-info="night-brightness-info">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
+                                <button class="info-icon" data-info="night-brightness-info">ℹ</button>
                             </label>
                             <div class="input-with-unit">
                                 <input type="number" id="night-brightness" min="0" max="100" value="50">
@@ -188,9 +156,7 @@
                     <div class="display-row">
                         <label>
                             Czas automatycznego wyłączenia
-                            <button class="info-icon" data-info="auto-off-time-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="auto-off-time-info">ℹ</button>
                         </label>
                         <div class="input-with-unit">
                             <input type="number" id="auto-off-time" min="0" max="60" value="5">
@@ -204,17 +170,13 @@
                 <div class="card controller-config">
                     <h2>
                         Konfiguracja sterownika
-                        <button class="info-icon" data-info="controller-config-info">
-                            <i class="fas fa-info-circle"></i>
-                        </button>
+                        <button class="info-icon" data-info="controller-config-info">ℹ</button>
                     </h2>
                     
                     <div class="setting-row">
                         <label>
                             Typ sterownika
-                            <button class="info-icon" data-info="controller-type-info">
-                                <i class="fas fa-info-circle"></i>
-                            </button>
+                            <button class="info-icon" data-info="controller-type-info">ℹ</button>
                         </label>
                         <select id="controller-type" onchange="toggleControllerParams()">
                             <option value="kt-lcd">KT-LCD</option>
@@ -230,45 +192,35 @@
                             <div class="setting-row">
                                 <label>
                                     P1 - Ilość magnesów w silniku
-                                    <button class="info-icon" data-info="kt-p1-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-p1-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-p1" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     P2 - Sposób odczytu prędkości silnika/koła
-                                    <button class="info-icon" data-info="kt-p2-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-p2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-p2" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     P3 - Tryb działania czujnika PAS
-                                    <button class="info-icon" data-info="kt-p3-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-p3-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-p3" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     P4 - Ruszanie z manetki
-                                    <button class="info-icon" data-info="kt-p4-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-p4-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-p4" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     P5 - Sposób obliczania poziomu naładowania akumulatora
-                                    <button class="info-icon" data-info="kt-p5-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-p5-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-p5" class="param-input">
                             </div>
@@ -280,135 +232,105 @@
                             <div class="setting-row">
                                 <label>
                                     C1 - Typ czujnika PAS
-                                    <button class="info-icon" data-info="kt-c1-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c1-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c1" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C2 - Próbkowanie faz silnika
-                                    <button class="info-icon" data-info="kt-c2-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c2" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C3 - Ustawienie początkowe PAS
-                                    <button class="info-icon" data-info="kt-c3-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c3-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c3" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C4 - Zachowanie manetki i PAS
-                                    <button class="info-icon" data-info="kt-c4-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c4-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c4" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C5 - Ograniczanie mocy sterownika i zachowanie podczas ruszania
-                                    <button class="info-icon" data-info="kt-c5-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c5-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c5" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C6 - Jasność podświetlenia ekranu
-                                    <button class="info-icon" data-info="kt-c6-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c6-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c6" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C7 - Tempomat
-                                    <button class="info-icon" data-info="kt-c7-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c7-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c7" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C8 - Temperatura silnika
-                                    <button class="info-icon" data-info="kt-c8-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c8-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c8" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C9 - Hasło
-                                    <button class="info-icon" data-info="kt-c9-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c9-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c9" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C10 - Ustawienia fabryczne
-                                    <button class="info-icon" data-info="kt-c10-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c10-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c10" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C11 - Ustawienie serwisowe
-                                    <button class="info-icon" data-info="kt-c11-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c11-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c11" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C12 - Minimalne napięcie wyłączenia sterownika
-                                    <button class="info-icon" data-info="kt-c12-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c12-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c12" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C13 - Hamowanie regeneracyjne
-                                    <button class="info-icon" data-info="kt-c13-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c13-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c13" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C14 - Dodatkowe ustawienia PAS
-                                    <button class="info-icon" data-info="kt-c14-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c14-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c14" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     C15 - Prędkość w trybie prowadzenia
-                                    <button class="info-icon" data-info="kt-c15-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-c15-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c15" class="param-input">
                             </div>
@@ -420,27 +342,21 @@
                             <div class="setting-row">
                                 <label>
                                     L1 - Minimalne napięcie pracy sterownika
-                                    <button class="info-icon" data-info="kt-l1-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-l1-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l1" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     L2 - Super szybkie silniki
-                                    <button class="info-icon" data-info="kt-l2-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-l2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l2" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     L3 - Tryb dual (2 komplety czujników halla)
-                                    <button class="info-icon" data-info="kt-l3-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="kt-l3-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l3" class="param-input">
                             </div>
@@ -454,18 +370,14 @@
                             <div class="setting-row">
                                 <label>
                                     P1 - Limit prądu
-                                    <button class="info-icon" data-info="s866-p1-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="s866-p1-info">ℹ</button>
                                 </label>
                                 <input type="number" id="s866-p1" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
                                     P2 - Limit prędkości
-                                    <button class="info-icon" data-info="s866-p2-info">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
+                                    <button class="info-icon" data-info="s866-p2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="s866-p2" class="param-input">
                             </div>
@@ -477,26 +389,26 @@
             </section>
         </main>
         
-<footer>
-    <span>Project by PMW e-Bike System ver. <span id="system-version">...</span></span>
-</footer>
+        <footer>
+            <span>Project by PMW e-Bike System ver. <span id="system-version">...</span></span>
+        </footer>
     </div>
 
     <!-- Modal -->
-<div id="info-modal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="modal-title"></h3>
-            <button class="close-modal">&times;</button>
-        </div>
-        <div class="modal-body">
-            <p id="modal-description"></p>
-            <div class="modal-footer">
-                <p id="modal-timestamp"></p>
-                <p id="modal-user"></p>
+    <div id="info-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-description"></p>
+                <div class="modal-footer">
+                    <p id="modal-timestamp"></p>
+                    <p id="modal-user"></p>
+                </div>
             </div>
         </div>
     </div>
-</div>
 </body>
 </html>
