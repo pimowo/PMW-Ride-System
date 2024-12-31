@@ -273,8 +273,12 @@ footer a:hover {
     color: var(--primary-color);
     cursor: pointer;
     padding: 0 5px;
-    font-size: 1rem;
+    font-size: 1.2rem;
     transition: color 0.3s ease;
+    line-height: 1;
+    vertical-align: middle;
+    display: inline-flex;
+    align-items: center;
 }
 
 .info-icon:hover {
