@@ -1139,10 +1139,10 @@ void activateConfigMode() {
     });
 
 // W setup() lub tam gdzie konfigurowany jest serwer
-server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
-    String response = "{\"version\":\"" + String(SYSTEM_VERSION) + "\"}";
-    request.send(200, "application/json", response);
-});
+// server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+//     String response = "{\"version\":\"" + String(SYSTEM_VERSION) + "\"}";
+//     request.send(200, "application/json", response);
+// });
 
     // 4. Dodanie endpointów API
     setupWebServer();
