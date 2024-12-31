@@ -1559,26 +1559,25 @@ server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     }
 });
 
-  server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {
-    if (request->hasParam("data", true)) {
-      StaticJsonDocument<200> doc;
-      DeserializationError error = deserializeJson(doc, request->getParam("data", true)->value());
+server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
+    [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
+        StaticJsonDocument<200> doc;
+        DeserializationError error = deserializeJson(doc, (char*)data);
 
-      if (!error) {
-        int year = doc["year"] | 2024;
-        int month = doc["month"] | 1;
-        int day = doc["day"] | 1;
-        int hour = doc["hour"] | 0;
-        int minute = doc["minute"] | 0;
-        int second = doc["second"] | 0;
+        if (!error) {
+            int year = doc["year"] | 2024;
+            int month = doc["month"] | 1;
+            int day = doc["day"] | 1;
+            int hour = doc["hour"] | 0;
+            int minute = doc["minute"] | 0;
+            int second = doc["second"] | 0;
 
-        rtc.adjust(DateTime(year, month, day, hour, minute, second));
-        request->send(200, "application/json", "{\"status\":\"ok\"}");
-      } else {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      }
-    }
-  });
+            rtc.adjust(DateTime(year, month, day, hour, minute, second));
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        } else {
+            request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        }
+    });
 
 server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     if (request->hasParam("data", true)) {
