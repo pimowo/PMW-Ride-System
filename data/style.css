@@ -321,15 +321,21 @@ footer a:hover {
 .close-modal {
     background: none;
     border: none;
-    color: var(--text-color);
+    color: var(--danger-color); /* Zmiana na czerwony */
     font-size: 1.5rem;
     cursor: pointer;
     padding: 0 5px;
+    transition: color 0.3s ease; /* Płynna zmiana koloru przy hover */
+}
+
+.close-modal:hover {
+    color: #d32f2f; /* Ciemniejszy odcień czerwonego przy najechaniu */
 }
 
 .modal-body {
     color: var(--text-color);
     line-height: 1.6;
+    white-space: pre-line;
 }
 
 .modal-footer {
