@@ -336,18 +336,194 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalTimestamp = document.getElementById('modal-timestamp');
     const modalUser = document.getElementById('modal-user');
     
+    // Obiekt z informacjami dla każdego parametru
+    const infoContent = {
+        // Sekcja zegara
+        'clock-config-info': {
+            title: 'Konfiguracja zegara',
+            description: 'Ustawienia daty i czasu dla systemu. Zegar jest wykorzystywany do sterowania automatycznym włączaniem świateł oraz podświetleniem wyświetlacza.'
+        },
+
+        // Sekcja świateł
+        'light-config-info': {
+            title: 'Konfiguracja świateł',
+            description: 'Ustawienia dotyczące świateł rowerowych. Możesz skonfigurować różne tryby świateł dla jazdy dziennej i nocnej.'
+        },
+        'day-lights-info': {
+            title: 'Światła dzienne',
+            description: 'Wybór konfiguracji świateł dla jazdy w dzień:\n- Wyłączone: wszystkie światła wyłączone\n- Przód dzień: przednie światło w trybie dziennym (maksymalna jasność)\n- Przód zwykłe: przednie światło w trybie normalnym\n- Tył: tylko tylne światło\n- Przód dzień + tył: przednie światło dzienne i tylne\n- Przód zwykłe + tył: przednie światło normalne i tylne'
+        },
+        'day-blink-info': {
+            title: 'Mruganie tylnego światła (dzień)',
+            description: 'Włącza lub wyłącza funkcję mrugania tylnego światła podczas jazdy w dzień. Mrugające światło może być bardziej widoczne dla innych uczestników ruchu.'
+        },
+        'night-lights-info': {
+            title: 'Światła nocne',
+            description: 'Konfiguracja świateł dla jazdy w nocy. Podobnie jak w przypadku świateł dziennych, możesz wybrać różne kombinacje świateł przednich i tylnych, dostosowane do warunków nocnych.'
+        },
+        'night-blink-info': {
+            title: 'Mruganie tylnego światła (noc)',
+            description: 'Włącza lub wyłącza funkcję mrugania tylnego światła podczas jazdy w nocy. Należy rozważnie używać tej funkcji, gdyż w niektórych warunkach migające światło może być bardziej dezorientujące niż pomocne.'
+        },
+        'blink-frequency-info': {
+            title: 'Częstotliwość mrugania',
+            description: 'Określa częstotliwość mrugania tylnego światła w milisekundach (ms). Mniejsza wartość oznacza szybsze mruganie, większa - wolniejsze. Zakres: 100-2000ms.'
+        },
+
+        // Sekcja wyświetlacza
+        'display-config-info': {
+            title: 'Konfiguracja wyświetlacza',
+            description: 'Ustawienia związane z wyświetlaczem LCD, w tym jasność podświetlenia i tryb automatyczny.'
+        },
+        'brightness-info': {
+            title: 'Podświetlenie wyświetlacza',
+            description: 'Ustaw jasność podświetlenia wyświetlacza w zakresie od 0% do 100%. Wyższa wartość oznacza jaśniejszy wyświetlacz, ale również większe zużycie energii. Zalecane ustawienie to 50-70% dla optymalnej widoczności i czasu pracy baterii.'
+        },
+        'auto-mode-info': {
+            title: 'Tryb automatyczny',
+            description: 'Automatycznie dostosowuje jasność wyświetlacza w zależności od pory dnia. W trybie dziennym używa jaśniejszego podświetlenia, a w nocnym - przyciemnionego.'
+        },
+        'day-brightness-info': {
+            title: 'Jasność dzienna',
+            description: 'Poziom jasności wyświetlacza używany w ciągu dnia (0-100%). Zalecana wyższa wartość dla lepszej widoczności w świetle słonecznym.'
+        },
+        'night-brightness-info': {
+            title: 'Jasność nocna',
+            description: 'Poziom jasności wyświetlacza używany w nocy (0-100%). Zalecana niższa wartość dla komfortowego użytkowania w ciemności.'
+        },
+
+        // Parametry sterownika KT-LCD
+        'kt-p1-info': {
+            title: 'P1 - Ilość magnesów w silniku',
+            description: 'Określa ilość magnesów w silniku elektrycznym. Typowe wartości: 1-255. Parametr kluczowy dla prawidłowego obliczania prędkości.'
+        },
+        'kt-p2-info': {
+            title: 'P2 - Rozmiar koła',
+            description: 'Określa rozmiar koła w calach. Wartość wpływa na dokładność pomiaru prędkości i dystansu.'
+        },
+        'kt-p3-info': {
+            title: 'P3 - Sposób pomiaru prędkości',
+            description: 'Wybór metody pomiaru prędkości: zewnętrzny czujnik lub sygnały z silnika.'
+        },
+        'kt-p4-info': {
+            title: 'P4 - Jednostki prędkości',
+            description: 'Wybór jednostek wyświetlania prędkości: km/h lub mph.'
+        },
+        'kt-p5-info': {
+            title: 'P5 - Ograniczenie prędkości',
+            description: 'Maksymalna prędkość, przy której silnik będzie wspomagał. Zakres: 0-100 km/h.'
+        },
+
+        // Parametry C sterownika
+        'kt-c1-info': {
+            title: 'C1 - Czujnik PAS',
+            description: 'Konfiguracja czułości czujnika asysty pedałowania (PAS). Wpływa na to, jak szybko system reaguje na pedałowanie.'
+        },
+        'kt-c2-info': {
+            title: 'C2 - Typ silnika',
+            description: 'Ustawienia charakterystyki silnika i jego podstawowych parametrów pracy.'
+        },
+        'kt-c3-info': {
+            title: 'C3 - Tryb wspomagania',
+            description: 'Konfiguracja poziomów wspomagania i ich charakterystyki (eco, normal, power).'
+        },
+        'kt-c4-info': {
+            title: 'C4 - Manetka i PAS',
+            description: 'Określa sposób współdziałania manetki z czujnikiem PAS i priorytety sterowania.'
+        },
+        'kt-c5-info': {
+            title: 'C5 - Moc silnika',
+            description: 'Ustawienia związane z maksymalną mocą silnika i charakterystyką podczas ruszania.'
+        },
+        'kt-c6-info': {
+            title: 'C6 - Jasność wyświetlacza',
+            description: 'Ustawienie domyślnej jasności podświetlenia wyświetlacza LCD.'
+        },
+        'kt-c7-info': {
+            title: 'C7 - Tempomat',
+            description: 'Konfiguracja tempomatu - utrzymywania stałej prędkości.'
+        },
+        'kt-c8-info': {
+            title: 'C8 - Silnik',
+            description: 'Dodatkowe parametry silnika, w tym temperatura i zabezpieczenia.'
+        },
+        'kt-c9-info': {
+            title: 'C9 - Zabezpieczenia',
+            description: 'Ustawienia kodów PIN i innych zabezpieczeń systemowych.'
+        },
+        'kt-c10-info': {
+            title: 'C10 - Ustawienia fabryczne',
+            description: 'Opcje przywracania ustawień fabrycznych i kalibracji systemu.'
+        },
+        'kt-c11-info': {
+            title: 'C11 - Komunikacja',
+            description: 'Parametry komunikacji między kontrolerem a wyświetlaczem.'
+        },
+        'kt-c12-info': {
+            title: 'C12 - Napięcie odcięcia',
+            description: 'Ustawienie minimalnego napięcia baterii, przy którym system się wyłączy.'
+        },
+        'kt-c13-info': {
+            title: 'C13 - Regeneracja',
+            description: 'Konfiguracja hamowania regeneracyjnego i odzyskiwania energii podczas hamowania.'
+        },
+        'kt-c14-info': {
+            title: 'C14 - Poziomy PAS',
+            description: 'Konfiguracja poziomów wspomagania i ich charakterystyk.'
+        },
+        'kt-c15-info': {
+            title: 'C15 - Prowadzenie',
+            description: 'Ustawienia trybu prowadzenia roweru (walk assist).'
+        },
+
+        // Parametry L sterownika
+        'kt-l1-info': {
+            title: 'L1 - Napięcie pracy',
+            description: 'Konfiguracja napięcia pracy sterownika i zabezpieczeń napięciowych.'
+        },
+        'kt-l2-info': {
+            title: 'L2 - Silniki wysoko-obrotowe',
+            description: 'Specjalne ustawienia dla silników o wysokich obrotach.'
+        },
+        'kt-l3-info': {
+            title: 'L3 - Czujniki Halla',
+            description: 'Konfiguracja czujników Halla w silniku - tryb dual.'
+        },
+
+        // Parametry sterownika S866
+        's866-p1-info': {
+            title: 'P1 - Ograniczenie prądu',
+            description: 'Ustawienie maksymalnego prądu sterownika S866.'
+        },
+        's866-p2-info': {
+            title: 'P2 - Ograniczenie prędkości',
+            description: 'Maksymalna prędkość dla sterownika S866.'
+        }
+    };
+    
     // Otwieranie modala
     document.querySelectorAll('.info-icon').forEach(button => {
         button.addEventListener('click', function() {
             const infoId = this.dataset.info;
             const info = infoContent[infoId];
             
-            modalTitle.textContent = info.title;
-            modalDescription.textContent = info.description;
-            modalTimestamp.textContent = new Date().toLocaleString('pl-PL');
-            modalUser.textContent = 'pimowo'; // lub pobierz z systemu
-            
-            modal.style.display = 'block';
+            if (info) {
+                modalTitle.textContent = info.title;
+                modalDescription.textContent = info.description;
+                modalTimestamp.textContent = new Date().toLocaleString('pl-PL', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                modalUser.textContent = 'Autor: pimowo';
+                
+                modal.style.display = 'block';
+            } else {
+                console.error('Nie znaleziono opisu dla:', infoId);
+            }
         });
     });
     
@@ -363,7 +539,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-
 // Funkcja pobierająca wersję systemu
 async function fetchSystemVersion() {
     try {
