@@ -100,11 +100,7 @@
                 </div>
 
                 <div class="card display-config">
-                    <h2>
-                        Konfiguracja Wyświetlacza
-                        <button class="info-icon" data-info="display-config-info">ℹ</button>
-                    </h2>
-                    
+                    <h2>Konfiguracja Wyświetlacza</h2>                    
                     <div class="display-row">
                         <label>
                             Podświetlenie
@@ -119,7 +115,7 @@
                     <div class="display-row">
                         <label>
                             Tryb auto
-                            <button class="info-icon" data-info="display-auto-info">ℹ</button>
+                            <button class="info-icon" data-info="auto-mode-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
                             <select id="display-auto" onchange="toggleAutoBrightness()">
@@ -184,7 +180,7 @@
                         </select>
                     </div>
 
-<!-- Parametry KT-LCD -->
+                    <!-- Parametry KT-LCD -->
                     <div id="kt-lcd-params">
                         <!-- P1-P5 -->
                         <h3>Parametry P</h3>
@@ -341,21 +337,21 @@
                         <div class="settings-group">
                             <div class="setting-row">
                                 <label>
-                                    L1 - Minimalne napięcie pracy sterownika
+                                    L1 - Napięcie minimalne (LVC)
                                     <button class="info-icon" data-info="kt-l1-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l1" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
-                                    L2 - Super szybkie silniki
+                                    L2 - Silniki wysokoobrotowe
                                     <button class="info-icon" data-info="kt-l2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l2" class="param-input">
                             </div>
                             <div class="setting-row">
                                 <label>
-                                    L3 - Tryb dual (2 komplety czujników halla)
+                                    L3 - Tryb DUAL
                                     <button class="info-icon" data-info="kt-l3-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-l3" class="param-input">
@@ -376,24 +372,147 @@
                             </div>
                             <div class="setting-row">
                                 <label>
-                                    P2 - Limit prędkości
+                                    P2 - Jednostka pomiaru
                                     <button class="info-icon" data-info="s866-p2-info">ℹ</button>
                                 </label>
                                 <input type="number" id="s866-p2" class="param-input">
                             </div>
+                            <div class="setting-row">
+                                <label>
+                                    P3 - Napięcie nominalne
+                                    <button class="info-icon" data-info="s866-p3-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p3" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P4 - Czas automatycznego uśpienia
+                                    <button class="info-icon" data-info="s866-p4-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p4" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P5 - Tryb wspomagania PAS
+                                    <button class="info-icon" data-info="s866-p5-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p5" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P6 - Rozmiar koła
+                                    <button class="info-icon" data-info="s866-p6-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p6" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P7 - Liczba magnesów czujnika prędkości
+                                    <button class="info-icon" data-info="s866-p7-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p7" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P8 - Limit prędkości
+                                    <button class="info-icon" data-info="s866-p8-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p8" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P9 - Tryb startu
+                                    <button class="info-icon" data-info="s866-p9-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p9" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P10 - Tryb startu
+                                    <button class="info-icon" data-info="s866-p10-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p10" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P11 - Czułość PAS
+                                    <button class="info-icon" data-info="s866-p11-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p11" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P12 - Siła startu PAS
+                                    <button class="info-icon" data-info="s866-p12-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p12" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P13 - Typ czujnika PAS
+                                    <button class="info-icon" data-info="s866-p13-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p13" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P14 - Limit prądu sterownika
+                                    <button class="info-icon" data-info="s866-p14-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p14" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P15 - Napięcie odcięcia
+                                    <button class="info-icon" data-info="s866-p15-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p15" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P16 - Reset licznika ODO
+                                    <button class="info-icon" data-info="s866-p16-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p16" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P17 - Tempomat
+                                    <button class="info-icon" data-info="s866-p17-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p17" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P18 - Kalibracja prędkości
+                                    <button class="info-icon" data-info="s866-p18-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p18" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P19 - Bieg zerowy PAS
+                                    <button class="info-icon" data-info="s866-p19-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p19" class="param-input">
+                            </div>
+                            <div class="setting-row">
+                                <label>
+                                    P20 - Protokół komunikacji
+                                    <button class="info-icon" data-info="s866-p20-info">ℹ</button>
+                                </label>
+                                <input type="number" id="s866-p20" class="param-input">
+                            </div>
                         </div>
                     </div>
-
                     <button class="btn-save" onclick="saveControllerConfig()">Zapisz</button>
                 </div>
             </section>
-        </main>
-        
+        </main>        
         <footer>
             <span>Project by PMW e-Bike System ver. <span id="system-version">...</span></span>
         </footer>
     </div>
-
     <!-- Modal -->
     <div id="info-modal" class="modal">
         <div class="modal-content">
@@ -403,12 +522,9 @@
             </div>
             <div class="modal-body">
                 <p id="modal-description"></p>
-                <div class="modal-footer">
-                    <p id="modal-timestamp"></p>
-                    <p id="modal-user"></p>
-                </div>
             </div>
         </div>
     </div>
+<script src="script.js"></script>
 </body>
 </html>
