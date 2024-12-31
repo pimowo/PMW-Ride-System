@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-#define SYSTEM_VERSION "31.12.24"
+const char* VERSION = "31.12.24";
 
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
@@ -1138,11 +1138,15 @@ void activateConfigMode() {
         request->send(LittleFS, "/script.js", "application/javascript");
     });
 
-// W setup() lub tam gdzie konfigurowany jest serwer
-// server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
-//     String response = "{\"version\":\"" + String(SYSTEM_VERSION) + "\"}";
-//     request.send(200, "application/json", response);
-// });
+    server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<200> doc;
+        doc["version"] = VERSION;
+        
+        String response;
+        serializeJson(doc, response);
+        
+        request->send(200, "application/json", response);
+    });
 
     // 4. Dodanie endpointów API
     setupWebServer();
