@@ -14,17 +14,20 @@
 
         <main>
             <section class="dashboard">
-                <div class="card clock-config">
-                    <h2>Konfiguracja zegara</h2>
-                    <div class="rtc-row">
-                        <label>Czas:</label>
+                <div class="config-section">
+                    <h2>Konfiguracja zegara <span class="info-icon" title="Kliknij 'Ustaw aktualny czas' aby zsynchronizować zegar z czasem twojego urządzenia">i</span></h2>
+                    <div class="config-row">
+                        <span>Data:</span>
+                        <input type="date" id="rtc-date" readonly>
                     </div>
-                    <div class="rtc-row">
-                        <label>Data:</label>
+                    <div class="config-row">
+                        <span>Czas:</span>
+                        <input type="time" id="rtc-time" step="1" readonly>
                     </div>
-                    <button onclick="saveRTCConfig()">Ustaw aktualny czas</button>
+                    <div class="button-container">
+                        <button class="config-button" onclick="saveRTCConfig()">Ustaw aktualny czas</button>
+                    </div>
                 </div>
-
                 <div class="card light-config">
                     <h2>Konfiguracja świateł</h2>                    
                     <div class="light-row">
