@@ -4,6 +4,10 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchLightConfig();
     fetchDisplayConfig();
     fetchControllerConfig();
+    fetchSystemVersion();  // Dodane stąd
+
+    // Dodane: odświeżanie zegara co sekundę
+    setInterval(fetchRTCTime, 1000);
 
     // Obsługa WebSocket dla danych w czasie rzeczywistym
     const ws = new WebSocket(`ws://${window.location.hostname}/ws`);
@@ -20,6 +24,39 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelector('.power .value').textContent = data.power;
         }
     }
+
+    // Obsługa modala - przeniesiona z drugiego listenera
+    const modal = document.getElementById('info-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    
+    // Otwieranie modala
+    document.querySelectorAll('.info-icon').forEach(button => {
+        button.addEventListener('click', function() {
+            const infoId = this.dataset.info;
+            const info = infoContent[infoId];
+            
+            if (info) {
+                modalTitle.textContent = info.title;
+                modalDescription.textContent = info.description;               
+                modal.style.display = 'block';
+            } else {
+                console.error('Nie znaleziono opisu dla:', infoId);
+            }
+        });
+    });
+    
+    // Zamykanie modala
+    document.querySelector('.close-modal').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // Zamykanie po kliknięciu poza modalem
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
 });
 
 // Funkcja pobierająca czas z RTC
@@ -39,6 +76,10 @@ async function fetchRTCTime() {
                           String(data.time.month).padStart(2, '0') + '-' +
                           String(data.time.day).padStart(2, '0');
             document.getElementById('rtc-date').value = dateStr;
+
+            // TYLKO czas, bez loginu
+            document.getElementById('current-time').textContent = 
+                `Current Date and Time (UTC): ${dateStr} ${timeStr}`;
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
@@ -659,7 +700,7 @@ const infoContent = {
 
     'kt-l2-info': {
         title: '⚡ L2 - Silniki wysokoobrotowe',
-        description: `Parametr dla silników o wysokich obrotach (>5000 RPM)
+        description: `Parametr dla silników o wysokich obrotach (>5000 RPM).
 
     Wartości:
     0: Tryb normalny
@@ -877,41 +918,6 @@ const infoContent = {
     }
 };
 
-// Obsługa modala
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('info-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalDescription = document.getElementById('modal-description');
-    
-    // Otwieranie modala
-    document.querySelectorAll('.info-icon').forEach(button => {
-        button.addEventListener('click', function() {
-            const infoId = this.dataset.info;
-            const info = infoContent[infoId];
-            
-            if (info) {
-                modalTitle.textContent = info.title;
-                modalDescription.textContent = info.description;               
-                modal.style.display = 'block';
-            } else {
-                console.error('Nie znaleziono opisu dla:', infoId);
-            }
-        });
-    });
-    
-    // Zamykanie modala
-    document.querySelector('.close-modal').addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    // Zamykanie po kliknięciu poza modalem
-    window.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-});
-
 // Funkcja pobierająca wersję systemu
 async function fetchSystemVersion() {
     try {
@@ -925,11 +931,6 @@ async function fetchSystemVersion() {
         document.getElementById('system-version').textContent = 'N/A';
     }
 }
-
-// Wywołaj przy załadowaniu strony
-document.addEventListener('DOMContentLoaded', function() {
-    fetchSystemVersion();
-});
 
 /*
 WAŻNE KOMUNIKATY:
