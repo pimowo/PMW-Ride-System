@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "31.12.24";
+const char* VERSION = "1.1.25";
 
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
@@ -1559,6 +1559,26 @@ server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     }
 });
 
+// server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
+//     [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
+//         StaticJsonDocument<200> doc;
+//         DeserializationError error = deserializeJson(doc, (char*)data);
+
+//         if (!error) {
+//             int year = doc["year"] | 2024;
+//             int month = doc["month"] | 1;
+//             int day = doc["day"] | 1;
+//             int hour = doc["hour"] | 0;
+//             int minute = doc["minute"] | 0;
+//             int second = doc["second"] | 0;
+
+//             rtc.adjust(DateTime(year, month, day, hour, minute, second));
+//             request->send(200, "application/json", "{\"status\":\"ok\"}");
+//         } else {
+//             request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+//         }
+//     });
+
 server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
     [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
         StaticJsonDocument<200> doc;
@@ -1572,13 +1592,24 @@ server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
             int minute = doc["minute"] | 0;
             int second = doc["second"] | 0;
 
-            rtc.adjust(DateTime(year, month, day, hour, minute, second));
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
+            // Dodaj walidację
+            if (year >= 2000 && year <= 2099 &&
+                month >= 1 && month <= 12 &&
+                day >= 1 && day <= 31 &&
+                hour >= 0 && hour <= 23 &&
+                minute >= 0 && minute <= 59 &&
+                second >= 0 && second <= 59) {
+                
+                rtc.adjust(DateTime(year, month, day, hour, minute, second));
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
+            }
         } else {
             request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
         }
     });
-
+    
 server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     if (request->hasParam("data", true)) {
         String jsonString = request->getParam("data", true)->value();
