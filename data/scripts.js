@@ -65,16 +65,13 @@ async function fetchRTCTime() {
         const response = await fetch('/api/status');
         const data = await response.json();
         if (data.time) {
-            // Format czasu dla input type="time"
-            const timeStr = String(data.time.hours).padStart(2, '0') + ':' +
-                          String(data.time.minutes).padStart(2, '0') + ':' +
-                          String(data.time.seconds).padStart(2, '0');
-            document.getElementById('rtc-time').value = timeStr;
+            const { hours, minutes, seconds, year, month, day } = data.time;
             
-            // Format daty dla input type="date"
-            const dateStr = data.time.year + '-' +
-                          String(data.time.month).padStart(2, '0') + '-' +
-                          String(data.time.day).padStart(2, '0');
+            // Format czasu i daty
+            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            
+            document.getElementById('rtc-time').value = timeStr;
             document.getElementById('rtc-date').value = dateStr;
         }
     } catch (error) {
@@ -84,13 +81,9 @@ async function fetchRTCTime() {
 
 // Funkcja zapisująca konfigurację RTC
 async function saveRTCConfig() {
-    const timeValue = document.getElementById('rtc-time').value;
-    const dateValue = document.getElementById('rtc-date').value;
+    // Pobierz aktualny czas z przeglądarki
+    const now = new Date();
     
-    // Rozdziel wartości czasu i daty
-    const [hours, minutes, seconds] = timeValue.split(':').map(Number);
-    const [year, month, day] = dateValue.split('-').map(Number);
-
     try {
         const response = await fetch('/api/time', {
             method: 'POST',
@@ -98,25 +91,25 @@ async function saveRTCConfig() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                year: year,
-                month: month,
-                day: day,
-                hour: hours,
-                minute: minutes,
-                second: seconds || 0
+                year: now.getFullYear(),
+                month: now.getMonth() + 1, // getMonth() zwraca 0-11
+                day: now.getDate(),
+                hour: now.getHours(),
+                minute: now.getMinutes(),
+                second: now.getSeconds()
             })
         });
 
         const data = await response.json();
         if (data.status === 'ok') {
-            alert('Zapisano ustawienia zegara');
-            fetchRTCTime();
+            alert('Ustawiono aktualny czas');
+            fetchRTCTime(); // Pobierz zaktualizowany czas
         } else {
-            alert('Błąd podczas zapisywania ustawień');
+            alert('Błąd podczas ustawiania czasu');
         }
     } catch (error) {
-        console.error('Błąd podczas zapisywania konfiguracji RTC:', error);
-        alert('Błąd podczas zapisywania ustawień');
+        console.error('Błąd podczas ustawiania czasu RTC:', error);
+        alert('Błąd podczas ustawiania czasu');
     }
 }
 
@@ -232,11 +225,6 @@ async function saveDisplayConfig() {
         console.error('Błąd podczas zapisywania konfiguracji wyświetlacza:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
-}
-
-// Funkcja do formatowania liczby do dwóch cyfr
-function padZero(num) {
-    return String(num).padStart(2, '0');
 }
 
 // Walidacja dla pól numerycznych wyświetlacza
