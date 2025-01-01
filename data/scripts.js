@@ -345,6 +345,22 @@ async function saveControllerConfig() {
 // Obiekt z informacjami dla każdego parametru
 const infoContent = {
 
+    // Sekcja zegara //
+
+    'rtc-info': {
+        title: '⏰ Konfiguracja zegara',
+        description: `Ustawia czas systemowy RTC (Real Time Clock).
+
+    Aby zsynchronizować czas:
+    1. Sprawdź czy czas na twoim urządzeniu jest prawidłowy
+    2. Kliknij przycisk "Ustaw aktualny czas"
+    3. System pobierze czas z twojego urządzenia
+    
+    ⚠️ WAŻNE: 
+    Zegar jest podtrzymywany bateryjnie i działa 
+    nawet po odłączeniu zasilania głównego.`
+    },
+
     // Sekcja świateł //
 
     'light-config-info': {
@@ -901,6 +917,10 @@ const infoContent = {
     3: Protokół Standby alternatywny`
     }
 };
+
+function showRTCInfo() {
+    showModal(infoContent['rtc-info'].title, infoContent['rtc-info'].description);
+}
 
 // Funkcja pobierająca wersję systemu
 async function fetchSystemVersion() {
