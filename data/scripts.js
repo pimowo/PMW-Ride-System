@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchLightConfig();
     fetchDisplayConfig();
     fetchControllerConfig();
-    fetchSystemVersion();  // Dodane stąd
+    fetchSystemVersion();
 
     // Dodane: odświeżanie zegara co sekundę
     setInterval(fetchRTCTime, 1000);
@@ -76,10 +76,6 @@ async function fetchRTCTime() {
                           String(data.time.month).padStart(2, '0') + '-' +
                           String(data.time.day).padStart(2, '0');
             document.getElementById('rtc-date').value = dateStr;
-
-            // TYLKO czas, bez loginu
-            document.getElementById('current-time').textContent = 
-                `Current Date and Time (UTC): ${dateStr} ${timeStr}`;
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
