@@ -28,70 +28,71 @@
                         <button class="btn-save" onclick="saveRTCConfig()">Ustaw aktualny czas</button>
                     </div>
                 </div>
+
+                <!-- sekcja light-config -->
                 <div class="card light-config">
                     <h2>Konfiguracja świateł</h2>                    
-                    <div class="light-row">
-                        <label>
-                            Światła dzienne
-                            <button class="info-icon" data-info="day-lights-info">ℹ</button>
-                        </label>
-                        <select id="night-lights">
-                            <option value="off">Wyłączone</option>
-                            <option value="front-day">Przód dzień</option>
-                            <option value="front">Przód zwykłe</option>
-                            <option value="rear">Tył</option>
-                            <option value="front-day-rear">Przód dzień + tył</option>
-                            <option value="front-rear">Przód zwykłe + tył</option>
-                        </select>
-                    </div>
-
-                    <div class="light-row">
-                        <label>
-                            Mruganie tylnego światła (dzień)
-                            <button class="info-icon" data-info="day-blink-info">ℹ</button>
-                        </label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="day-blink">
+                    <form id="lights-form">
+                        <div class="light-row">
+                            <label for="day-lights">
+                                Światła dzienne
+                                <button type="button" class="info-icon" data-info="day-lights-info">ℹ</button>
+                            </label>
+                            <select id="day-lights" name="day-lights">
+                                <option value="off">Wyłączone</option>
+                                <option value="front-day">Przód dzień</option>
+                                <option value="front">Przód zwykłe</option>
+                                <option value="rear">Tył</option>
+                                <option value="front-day-rear">Przód dzień + tył</option>
+                                <option value="front-rear">Przód zwykłe + tył</option>
+                            </select>
                         </div>
-                    </div>
 
-                    <div class="light-row">
-                        <label>
-                            Światła nocne
-                            <button class="info-icon" data-info="night-lights-info">ℹ</button>
-                        </label>
-                        <select id="night-lights">
-                            <option value="none">Wyłączone</option>
-                            <option value="front-day">Przód dzień</option>
-                            <option value="front-normal">Przód zwykłe</option>
-                            <option value="rear">Tył</option>
-                            <option value="front-day-rear">Przód dzień + tył</option>
-                            <option value="front-normal-rear">Przód zwykłe + tył</option>
-                        </select>
-                    </div>
-
-                    <div class="light-row">
-                        <label>
-                            Mruganie tylnego światła (noc)
-                            <button class="info-icon" data-info="night-blink-info">ℹ</button>
-                        </label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="night-blink">
+                        <div class="light-row">
+                            <label for="day-blink">
+                                Mruganie tylnego światła (dzień)
+                                <button type="button" class="info-icon" data-info="day-blink-info">ℹ</button>
+                            </label>
+                            <input type="checkbox" id="day-blink" name="day-blink">
                         </div>
-                    </div>
 
-                    <div class="light-row">
-                        <label>
-                            Częstotliwość mrugania
-                            <button class="info-icon" data-info="blink-frequency-info">ℹ</button>
-                        </label>
-                        <div class="input-with-unit">
-                            <input type="number" id="blink-frequency" min="100" max="2000" step="100" value="500">
-                            <span class="unit">ms</span>
+                        <div class="light-row">
+                            <label for="night-lights">
+                                Światła nocne
+                                <button type="button" class="info-icon" data-info="night-lights-info">ℹ</button>
+                            </label>
+                            <select id="night-lights" name="night-lights">
+                                <option value="off">Wyłączone</option>
+                                <option value="front-day">Przód dzień</option>
+                                <option value="front">Przód zwykłe</option>
+                                <option value="rear">Tył</option>
+                                <option value="front-day-rear">Przód dzień + tył</option>
+                                <option value="front-rear">Przód zwykłe + tył</option>
+                            </select>
                         </div>
-                    </div>
 
-                    <button class="btn-save" onclick="saveLightConfig()">Zapisz</button>
+                        <div class="light-row">
+                            <label for="night-blink">
+                                Mruganie tylnego światła (noc)
+                                <button type="button" class="info-icon" data-info="night-blink-info">ℹ</button>
+                            </label>
+                            <input type="checkbox" id="night-blink" name="night-blink">
+                        </div>
+
+                        <div class="light-row">
+                            <label for="blink-frequency">
+                                Częstotliwość mrugania
+                                <button type="button" class="info-icon" data-info="blink-frequency-info">ℹ</button>
+                            </label>
+                            <div class="input-with-unit">
+                                <input type="number" id="blink-frequency" name="blink-frequency" 
+                                      min="100" max="2000" step="100" value="500">
+                                <span class="unit">ms</span>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn-save" onclick="saveLightConfig()">Zapisz</button>
+                    </form>
                 </div>
 
                 <div class="card display-config">
