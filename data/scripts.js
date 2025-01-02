@@ -68,8 +68,10 @@ async function fetchRTCTime() {
             const { hours, minutes, seconds, year, month, day } = data.time;
             
             // Format czasu i daty
+            //const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            //const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
             
             document.getElementById('rtc-time').value = timeStr;
             document.getElementById('rtc-date').value = dateStr;
@@ -193,29 +195,27 @@ async function saveDisplayConfig() {
             autoMode: autoMode
         };
 
-        // Walidacja wartości
-        if (data.dayBrightness < 0 || data.dayBrightness > 100 ||
-            data.nightBrightness < 0 || data.nightBrightness > 100) {
-            throw new Error('Wartości podświetlenia muszą być między 0 a 100%');
-        }
-
-        const formData = new FormData();
-        formData.append('data', JSON.stringify(data));
+        console.log('Wysyłane dane:', data); // dla debugowania
 
         const response = await fetch('/api/display/config', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
         });
 
         const result = await response.json();
+        console.log('Odpowiedź serwera:', result); // dla debugowania
+
         if (result.status === 'ok') {
             alert('Zapisano ustawienia wyświetlacza');
-            fetchDisplayConfig();
+            await fetchDisplayConfig(); // odśwież wyświetlane ustawienia
         } else {
-            throw new Error('Błąd odpowiedzi serwera');
+            throw new Error(result.message || 'Błąd odpowiedzi serwera');
         }
     } catch (error) {
-        console.error('Błąd podczas zapisywania konfiguracji wyświetlacza:', error);
+        console.error('Błąd podczas zapisywania:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
