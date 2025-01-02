@@ -138,31 +138,105 @@ async function saveLightConfig() {
         const data = {
             dayLights: document.getElementById('day-lights').value,
             nightLights: document.getElementById('night-lights').value,
-            dayBlink: document.getElementById('day-blink').checked,
-            nightBlink: document.getElementById('night-blink').checked,
+            dayBlink: document.getElementById('day-blink').value === 'true',
+            nightBlink: document.getElementById('night-blink').value === 'true',
             blinkFrequency: parseInt(document.getElementById('blink-frequency').value)
         };
 
         const response = await fetch('/api/lights/config', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: JSON.stringify(data)
+            body: 'data=' + encodeURIComponent(JSON.stringify(data))
         });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const result = await response.json();
         if (result.status === 'ok') {
             alert('Zapisano ustawienia świateł');
-            fetchLightConfig();
         } else {
-            throw new Error('Błąd odpowiedzi serwera');
+            throw new Error(result.message || 'Nieznany błąd');
         }
     } catch (error) {
-        console.error('Błąd podczas zapisywania konfiguracji świateł:', error);
+        console.error('Błąd podczas zapisywania:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
+
+async function loadLightConfig() {
+    try {
+        const response = await fetch('/api/status');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.lights) {
+            // Ustawienie wartości w formularzu
+            document.getElementById('day-lights').value = data.lights.dayLights;
+            document.getElementById('night-lights').value = data.lights.nightLights;
+            document.getElementById('day-blink').value = data.lights.dayBlink.toString();
+            document.getElementById('night-blink').value = data.lights.nightBlink.toString();
+            document.getElementById('blink-frequency').value = data.lights.blinkFrequency;
+        }
+    } catch (error) {
+        console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
+    }
+}
+
+// Inicjalizacja przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await loadLightConfig();
+    } catch (error) {
+        console.error('Błąd podczas inicjalizacji:', error);
+    }
+});
+
+// Aktualizacja statusu świateł w czasie rzeczywistym
+let ws = null;
+
+function connectWebSocket() {
+    ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+    
+    ws.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.lights) {
+                updateLightStatus(data.lights);
+            }
+        } catch (error) {
+            console.error('Błąd podczas przetwarzania danych WebSocket:', error);
+        }
+    };
+
+    ws.onclose = function() {
+        // Próba ponownego połączenia po 5 sekundach
+        setTimeout(connectWebSocket, 5000);
+    };
+}
+
+function updateLightStatus(lights) {
+    // Aktualizacja statusu świateł w interfejsie
+    if (lights.frontDay !== undefined) {
+        document.getElementById('day-lights').classList.toggle('active', lights.frontDay);
+    }
+    if (lights.front !== undefined) {
+        document.getElementById('night-lights').classList.toggle('active', lights.front);
+    }
+    if (lights.rear !== undefined) {
+        const isRearActive = lights.rear;
+        document.getElementById('day-blink').classList.toggle('active', isRearActive);
+        document.getElementById('night-blink').classList.toggle('active', isRearActive);
+    }
+}
+
+// Uruchomienie połączenia WebSocket przy starcie
+connectWebSocket();
 
 // Funkcja pobierająca konfigurację wyświetlacza
 async function fetchDisplayConfig() {
