@@ -170,12 +170,60 @@ async function fetchDisplayConfig() {
         if (data.backlight) {
             document.getElementById('day-brightness').value = data.backlight.dayBrightness;
             document.getElementById('night-brightness').value = data.backlight.nightBrightness;
-            document.getElementById('auto-mode').checked = data.backlight.autoMode;
+            document.getElementById('display-auto').value = data.backlight.autoMode.toString();
+            
+            // Wywołaj funkcję przełączania, aby odpowiednio pokazać/ukryć sekcje
+            toggleAutoBrightness();
+            
+            // Ustaw także podstawową jasność dla trybu manualnego
+            document.getElementById('brightness').value = data.backlight.dayBrightness;
         }
     } catch (error) {
         console.error('Błąd podczas pobierania konfiguracji wyświetlacza:', error);
     }
 }
+
+// Funkcja zapisująca konfigurację wyświetlacza
+async function saveDisplayConfig() {
+    try {
+        const isAutoMode = document.getElementById('display-auto').value === 'true';
+        const data = {
+            dayBrightness: isAutoMode ? 
+                parseInt(document.getElementById('day-brightness').value) : 
+                parseInt(document.getElementById('brightness').value),
+            nightBrightness: parseInt(document.getElementById('night-brightness').value),
+            autoMode: isAutoMode
+        };
+
+        // Walidacja wartości
+        if (data.dayBrightness < 0 || data.dayBrightness > 100 ||
+            data.nightBrightness < 0 || data.nightBrightness > 100) {
+            throw new Error('Wartości podświetlenia muszą być między 0 a 100%');
+        }
+
+        const response = await fetch('/api/display/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'data=' + encodeURIComponent(JSON.stringify(data))
+        });
+
+        const result = await response.json();
+        if (result.status === 'ok') {
+            alert('Zapisano ustawienia wyświetlacza');
+            fetchDisplayConfig(); // Odśwież wyświetlane wartości
+        } else {
+            throw new Error('Błąd odpowiedzi serwera');
+        }
+    } catch (error) {
+        console.error('Błąd podczas zapisywania konfiguracji wyświetlacza:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+// Dodaj wywołanie funkcji przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', fetchDisplayConfig);
 
 function toggleAutoBrightness() {
     const autoMode = document.getElementById('display-auto').value === 'true';
@@ -188,42 +236,6 @@ function toggleAutoBrightness() {
     } else {
         autoBrightnessSection.style.display = 'none';
         normalBrightness.style.display = 'flex';
-    }
-}
-
-// Funkcja zapisująca konfigurację wyświetlacza
-async function saveDisplayConfig() {
-    try {
-        const data = {
-            dayBrightness: parseInt(document.getElementById('day-brightness').value),
-            nightBrightness: parseInt(document.getElementById('night-brightness').value),
-            autoMode: document.getElementById('auto-mode').checked
-        };
-
-        // Walidacja wartości
-        if (data.dayBrightness < 0 || data.dayBrightness > 100 ||
-            data.nightBrightness < 0 || data.nightBrightness > 100) {
-            throw new Error('Wartości podświetlenia muszą być między 0 a 100%');
-        }
-
-        const response = await fetch('/api/display/config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-        if (result.status === 'ok') {
-            alert('Zapisano ustawienia wyświetlacza');
-            fetchDisplayConfig();
-        } else {
-            throw new Error('Błąd odpowiedzi serwera');
-        }
-    } catch (error) {
-        console.error('Błąd podczas zapisywania konfiguracji wyświetlacza:', error);
-        alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
 
