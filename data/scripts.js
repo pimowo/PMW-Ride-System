@@ -1,36 +1,34 @@
 document.addEventListener('DOMContentLoaded', async function() {
     debug('Inicjalizacja aplikacji...');
 
-    // Poczekaj chwilę na pełne załadowanie DOM
-    await new Promise(resolve => setTimeout(resolve, 100));
-
     // Inicjalizacja zegara
-    await fetchRTCTime();
-    // Uruchom timer dla zegara dopiero po pierwszym pobraniu
-    setInterval(fetchRTCTime, 1000);
+    initializeClock();
 
-    // Setup formularzy
-    setupFormListeners();
+    // Poczekaj na załadowanie DOM
+    await new Promise(resolve => setTimeout(resolve, 200));
 
-    // Inicjalizacja pozostałych modułów
     try {
+        // Najpierw inicjalizacja formularza świateł
+        if (initializeLightForm()) {
+            await loadLightConfig();
+        }
+
+        // Następnie pozostałe moduły
         await Promise.all([
-            loadLightConfig(),
             fetchDisplayConfig(),
             fetchControllerConfig(),
             fetchSystemVersion()
         ]);
+
+        // Na końcu WebSocket i modalne
+        setupWebSocket();
+        setupModal();
+        setupFormListeners();
+
+        debug('Inicjalizacja zakończona pomyślnie');
     } catch (error) {
-        console.error('Błąd podczas inicjalizacji modułów:', error);
+        console.error('Błąd podczas inicjalizacji:', error);
     }
-
-    // Inicjalizacja WebSocket
-    setupWebSocket();
-
-    // Obsługa modala
-    setupModal();
-
-    debug('Inicjalizacja zakończona');
 });
 
 function showModal(title, description) {
@@ -242,66 +240,78 @@ function debug(...args) {
     if (DEBUG) console.log('[DEBUG]', ...args);
 }
 
+// Funkcja inicjalizacji formularza świateł
+function initializeLightForm() {
+    debug('Inicjalizacja formularza świateł');
+    const form = document.getElementById('lights-form');
+    if (!form) {
+        console.error('Nie znaleziono formularza świateł');
+        return false;
+    }
+    return true;
+}
+
+// Funkcja sprawdzająca elementy formularza
+function getLightFormElements() {
+    const elements = {
+        dayLights: document.getElementById('day-lights'),
+        nightLights: document.getElementById('night-lights'),
+        dayBlink: document.getElementById('day-blink'),
+        nightBlink: document.getElementById('night-blink'),
+        blinkFrequency: document.getElementById('blink-frequency')
+    };
+
+    const missing = Object.entries(elements)
+        .filter(([_, element]) => !element)
+        .map(([name]) => name);
+
+    if (missing.length > 0) {
+        throw new Error(`Brak elementów formularza: ${missing.join(', ')}`);
+    }
+
+    return elements;
+}
+
 // Funkcje obsługi świateł
+// Funkcja ładowania konfiguracji świateł
 async function loadLightConfig() {
+    debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     try {
-        debug('Rozpoczynam wczytywanie konfiguracji świateł...');
-        const response = await fetch('/api/status');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        if (!initializeLightForm()) {
+            return;
         }
 
+        const response = await fetch('/api/status');
         const data = await response.json();
         debug('Otrzymane dane:', data);
 
         if (data.lights) {
-            // Ustawienie wartości w formularzu
-            document.getElementById('day-lights').value = data.lights.dayLights;
-            document.getElementById('night-lights').value = data.lights.nightLights;
-            document.getElementById('day-blink').checked = data.lights.dayBlink;
-            document.getElementById('night-blink').checked = data.lights.nightBlink;
-            document.getElementById('blink-frequency').value = data.lights.blinkFrequency;
-
-            debug('Zaktualizowano formularz z danymi:', {
-                dayLights: data.lights.dayLights,
-                nightLights: data.lights.nightLights,
-                dayBlink: data.lights.dayBlink,
-                nightBlink: data.lights.nightBlink,
-                blinkFrequency: data.lights.blinkFrequency
-            });
-        } else {
-            console.error('Brak danych o światłach w odpowiedzi');
+            updateLightStatus(data.lights);
+            updateLightForm(data.lights);
         }
     } catch (error) {
         console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
     }
 }
 
-async function saveLightConfig() {
-    try {
-        debug('Rozpoczynam zapisywanie konfiguracji świateł');
 
-        // Sprawdź czy elementy istnieją
-        const elements = checkElements(
-            'day-lights',
-            'night-lights',
-            'day-blink',
-            'night-blink',
-            'blink-frequency'
-        );
+// Funkcja zapisywania konfiguracji świateł
+async function saveLightConfig() {
+    debug('Rozpoczynam zapisywanie konfiguracji świateł');
+    try {
+        const elements = getLightFormElements();
 
         const data = {
-            frontDay: elements['day-lights'].value.includes('front-day'),
-            front: elements['night-lights'].value.includes('front'),
-            rear: elements['day-lights'].value.includes('rear') || 
-                  elements['night-lights'].value.includes('rear'),
-            dayBlink: elements['day-blink'].checked,
-            nightBlink: elements['night-blink'].checked,
-            blinkFrequency: parseInt(elements['blink-frequency'].value)
+            frontDay: elements.dayLights.value.includes('front-day'),
+            front: elements.nightLights.value.includes('front'),
+            rear: elements.dayLights.value.includes('rear') || 
+                  elements.nightLights.value.includes('rear'),
+            dayBlink: elements.dayBlink.checked,
+            nightBlink: elements.nightBlink.checked,
+            blinkFrequency: parseInt(elements.blinkFrequency.value)
         };
 
-        debug('Przygotowane dane:', data);
+        debug('Wysyłam dane:', data);
 
         const response = await fetch('/api/lights/config', {
             method: 'POST',
@@ -311,19 +321,14 @@ async function saveLightConfig() {
             body: JSON.stringify(data)
         });
 
-        debug('Status odpowiedzi:', response.status);
-
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Błąd HTTP: ${response.status}, treść: ${errorText}`);
+            throw new Error(`Błąd HTTP: ${response.status}`);
         }
 
         const result = await response.json();
-        debug('Odpowiedź z serwera:', result);
-
         if (result.status === 'ok') {
             alert('Zapisano ustawienia świateł');
-            await fetchCurrentState();
+            await loadLightConfig();
         } else {
             throw new Error(result.message || 'Nieznany błąd');
         }
@@ -475,22 +480,26 @@ function setupModal() {
     });
 }
 
+// Funkcja aktualizacji statusu świateł
 function updateLightStatus(lights) {
-    debug('Aktualizacja statusu świateł:', lights);
-    if (!lights) return;
-
     try {
-        if (lights.frontDay !== undefined) {
-            document.getElementById('day-lights').classList.toggle('active', lights.frontDay);
+        const elements = getLightFormElements();
+        if (!elements) return;
+
+        // Aktualizacja klas CSS dla wskaźników świateł (jeśli są)
+        const indicators = {
+            frontDay: document.querySelector('.light-indicator.front-day'),
+            front: document.querySelector('.light-indicator.front'),
+            rear: document.querySelector('.light-indicator.rear')
+        };
+
+        for (const [key, indicator] of Object.entries(indicators)) {
+            if (indicator) {
+                indicator.classList.toggle('active', Boolean(lights[key]));
+            }
         }
-        if (lights.front !== undefined) {
-            document.getElementById('night-lights').classList.toggle('active', lights.front);
-        }
-        if (lights.rear !== undefined) {
-            const isRearActive = lights.rear;
-            document.getElementById('day-blink').classList.toggle('active', isRearActive);
-            document.getElementById('night-blink').classList.toggle('active', isRearActive);
-        }
+
+        debug('Status świateł zaktualizowany');
     } catch (error) {
         console.error('Błąd podczas aktualizacji statusu świateł:', error);
     }
