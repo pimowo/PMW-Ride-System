@@ -1,4 +1,8 @@
 document.addEventListener('DOMContentLoaded', async function() {
+    // Pobierz aktualny stan na starcie
+    initializeDefaults();
+    await fetchCurrentState();
+
     // Usuwanie starych listenerów
     const oldListeners = document.getElementById('save-lights-btn');
     if (oldListeners) {
@@ -47,6 +51,8 @@ function setupWebSocket() {
         
         ws.onopen = () => {
             debug('WebSocket połączony');
+            // Pobierz aktualny stan po połączeniu
+            fetchCurrentState();
         };
 
         ws.onmessage = (event) => {
@@ -55,9 +61,7 @@ function setupWebSocket() {
                 debug('Otrzymano dane WebSocket:', data);
                 if (data.lights) {
                     updateLightStatus(data.lights);
-                }
-                if (data.power !== undefined) {
-                    document.querySelector('.power .value').textContent = data.power;
+                    updateLightForm(data.lights); // Aktualizuj też formularz
                 }
             } catch (error) {
                 console.error('Błąd podczas przetwarzania danych WebSocket:', error);
@@ -220,43 +224,120 @@ async function loadLightConfig() {
 
 async function saveLightConfig() {
     try {
+        const dayLights = document.getElementById('day-lights').value;
+        const nightLights = document.getElementById('night-lights').value;
+        
+        // Konwersja wartości select na stan świateł
         const data = {
-            dayLights: document.getElementById('day-lights').value,
-            nightLights: document.getElementById('night-lights').value,
+            frontDay: dayLights.includes('front-day'),
+            front: nightLights.includes('front'),
+            rear: dayLights.includes('rear') || nightLights.includes('rear'),
             dayBlink: document.getElementById('day-blink').checked,
             nightBlink: document.getElementById('night-blink').checked,
             blinkFrequency: parseInt(document.getElementById('blink-frequency').value)
         };
 
-        debug('Wysyłam dane:', data);
+        debug('Wysyłam dane do API:', data);
 
         const response = await fetch('/api/lights/config', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
             },
-            body: 'data=' + encodeURIComponent(JSON.stringify(data))
+            body: JSON.stringify(data)
         });
 
         debug('Status odpowiedzi:', response.status);
 
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
 
         const result = await response.json();
-        debug('Otrzymana odpowiedź:', result);
+        debug('Odpowiedź z serwera:', result);
 
         if (result.status === 'ok') {
             alert('Zapisano ustawienia świateł');
-            // Odśwież stan świateł
-            await loadLightConfig();
+            await fetchCurrentState();
         } else {
             throw new Error(result.message || 'Nieznany błąd');
         }
     } catch (error) {
-        console.error('Błąd podczas zapisywania:', error);
+        console.error('Szczegóły błędu:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+function initializeDefaults() {
+    document.getElementById('day-lights').value = 'off';
+    document.getElementById('night-lights').value = 'off';
+    document.getElementById('day-blink').checked = false;
+    document.getElementById('night-blink').checked = false;
+    document.getElementById('blink-frequency').value = '500';
+}
+
+async function fetchCurrentState() {
+    try {
+        debug('Pobieranie aktualnego stanu...');
+        const response = await fetch('/api/status');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        debug('Otrzymane dane statusu:', data);
+
+        if (data.lights) {
+            // Aktualizacja interfejsu
+            updateLightStatus(data.lights);
+            // Aktualizacja formularza
+            updateLightForm(data.lights);
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania stanu:', error);
+    }
+}
+
+function updateLightForm(lights) {
+    debug('Aktualizacja formularza, otrzymane dane:', lights);
+    
+    try {
+        // Światła dzienne
+        if (lights.frontDay && lights.rear) {
+            document.getElementById('day-lights').value = 'front-day-rear';
+        } else if (lights.frontDay) {
+            document.getElementById('day-lights').value = 'front-day';
+        } else if (lights.rear) {
+            document.getElementById('day-lights').value = 'rear';
+        } else {
+            document.getElementById('day-lights').value = 'off';
+        }
+
+        // Światła nocne
+        if (lights.front && lights.rear) {
+            document.getElementById('night-lights').value = 'front-rear';
+        } else if (lights.front) {
+            document.getElementById('night-lights').value = 'front';
+        } else if (lights.rear) {
+            document.getElementById('night-lights').value = 'rear';
+        } else {
+            document.getElementById('night-lights').value = 'off';
+        }
+
+        // Checkboxy mrugania
+        document.getElementById('day-blink').checked = Boolean(lights.dayBlink);
+        document.getElementById('night-blink').checked = Boolean(lights.nightBlink);
+
+        // Częstotliwość mrugania
+        if (lights.blinkFrequency) {
+            document.getElementById('blink-frequency').value = lights.blinkFrequency;
+        }
+
+        debug('Formularz zaktualizowany pomyślnie');
+    } catch (error) {
+        console.error('Błąd podczas aktualizacji formularza:', error);
     }
 }
 
@@ -293,7 +374,7 @@ function setupModal() {
         }
     });
 }
-    
+
 function updateLightStatus(lights) {
     debug('Aktualizacja statusu świateł:', lights);
     if (!lights) return;
