@@ -259,6 +259,40 @@ async function saveLightConfig() {
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
+
+function setupModal() {
+    const modal = document.getElementById('info-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    
+    // Otwieranie modala przez info-icons
+    document.querySelectorAll('.info-icon').forEach(button => {
+        button.addEventListener('click', function() {
+            const infoId = this.dataset.info;
+            const info = infoContent[infoId];
+            
+            if (info) {
+                modalTitle.textContent = info.title;
+                modalDescription.textContent = info.description;               
+                modal.style.display = 'block';
+            } else {
+                console.error('Nie znaleziono opisu dla:', infoId);
+            }
+        });
+    });
+    
+    // Zamykanie modala
+    document.querySelector('.close-modal').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // Zamykanie po kliknięciu poza modalem
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
     
 function updateLightStatus(lights) {
     debug('Aktualizacja statusu świateł:', lights);
