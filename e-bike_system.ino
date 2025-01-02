@@ -1243,11 +1243,26 @@ void applyBacklightSettings() {
         targetBrightness = backlightSettings.dayBrightness;
     }
     
-    // Konwersja z procentów (0-100) na wartość kontrastu (0-255)
-    displayBrightness = map(targetBrightness, 0, 100, 0, 255);
+    // Nieliniowe mapowanie jasności
+    // Używamy funkcji wykładniczej do lepszego rozłożenia jasności
+    // Wzór: (x^2)/100 daje nam wartość od 0 do 100
+    float normalized = (targetBrightness * targetBrightness) / 100.0;
+    
+    // Mapujemy wartość na zakres 16-255
+    // Minimum ustawiamy na 16, bo niektóre wyświetlacze OLED mogą się wyłączać przy niższych wartościach
+    displayBrightness = map(normalized, 0, 100, 16, 255);
     
     // Zastosuj jasność do wyświetlacza
     display.setContrast(displayBrightness);
+    
+    #ifdef DEBUG
+    Serial.print("Target brightness: ");
+    Serial.print(targetBrightness);
+    Serial.print("%, Normalized: ");
+    Serial.print(normalized);
+    Serial.print("%, Display brightness: ");
+    Serial.println(displayBrightness);
+    #endif
 }
 
 // Funkcje czujnika temperatury
