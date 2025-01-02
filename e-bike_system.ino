@@ -370,6 +370,125 @@ void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uin
   // Twoja funkcja obsługi powiadomień
 }
 
+// Funkcja zapisująca ustawienia świateł do pliku
+void saveLightSettings() {
+    // Utwórz dokument JSON
+    DynamicJsonDocument doc(256);
+    
+    // Konwersja enum na string
+    const char* dayLightsStr;
+    const char* nightLightsStr;
+    
+    switch(lightSettings.dayLights) {
+        case LightSettings::FRONT: dayLightsStr = "FRONT"; break;
+        case LightSettings::REAR: dayLightsStr = "REAR"; break;
+        case LightSettings::BOTH: dayLightsStr = "BOTH"; break;
+        default: dayLightsStr = "OFF"; break;
+    }
+    
+    switch(lightSettings.nightLights) {
+        case LightSettings::FRONT: nightLightsStr = "FRONT"; break;
+        case LightSettings::REAR: nightLightsStr = "REAR"; break;
+        case LightSettings::BOTH: nightLightsStr = "BOTH"; break;
+        default: nightLightsStr = "OFF"; break;
+    }
+    
+    // Zapisz ustawienia do dokumentu JSON
+    doc["dayLights"] = dayLightsStr;
+    doc["nightLights"] = nightLightsStr;
+    doc["dayBlink"] = lightSettings.dayBlink;
+    doc["nightBlink"] = lightSettings.nightBlink;
+    doc["blinkEnabled"] = lightSettings.blinkEnabled;
+    doc["blinkFrequency"] = lightSettings.blinkFrequency;
+    
+    // Otwórz plik do zapisu
+    File file = LittleFS.open(LIGHT_CONFIG_FILE, "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku do zapisu!");
+        #endif
+        return;
+    }
+    
+    // Zapisz JSON do pliku
+    if (serializeJson(doc, file) == 0) {
+        #ifdef DEBUG
+        Serial.println("Nie udało się zapisać do pliku!");
+        #endif
+    }
+    
+    file.close();
+    
+    #ifdef DEBUG
+    Serial.println("Ustawienia świateł zostały zapisane");
+    #endif
+}
+
+// Funkcja wczytująca ustawienia świateł z pliku
+void loadLightSettings() {
+    // Sprawdź czy plik istnieje
+    if (!LittleFS.exists(LIGHT_CONFIG_FILE)) {
+        #ifdef DEBUG
+        Serial.println("Plik konfiguracyjny nie istnieje, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        lightSettings.dayLights = LightSettings::FRONT;
+        lightSettings.nightLights = LightSettings::BOTH;
+        lightSettings.dayBlink = false;
+        lightSettings.nightBlink = false;
+        lightSettings.blinkEnabled = false;
+        lightSettings.blinkFrequency = 500;
+        // Zapisz domyślne ustawienia
+        saveLightSettings();
+        return;
+    }
+    
+    // Otwórz plik
+    File file = LittleFS.open(LIGHT_CONFIG_FILE, "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku!");
+        #endif
+        return;
+    }
+    
+    // Przeczytaj zawartość pliku
+    DynamicJsonDocument doc(256);
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON!");
+        #endif
+        return;
+    }
+    
+    // Konwersja string na enum
+    const char* dayLightsStr = doc["dayLights"] | "OFF";
+    const char* nightLightsStr = doc["nightLights"] | "OFF";
+    
+    // Ustaw tryb świateł dziennych
+    if (strcmp(dayLightsStr, "FRONT") == 0) lightSettings.dayLights = LightSettings::FRONT;
+    else if (strcmp(dayLightsStr, "REAR") == 0) lightSettings.dayLights = LightSettings::REAR;
+    else if (strcmp(dayLightsStr, "BOTH") == 0) lightSettings.dayLights = LightSettings::BOTH;
+    
+    // Ustaw tryb świateł nocnych
+    if (strcmp(nightLightsStr, "FRONT") == 0) lightSettings.nightLights = LightSettings::FRONT;
+    else if (strcmp(nightLightsStr, "REAR") == 0) lightSettings.nightLights = LightSettings::REAR;
+    else if (strcmp(nightLightsStr, "BOTH") == 0) lightSettings.nightLights = LightSettings::BOTH;
+    
+    // Wczytaj pozostałe ustawienia
+    lightSettings.dayBlink = doc["dayBlink"] | false;
+    lightSettings.nightBlink = doc["nightBlink"] | false;
+    lightSettings.blinkEnabled = doc["blinkEnabled"] | false;
+    lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+    
+    #ifdef DEBUG
+    Serial.println("Ustawienia świateł zostały wczytane");
+    #endif
+}
+
 // --- Połączenie z BMS ---
 void connectToBms() {
     if (!bleClient->isConnected()) {
@@ -1658,38 +1777,34 @@ void setupWebServer() {
     server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
             String jsonString = request->getParam("data", true)->value();
-            DynamicJsonDocument doc(200);
+            DynamicJsonDocument doc(256);
             DeserializationError error = deserializeJson(doc, jsonString);
 
             if (!error) {
-                // Zapisz konfigurację świateł
-                String dayLights = doc["dayLights"].as<String>();
-                String nightLights = doc["nightLights"].as<String>();
-                bool dayBlink = doc["dayBlink"].as<bool>();
-                bool nightBlink = doc["nightBlink"].as<bool>();
-                int blinkFrequency = doc["blinkFrequency"] | 500;
-
-                // Zaktualizuj strukturę lightSettings
-                if (dayLights == "front-day") lightSettings.dayLights = LightSettings::FRONT;
-                else if (dayLights == "front-normal") lightSettings.dayLights = LightSettings::FRONT;
-                else if (dayLights == "rear") lightSettings.dayLights = LightSettings::REAR;
-                else if (dayLights == "front-day-rear") lightSettings.dayLights = LightSettings::BOTH;
-                else if (dayLights == "front-normal-rear") lightSettings.dayLights = LightSettings::BOTH;
-
-                if (nightLights == "front-day") lightSettings.nightLights = LightSettings::FRONT;
-                else if (nightLights == "front-normal") lightSettings.nightLights = LightSettings::FRONT;
-                else if (nightLights == "rear") lightSettings.nightLights = LightSettings::REAR;
-                else if (nightLights == "front-day-rear") lightSettings.nightLights = LightSettings::BOTH;
-                else if (nightLights == "front-normal-rear") lightSettings.nightLights = LightSettings::BOTH;
-
-                lightSettings.dayBlink = dayBlink;
-                lightSettings.nightBlink = nightBlink;
-                lightSettings.blinkFrequency = blinkFrequency;
-
-                // Użyj istniejącej funkcji saveSettings()
-                saveSettings();
+                // Konwersja string na enum
+                const char* dayLightsStr = doc["dayLights"] | "OFF";
+                const char* nightLightsStr = doc["nightLights"] | "OFF";
                 
-                // Zastosuj nowe ustawienia świateł
+                // Ustaw tryb świateł dziennych
+                if (strcmp(dayLightsStr, "FRONT") == 0) lightSettings.dayLights = LightSettings::FRONT;
+                else if (strcmp(dayLightsStr, "REAR") == 0) lightSettings.dayLights = LightSettings::REAR;
+                else if (strcmp(dayLightsStr, "BOTH") == 0) lightSettings.dayLights = LightSettings::BOTH;
+                
+                // Ustaw tryb świateł nocnych
+                if (strcmp(nightLightsStr, "FRONT") == 0) lightSettings.nightLights = LightSettings::FRONT;
+                else if (strcmp(nightLightsStr, "REAR") == 0) lightSettings.nightLights = LightSettings::REAR;
+                else if (strcmp(nightLightsStr, "BOTH") == 0) lightSettings.nightLights = LightSettings::BOTH;
+                
+                // Wczytaj pozostałe ustawienia
+                lightSettings.dayBlink = doc["dayBlink"] | false;
+                lightSettings.nightBlink = doc["nightBlink"] | false;
+                lightSettings.blinkEnabled = doc["blinkEnabled"] | false;
+                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+                
+                // Zapisz ustawienia do pliku
+                saveLightSettings();
+                
+                // Zastosuj nowe ustawienia
                 setLights();
 
                 request->send(200, "application/json", "{\"status\":\"ok\"}");
@@ -2108,12 +2223,13 @@ void setup() {
         Serial.println("LittleFS zamontowany pomyślnie");
         #endif
         // Wczytaj ustawienia z pliku
+        loadLightSettings();  // Wczytaj ustawienia świateł
         loadBacklightSettingsFromFile();
         loadSettings();
     }
 
-    // Zastosuj zapisane ustawienia jasności
-    applyBacklightSettings();
+    setLights();  // Zastosuj wczytane ustawienia    
+    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
 
     display.sendBuffer();
 
