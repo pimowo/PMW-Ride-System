@@ -30,38 +30,39 @@ AsyncEventSource events("/events");
 
 // Struktury dla ustawień
 struct TimeSettings {
-  bool ntpEnabled;
-  int8_t hours;
-  int8_t minutes;
-  int8_t seconds;
-  int8_t day;
-  int8_t month;
-  int16_t year;
+    bool ntpEnabled;
+    int8_t hours;
+    int8_t minutes;
+    int8_t seconds;
+    int8_t day;
+    int8_t month;
+    int16_t year;
 };
 
 struct LightSettings {
-  enum LightMode {
-    FRONT,
-    REAR,
-    BOTH
-  };
-  LightMode dayLights;
-  bool dayBlink;
-  LightMode nightLights;
-  bool nightBlink;
-  bool blinkEnabled;
-  int blinkFrequency;  // ms
+    enum LightMode {
+        FRONT,
+        REAR,
+        BOTH
+    };
+
+    LightMode dayLights;
+    bool dayBlink;
+    LightMode nightLights;
+    bool nightBlink;
+    bool blinkEnabled;
+    int blinkFrequency;  // ms
 };
 
 struct BacklightSettings {
-  int dayBrightness;    // %
-  int nightBrightness;  // %
-  bool autoMode;
+    int dayBrightness;    // %
+    int nightBrightness;  // %
+    bool autoMode;
 };
 
 struct WiFiSettings {
-  char ssid[32];
-  char password[64];
+    char ssid[32];
+    char password[64];
 };
 
 // Struktura dla parametrów sterownika
@@ -116,75 +117,75 @@ const unsigned long DS18B20_CONVERSION_DELAY_MS = 750;
 
 // --- Struktury i enumy ---
 struct Settings {
-  int wheelCircumference;
-  float batteryCapacity;
-  int daySetting;
-  int nightSetting;
-  bool dayRearBlink;
-  bool nightRearBlink;
-  unsigned long blinkInterval;
+    int wheelCircumference;
+    float batteryCapacity;
+    int daySetting;
+    int nightSetting;
+    bool dayRearBlink;
+    bool nightRearBlink;
+    unsigned long blinkInterval;
 };
 
 enum MainScreen {
-  SPEED_SCREEN,      // Ekran prędkości
-  CADENCE_SCREEN,    // Ekran kadencji
-  TEMP_SCREEN,       // Ekran temperatur
-  RANGE_SCREEN,      // Ekran zasięgu
-  BATTERY_SCREEN,    // Ekran baterii
-  POWER_SCREEN,      // Ekran mocy
-  PRESSURE_SCREEN,   // Ekran ciśnienia
-  USB_SCREEN,        // Ekran sterowania USB
-  MAIN_SCREEN_COUNT  // Liczba głównych ekranów
+    SPEED_SCREEN,      // Ekran prędkości
+    CADENCE_SCREEN,    // Ekran kadencji
+    TEMP_SCREEN,       // Ekran temperatur
+    RANGE_SCREEN,      // Ekran zasięgu
+    BATTERY_SCREEN,    // Ekran baterii
+    POWER_SCREEN,      // Ekran mocy
+    PRESSURE_SCREEN,   // Ekran ciśnienia
+    USB_SCREEN,        // Ekran sterowania USB
+    MAIN_SCREEN_COUNT  // Liczba głównych ekranów
 };
 
 enum SpeedSubScreen {
-  SPEED_KMH,        // Aktualna prędkość
-  SPEED_AVG_KMH,    // Średnia prędkość
-  SPEED_MAX_KMH,    // Maksymalna prędkość
-  SPEED_SUB_COUNT
+    SPEED_KMH,        // Aktualna prędkość
+    SPEED_AVG_KMH,    // Średnia prędkość
+    SPEED_MAX_KMH,    // Maksymalna prędkość
+    SPEED_SUB_COUNT
 };
 
 enum CadenceSubScreen {
-  CADENCE_RPM,      // Aktualna kadencja
-  CADENCE_AVG_RPM,  // Średnia kadencja
-  CADENCE_SUB_COUNT
+    CADENCE_RPM,      // Aktualna kadencja
+    CADENCE_AVG_RPM,  // Średnia kadencja
+    CADENCE_SUB_COUNT
 };
 
 enum TempSubScreen {
-  TEMP_AIR,
-  TEMP_CONTROLLER,
-  TEMP_MOTOR,
-  TEMP_SUB_COUNT
+    TEMP_AIR,
+    TEMP_CONTROLLER,
+    TEMP_MOTOR,
+    TEMP_SUB_COUNT
 };
 
 enum RangeSubScreen {
-  RANGE_KM,
-  DISTANCE_KM,
-  ODOMETER_KM,
-  RANGE_SUB_COUNT
+    RANGE_KM,
+    DISTANCE_KM,
+    ODOMETER_KM,
+    RANGE_SUB_COUNT
 };
 
 enum BatterySubScreen {
-  BATTERY_VOLTAGE,
-  BATTERY_CURRENT,
-  BATTERY_CAPACITY_WH,
-  BATTERY_CAPACITY_AH,
-  BATTERY_CAPACITY_PERCENT,
-  BATTERY_SUB_COUNT
+    BATTERY_VOLTAGE,
+    BATTERY_CURRENT,
+    BATTERY_CAPACITY_WH,
+    BATTERY_CAPACITY_AH,
+    BATTERY_CAPACITY_PERCENT,
+    BATTERY_SUB_COUNT
 };
 
 enum PowerSubScreen {
-  POWER_W,
-  POWER_AVG_W,
-  POWER_MAX_W,
-  POWER_SUB_COUNT
+    POWER_W,
+    POWER_AVG_W,
+    POWER_MAX_W,
+    POWER_SUB_COUNT
 };
 
 enum PressureSubScreen {
-  PRESSURE_BAR,
-  PRESSURE_VOLTAGE,
-  PRESSURE_TEMP,
-  PRESSURE_SUB_COUNT
+    PRESSURE_BAR,
+    PRESSURE_VOLTAGE,
+    PRESSURE_TEMP,
+    PRESSURE_SUB_COUNT
 };
 
 // --- Zmienne stanu ekranu ---
@@ -271,70 +272,70 @@ BLERemoteCharacteristic* bleCharacteristicRx;
 
 // --- Klasy pomocnicze ---
 class TimeoutHandler {
-private:
-  uint32_t startTime;
-  uint32_t timeoutPeriod;
-  bool isRunning;
+    private:
+        uint32_t startTime;
+        uint32_t timeoutPeriod;
+        bool isRunning;
 
-public:
-  TimeoutHandler(uint32_t timeout_ms = 0)
-    : startTime(0),
-      timeoutPeriod(timeout_ms),
-      isRunning(false) {}
+    public:
+        TimeoutHandler(uint32_t timeout_ms = 0)
+            : startTime(0),
+                timeoutPeriod(timeout_ms),
+                isRunning(false) {}
 
-  void start(uint32_t timeout_ms = 0) {
-    if (timeout_ms > 0) timeoutPeriod = timeout_ms;
-    startTime = millis();
-    isRunning = true;
-  }
+        void start(uint32_t timeout_ms = 0) {
+            if (timeout_ms > 0) timeoutPeriod = timeout_ms;
+            startTime = millis();
+            isRunning = true;
+        }
 
-  bool isExpired() {
-    if (!isRunning) return false;
-    return (millis() - startTime) >= timeoutPeriod;
-  }
+        bool isExpired() {
+            if (!isRunning) return false;
+            return (millis() - startTime) >= timeoutPeriod;
+        }
 
-  void stop() {
-    isRunning = false;
-  }
+        void stop() {
+            isRunning = false;
+        }
 
-  uint32_t getElapsed() {
-    if (!isRunning) return 0;
-    return (millis() - startTime);
-  }
+        uint32_t getElapsed() {
+            if (!isRunning) return 0;
+            return (millis() - startTime);
+      }
 };
 
 class TemperatureSensor {
-private:
-  static constexpr float INVALID_TEMP = -999.0f;
-  static constexpr float MIN_VALID_TEMP = -50.0f;
-  static constexpr float MAX_VALID_TEMP = 100.0f;
-  bool conversionRequested = false;
-  unsigned long lastRequestTime = 0;
+    private:
+        static constexpr float INVALID_TEMP = -999.0f;
+        static constexpr float MIN_VALID_TEMP = -50.0f;
+        static constexpr float MAX_VALID_TEMP = 100.0f;
+        bool conversionRequested = false;
+        unsigned long lastRequestTime = 0;
 
-public:
-  void requestTemperature() {
-    if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
-      sensors.requestTemperatures();
-      conversionRequested = true;
-      lastRequestTime = millis();
-    }
-  }
+    public:
+        void requestTemperature() {
+            if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
+                sensors.requestTemperatures();
+                conversionRequested = true;
+                lastRequestTime = millis();
+            }
+        }
 
-  bool isValidTemperature(float temp) {
-    return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
-  }
+        bool isValidTemperature(float temp) {
+            return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
+        }
 
-  float readTemperature() {
-    if (!conversionRequested) return INVALID_TEMP;
+        float readTemperature() {
+            if (!conversionRequested) return INVALID_TEMP;
 
-    if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
-      return INVALID_TEMP;  // Konwersja jeszcze trwa
-    }
+            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
+                return INVALID_TEMP;  // Konwersja jeszcze trwa
+            }
 
-    float temp = sensors.getTempCByIndex(0);
-    conversionRequested = false;
-    return isValidTemperature(temp) ? temp : INVALID_TEMP;
-  }
+            float temp = sensors.getTempCByIndex(0);
+            conversionRequested = false;
+            return isValidTemperature(temp) ? temp : INVALID_TEMP;
+        }
 };
 
 TemperatureSensor tempSensor;
@@ -587,26 +588,6 @@ void drawAssistLevel() {
     }
     display.drawStr(30, 24, modeText);
 }
-
-// void drawValueAndUnit(const char* valueStr, const char* unitStr) {
-//     display.setFont(czcionka_mala);
-//     int unitWidth = display.getStrWidth(unitStr);
-//     int valueWidth = display.getStrWidth(valueStr);
-//     int spaceWidth = display.getStrWidth(" ");  // szerokość spacji
-    
-//     // Całkowita szerokość = wartość + spacja + jednostka
-//     int totalWidth = valueWidth + spaceWidth + unitWidth;
-    
-//     // Pozycja początkowa dla wartości (od prawej strony)
-//     int xPosValue = 128 - totalWidth;
-    
-//     // Pozycja początkowa dla jednostki
-//     int xPosUnit = 128 - unitWidth;
-    
-//     // Rysowanie wartości i jednostki
-//     display.drawStr(xPosValue, 62, valueStr);
-//     display.drawStr(xPosUnit, 62, unitStr);
-// }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
     // Najpierw oblicz szerokość jednostki małą czcionką
@@ -918,7 +899,6 @@ void showWelcomeMessage() {
 }
 
 void handleButtons() {
-
     if (configModeActive) {
         return; // W trybie konfiguracji nie obsługuj normalnych funkcji przycisków
     }
@@ -935,157 +915,158 @@ void handleButtons() {
     static unsigned long upPressTime = 0;
     static unsigned long downPressTime = 0;
     const unsigned long buttonDebounce = 50;
-
-    // Sprawdzanie trybu legal (UP + SET) - tylko gdy wyświetlacz jest aktywny
     static unsigned long legalModeStart = 0;
-    if (displayActive && !showingWelcome && !upState && !setState) {
-        if (legalModeStart == 0) {
-            legalModeStart = currentTime;
-        } else if ((currentTime - legalModeStart) > 500) { // 2 sekundy  przytrzymania
-            toggleLegalMode();
-            while (!digitalRead(BTN_UP) || !digitalRead(BTN_SET)) {
-                delay(10); // Czekaj na puszczenie przycisków
+
+    // Obsługa włączania/wyłączania wyświetlacza
+    if (!displayActive) {
+        if (!setState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!setPressStartTime) {
+                setPressStartTime = currentTime;
+            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
+                if (!welcomeAnimationDone) {
+                    showWelcomeMessage();  // Pokaż animację powitania
+                } 
+                messageStartTime = currentTime;
+                setLongPressExecuted = true;
+                showingWelcome = true;
+                displayActive = true;
             }
-            legalModeStart = 0;
-            return;
+        } else if (setState && setPressStartTime) {
+            setPressStartTime = 0;
+            setLongPressExecuted = false;
+            lastDebounceTime = currentTime;
         }
-    } else {
-        legalModeStart = 0;
+        return;
     }
 
-  // Obsługa włączania/wyłączania wyświetlacza
-  if (!displayActive) {
-    if (!setState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-      if (!setPressStartTime) {
-        setPressStartTime = currentTime;
-      } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
-        if (!welcomeAnimationDone) {
-            showWelcomeMessage();  // Pokaż animację powitania
-        } 
-        messageStartTime = currentTime;
-        setLongPressExecuted = true;
-        showingWelcome = true;
-        displayActive = true;
-      }
-    } else if (setState && setPressStartTime) {
-      setPressStartTime = 0;
-      setLongPressExecuted = false;
-      lastDebounceTime = currentTime;
-    }
-    return;
-  }
+    // Obsługa przycisków gdy wyświetlacz jest aktywny
+    if (!showingWelcome) {
 
-  // Obsługa przycisków gdy wyświetlacz jest aktywny
-  if (!showingWelcome) {
-    // Obsługa przycisku UP (zmiana asysty)
-    if (!upState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-      if (!upPressStartTime) {
-        upPressStartTime = currentTime;
-      } else if (!upLongPressExecuted && (currentTime - upPressStartTime) > LONG_PRESS_TIME) {
-        lightMode = (lightMode + 1) % 3;
-        setLights();
-        upLongPressExecuted = true;
-      }
-    } else if (upState && upPressStartTime) {
-      if (!upLongPressExecuted && (currentTime - upPressStartTime) < LONG_PRESS_TIME) {
-        if (assistLevel < 5) assistLevel++;
-      }
-      upPressStartTime = 0;
-      upLongPressExecuted = false;
-      lastDebounceTime = currentTime;
-    }
+        // Sprawdzanie trybu legal (UP + SET) - przełączanie trybu legalnego
+        if (displayActive && !showingWelcome && !upState && !setState) {
+            if (legalModeStart == 0) {
+                legalModeStart = currentTime;
+            } else if ((currentTime - legalModeStart) > 500) { // 2 sekundy  przytrzymania
+                toggleLegalMode();
+                while (!digitalRead(BTN_UP) || !digitalRead(BTN_SET)) {
+                    delay(10); // Czekaj na puszczenie przycisków
+                }
+                legalModeStart = 0;
+                return;
+            }
+        } else {
+            legalModeStart = 0;
+        }
 
-    // Obsługa przycisku DOWN (zmiana asysty)
-    if (!downState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-      if (!downPressStartTime) {
-        downPressStartTime = currentTime;
-      } else if (!downLongPressExecuted && (currentTime - downPressStartTime) > LONG_PRESS_TIME) {
-        assistLevelAsText = !assistLevelAsText;
-        downLongPressExecuted = true;
-      }
-    } else if (downState && downPressStartTime) {
-      if (!downLongPressExecuted && (currentTime - downPressStartTime) < LONG_PRESS_TIME) {
-        if (assistLevel > 0) assistLevel--;
-      }
-      downPressStartTime = 0;
-      downLongPressExecuted = false;
-      lastDebounceTime = currentTime;
-    }
+        // Obsługa przycisku UP (zmiana asysty)
+        if (!upState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!upPressStartTime) {
+                upPressStartTime = currentTime;
+            } else if (!upLongPressExecuted && (currentTime - upPressStartTime) > LONG_PRESS_TIME) {
+                lightMode = (lightMode + 1) % 3;
+                setLights();
+                upLongPressExecuted = true;
+            }
+        } else if (upState && upPressStartTime) {
+            if (!upLongPressExecuted && (currentTime - upPressStartTime) < LONG_PRESS_TIME) {
+                if (assistLevel < 5) assistLevel++;
+            }
+            upPressStartTime = 0;
+            upLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
 
-    // Obsługa przycisku SET
-    static unsigned long lastSetRelease = 0;
-    static bool waitingForSecondClick = false;
+        // Obsługa przycisku DOWN (zmiana asysty)
+        if (!downState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!downPressStartTime) {
+                downPressStartTime = currentTime;
+            } else if (!downLongPressExecuted && (currentTime - downPressStartTime) > LONG_PRESS_TIME) {
+                assistLevelAsText = !assistLevelAsText;
+                downLongPressExecuted = true;
+            }
+        } else if (downState && downPressStartTime) {
+            if (!downLongPressExecuted && (currentTime - downPressStartTime) < LONG_PRESS_TIME) {
+                if (assistLevel > 0) assistLevel--;
+            }
+            downPressStartTime = 0;
+            downLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
 
-    if (!setState) {  // Przycisk wciśnięty
-      if (!setPressStartTime) {
-        setPressStartTime = currentTime;
-      } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
-        // Długie przytrzymanie (>3s) - wyłączenie
-        display.clearBuffer();
-        display.setFont(czcionka_srednia);
-        display.drawStr(5, 32, "Do widzenia ;)");
-        display.sendBuffer();
-        messageStartTime = currentTime;
-        setLongPressExecuted = true;
-      }
-    } else if (setPressStartTime) {  // Przycisk puszczony
-      if (!setLongPressExecuted) {
-        unsigned long releaseTime = currentTime;
+        // Obsługa przycisku SET
+        static unsigned long lastSetRelease = 0;
+        static bool waitingForSecondClick = false;
 
-        if (waitingForSecondClick && (releaseTime - lastSetRelease) < DOUBLE_CLICK_TIME) {
-          // Podwójne kliknięcie
-          if (currentMainScreen == USB_SCREEN) {
-            // Przełącz stan USB
-            usbEnabled = !usbEnabled;
-            digitalWrite(UsbPin, usbEnabled ? HIGH : LOW);
-          } else if (inSubScreen) {
-            inSubScreen = false;  // Wyjście z pod-ekranów
-          } else if (hasSubScreens(currentMainScreen)) {
-            inSubScreen = true;  // Wejście do pod-ekranów
-            currentSubScreen = 0;
+        if (!setState) {  // Przycisk wciśnięty
+            if (!setPressStartTime) {
+                setPressStartTime = currentTime;
+            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
+                // Długie przytrzymanie (>3s) - wyłączenie
+                display.clearBuffer();
+                display.setFont(czcionka_srednia);
+                display.drawStr(5, 32, "Do widzenia ;)");
+                display.sendBuffer();
+                messageStartTime = currentTime;
+                setLongPressExecuted = true;
+            }
+        } else if (setPressStartTime) {  // Przycisk puszczony
+            if (!setLongPressExecuted) {
+                unsigned long releaseTime = currentTime;
+
+                if (waitingForSecondClick && (releaseTime - lastSetRelease) < DOUBLE_CLICK_TIME) {
+                    // Podwójne kliknięcie
+                    if (currentMainScreen == USB_SCREEN) {
+                        // Przełącz stan USB
+                        usbEnabled = !usbEnabled;
+                        digitalWrite(UsbPin, usbEnabled ? HIGH : LOW);
+                    } else if (inSubScreen) {
+                        inSubScreen = false;  // Wyjście z pod-ekranów
+                    } else if (hasSubScreens(currentMainScreen)) {
+                        inSubScreen = true;  // Wejście do pod-ekranów
+                        currentSubScreen = 0;
+                    }
+                    waitingForSecondClick = false;
+                } else {
+                    // Pojedyncze kliknięcie
+                    if (!waitingForSecondClick) {
+                        waitingForSecondClick = true;
+                        lastSetRelease = releaseTime;
+                    } else if ((releaseTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
+                        // Przełączanie ekranów/pod-ekranów
+                        if (inSubScreen) {
+                            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
+                        } else {
+                            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
+                        }
+                        waitingForSecondClick = false;
+                    }
+                }
+            }
+            setPressStartTime = 0;
+            setLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
+
+        // Reset flagi oczekiwania na drugie kliknięcie po upływie czasu
+        if (waitingForSecondClick && (currentTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
+          // Wykonaj akcję pojedynczego kliknięcia
+          if (inSubScreen) {
+            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
+          } else {
+            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
           }
           waitingForSecondClick = false;
-        } else {
-          // Pojedyncze kliknięcie
-          if (!waitingForSecondClick) {
-            waitingForSecondClick = true;
-            lastSetRelease = releaseTime;
-          } else if ((releaseTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
-            // Przełączanie ekranów/pod-ekranów
-            if (inSubScreen) {
-              currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
-            } else {
-              currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
-            }
-            waitingForSecondClick = false;
-          }
         }
-      }
-      setPressStartTime = 0;
-      setLongPressExecuted = false;
-      lastDebounceTime = currentTime;
     }
 
-    // Reset flagi oczekiwania na drugie kliknięcie po upływie czasu
-    if (waitingForSecondClick && (currentTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
-      // Wykonaj akcję pojedynczego kliknięcia
-      if (inSubScreen) {
-        currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
-      } else {
-        currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
+    // Obsługa komunikatów powitalnych/pożegnalnych
+    if (messageStartTime > 0 && (currentTime - messageStartTime) >= GOODBYE_DELAY) {
+      if (!showingWelcome) {
+          displayActive = false;
+          goToSleep();
       }
-      waitingForSecondClick = false;
-    }
-  }
-
-  // Obsługa komunikatów powitalnych/pożegnalnych
-  if (messageStartTime > 0 && (currentTime - messageStartTime) >= GOODBYE_DELAY) {
-    if (!showingWelcome) {
-      displayActive = false;
-      goToSleep();
-    }
-    messageStartTime = 0;
-    showingWelcome = false;
+      messageStartTime = 0;
+      showingWelcome = false;
     }
 }
 
@@ -1174,31 +1155,31 @@ void deactivateConfigMode() {
 
 // Funkcja pomocnicza sprawdzająca czy ekran ma pod-ekrany
 bool hasSubScreens(MainScreen screen) {
-  switch (screen) {
-    case SPEED_SCREEN: return SPEED_SUB_COUNT > 1;
-    case CADENCE_SCREEN: return CADENCE_SUB_COUNT > 1;
-    case TEMP_SCREEN: return TEMP_SUB_COUNT > 1;
-    case RANGE_SCREEN: return RANGE_SUB_COUNT > 1;
-    case BATTERY_SCREEN: return BATTERY_SUB_COUNT > 1;
-    case POWER_SCREEN: return POWER_SUB_COUNT > 1;
-    case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT > 1;
-    case USB_SCREEN: return false;
-    default: return false;
-  }
+    switch (screen) {
+        case SPEED_SCREEN: return SPEED_SUB_COUNT > 1;
+        case CADENCE_SCREEN: return CADENCE_SUB_COUNT > 1;
+        case TEMP_SCREEN: return TEMP_SUB_COUNT > 1;
+        case RANGE_SCREEN: return RANGE_SUB_COUNT > 1;
+        case BATTERY_SCREEN: return BATTERY_SUB_COUNT > 1;
+        case POWER_SCREEN: return POWER_SUB_COUNT > 1;
+        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT > 1;
+        case USB_SCREEN: return false;
+        default: return false;
+    }
 }
 
 // Funkcja pomocnicza zwracająca liczbę pod-ekranów dla danego ekranu
 int getSubScreenCount(MainScreen screen) {
-  switch (screen) {
-    case SPEED_SCREEN: return SPEED_SUB_COUNT;
-    case CADENCE_SCREEN: return CADENCE_SUB_COUNT;
-    case TEMP_SCREEN: return TEMP_SUB_COUNT;
-    case RANGE_SCREEN: return RANGE_SUB_COUNT;
-    case BATTERY_SCREEN: return BATTERY_SUB_COUNT;
-    case POWER_SCREEN: return POWER_SUB_COUNT;
-    case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT;
-    default: return 0;
-  }
+    switch (screen) {
+        case SPEED_SCREEN: return SPEED_SUB_COUNT;
+        case CADENCE_SCREEN: return CADENCE_SUB_COUNT;
+        case TEMP_SCREEN: return TEMP_SUB_COUNT;
+        case RANGE_SCREEN: return RANGE_SUB_COUNT;
+        case BATTERY_SCREEN: return BATTERY_SUB_COUNT;
+        case POWER_SCREEN: return POWER_SUB_COUNT;
+        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT;
+        default: return 0;
+    }
 }
 
 // Funkcje zarządzania energią
@@ -1237,51 +1218,81 @@ void setLights() {
         digitalWrite(FrontPin, HIGH);
         digitalWrite(RealPin, HIGH);
     }
+    
+    // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
+    applyBacklightSettings();
+}
+
+void applyBacklightSettings() {
+    int targetBrightness;
+    
+    if (backlightSettings.autoMode) {
+        // Sprawdź tryb świateł
+        if (lightMode == 0) {
+            // Światła wyłączone - używamy jasności dziennej
+            targetBrightness = backlightSettings.dayBrightness;
+        } else if (lightMode == 1) {
+            // Światła dzienne - używamy jasności dziennej
+            targetBrightness = backlightSettings.dayBrightness;
+        } else if (lightMode == 2) {
+            // Światła nocne - używamy jasności nocnej
+            targetBrightness = backlightSettings.nightBrightness;
+        }
+    } else {
+        // W trybie manualnym używaj podstawowej jasności
+        targetBrightness = backlightSettings.dayBrightness;
+    }
+    
+    // Konwersja z procentów (0-100) na wartość kontrastu (0-255)
+    displayBrightness = map(targetBrightness, 0, 100, 0, 255);
+    
+    // Zastosuj jasność do wyświetlacza
+    display.setContrast(displayBrightness);
 }
 
 // Funkcje czujnika temperatury
 void initializeDS18B20() {
-  sensors.begin();
+    sensors.begin();
 }
 
 void requestGroundTemperature() {
-  sensors.requestTemperatures();
-  ds18b20RequestTime = millis();
+    sensors.requestTemperatures();
+    ds18b20RequestTime = millis();
 }
 
 bool isGroundTemperatureReady() {
-  return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
+    return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
 }
 
 bool isValidTemperature(float temp) {
-  return (temp >= -50.0 && temp <= 100.0);
+    return (temp >= -50.0 && temp <= 100.0);
 }
 
 float readGroundTemperature() {
-  if (isGroundTemperatureReady()) {
-    float temperature = sensors.getTempCByIndex(0);
-    if (isValidTemperature(temperature)) {
-      return temperature;
-    } else {
-      return -999.0;
+    if (isGroundTemperatureReady()) {
+        float temperature = sensors.getTempCByIndex(0);
+        if (isValidTemperature(temperature)) {
+            return temperature;
+        } else {
+            return -999.0;
+        }
     }
-  }
-  return -999.0;
+    return -999.0;
 }
 
 void handleTemperature() {
-  unsigned long currentMillis = millis();
+    unsigned long currentMillis = millis();
 
-  if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
-    sensors.requestTemperatures();
-    conversionRequested = true;
-    lastTempRequest = currentMillis;
-  }
+    if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
+        sensors.requestTemperatures();
+        conversionRequested = true;
+        lastTempRequest = currentMillis;
+    }
 
-  if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
-    currentTemp = sensors.getTempCByIndex(0);
-    conversionRequested = false;
-  }
+    if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
+        currentTemp = sensors.getTempCByIndex(0);
+        conversionRequested = false;
+    }
 }
 
 // Główne funkcje programu
@@ -1438,7 +1449,6 @@ void saveSettings() {
 }
 
 // Funkcja pomocnicza do konwersji parametru na indeks
-// Funkcja pomocnicza do konwersji parametru na indeks
 int getParamIndex(const String& param) {
     if (param.startsWith("p")) {
         return param.substring(1).toInt() - 1;
@@ -1469,53 +1479,53 @@ void updateControllerParam(const String& param, int value) {
 
 // W funkcji setup(), po inicjalizacji wyświetlacza, dodaj:
 void setupWebServer() {
-  // Serwowanie plików statycznych
-  server.serveStatic("/", LittleFS, "/");
+    // Serwowanie plików statycznych
+    server.serveStatic("/", LittleFS, "/");
 
-  // Endpoint dla aktualnego stanu
-  server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-      StaticJsonDocument<512> doc;
-      
-      // Pobierz czas z RTC
-      DateTime now = rtc.now();
-      
-      // Utwórz obiekt czasu
-      JsonObject timeObj = doc.createNestedObject("time");
-      
-      // Format czasu dla wyświetlania
-      char timeStr[64];
-      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02d %02d:%02d:%02d",
-          now.year(), now.month(), now.day(),
-          now.hour(), now.minute(), now.second());
-      
-      // Dodaj czas w dwóch formatach
-      timeObj["formatted"] = timeStr;  // Format czytelny
-      timeObj["timezone"] = "Europe/Warsaw";
-      
-      // Dodaj poszczególne komponenty czasu
-      timeObj["hours"] = now.hour();
-      timeObj["minutes"] = now.minute();
-      timeObj["seconds"] = now.second();
-      timeObj["day"] = now.day();
-      timeObj["month"] = now.month();
-      timeObj["year"] = now.year();
+    // Endpoint dla aktualnego stanu
+    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        StaticJsonDocument<512> doc;
+        
+        // Pobierz czas z RTC
+        DateTime now = rtc.now();
+        
+        // Utwórz obiekt czasu
+        JsonObject timeObj = doc.createNestedObject("time");
+        
+        // Format czasu dla wyświetlania
+        char timeStr[64];
+        snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02d %02d:%02d:%02d",
+            now.year(), now.month(), now.day(),
+            now.hour(), now.minute(), now.second());
+        
+        // Dodaj czas w dwóch formatach
+        timeObj["formatted"] = timeStr;  // Format czytelny
+        timeObj["timezone"] = "Europe/Warsaw";
+        
+        // Dodaj poszczególne komponenty czasu
+        timeObj["hours"] = now.hour();
+        timeObj["minutes"] = now.minute();
+        timeObj["seconds"] = now.second();
+        timeObj["day"] = now.day();
+        timeObj["month"] = now.month();
+        timeObj["year"] = now.year();
 
-      // Dodaj stan świateł jako osobny obiekt
-      JsonObject lightsObj = doc.createNestedObject("lights");
-      lightsObj["frontDay"] = digitalRead(FrontDayPin);
-      lightsObj["front"] = digitalRead(FrontPin);
-      lightsObj["rear"] = digitalRead(RealPin);
+        // Dodaj stan świateł jako osobny obiekt
+        JsonObject lightsObj = doc.createNestedObject("lights");
+        lightsObj["frontDay"] = digitalRead(FrontDayPin);
+        lightsObj["front"] = digitalRead(FrontPin);
+        lightsObj["rear"] = digitalRead(RealPin);
 
-      // Dodaj temperaturę
-      doc["temperature"] = temperatureRead();
+        // Dodaj temperaturę
+        doc["temperature"] = temperatureRead();
 
-      String response;
-      serializeJson(doc, response);
-      request->send(200, "application/json", response);
-  });
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
 
-  // Endpoint dla ustawień świateł
-server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+    // Endpoint dla ustawień świateł
+    server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     if (request->hasParam("data", true)) {
         String jsonString = request->getParam("data", true)->value();
         DynamicJsonDocument doc(200);
@@ -1557,282 +1567,265 @@ server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
     } else {
         request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
     }
-});
+    });
 
-// server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
-//     [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
-//         StaticJsonDocument<200> doc;
-//         DeserializationError error = deserializeJson(doc, (char*)data);
+    server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
+        [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
+            StaticJsonDocument<200> doc;
+            DeserializationError error = deserializeJson(doc, (char*)data);
 
-//         if (!error) {
-//             int year = doc["year"] | 2024;
-//             int month = doc["month"] | 1;
-//             int day = doc["day"] | 1;
-//             int hour = doc["hour"] | 0;
-//             int minute = doc["minute"] | 0;
-//             int second = doc["second"] | 0;
+            if (!error) {
+                int year = doc["year"] | 2024;
+                int month = doc["month"] | 1;
+                int day = doc["day"] | 1;
+                int hour = doc["hour"] | 0;
+                int minute = doc["minute"] | 0;
+                int second = doc["second"] | 0;
 
-//             rtc.adjust(DateTime(year, month, day, hour, minute, second));
-//             request->send(200, "application/json", "{\"status\":\"ok\"}");
-//         } else {
-//             request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-//         }
-//     });
-
-server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
-    [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
-        StaticJsonDocument<200> doc;
-        DeserializationError error = deserializeJson(doc, (char*)data);
-
-        if (!error) {
-            int year = doc["year"] | 2024;
-            int month = doc["month"] | 1;
-            int day = doc["day"] | 1;
-            int hour = doc["hour"] | 0;
-            int minute = doc["minute"] | 0;
-            int second = doc["second"] | 0;
-
-            // Dodaj walidację
-            if (year >= 2000 && year <= 2099 &&
-                month >= 1 && month <= 12 &&
-                day >= 1 && day <= 31 &&
-                hour >= 0 && hour <= 23 &&
-                minute >= 0 && minute <= 59 &&
-                second >= 0 && second <= 59) {
-                
-                rtc.adjust(DateTime(year, month, day, hour, minute, second));
-                request->send(200, "application/json", "{\"status\":\"ok\"}");
+                // Dodaj walidację
+                if (year >= 2000 && year <= 2099 &&
+                    month >= 1 && month <= 12 &&
+                    day >= 1 && day <= 31 &&
+                    hour >= 0 && hour <= 23 &&
+                    minute >= 0 && minute <= 59 &&
+                    second >= 0 && second <= 59) {
+                    
+                    rtc.adjust(DateTime(year, month, day, hour, minute, second));
+                    request->send(200, "application/json", "{\"status\":\"ok\"}");
+                } else {
+                    request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
+                }
             } else {
-                request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
             }
-        } else {
-            request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-        }
     });
     
-server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    if (request->hasParam("data", true)) {
-        String jsonString = request->getParam("data", true)->value();
-        DynamicJsonDocument doc(200);
-        DeserializationError error = deserializeJson(doc, jsonString);
+    server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (request->hasParam("data", true)) {
+            String jsonString = request->getParam("data", true)->value();
+            DynamicJsonDocument doc(200);
+            DeserializationError error = deserializeJson(doc, jsonString);
 
-        if (!error) {
-            // Zapisz konfigurację podświetlenia używając istniejącej struktury backlightSettings
-            backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
-            backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
-            backlightSettings.autoMode = doc["autoMode"] | false;
+            if (!error) {
+                // Zapisz konfigurację podświetlenia używając istniejącej struktury backlightSettings
+                backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
+                backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
+                backlightSettings.autoMode = doc["autoMode"] | false;
 
-            // Zapisz ustawienia
-            saveSettings();
+                // Zapisz ustawienia
+                saveSettings();
+                
+                // Zastosuj nowe ustawienia
+                applyBacklightSettings();
 
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            }
         } else {
-            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
         }
-    } else {
-        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
-    }
-});
+    });
+
+    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        String json = "{\"backlight\":{";
+        json += "\"dayBrightness\":" + String(backlightSettings.dayBrightness) + ",";
+        json += "\"nightBrightness\":" + String(backlightSettings.nightBrightness) + ",";
+        json += "\"autoMode\":" + String(backlightSettings.autoMode ? "true" : "false");
+        json += "}}";
+        request->send(200, "application/json", json);
+    });
 
     server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
-          String jsonString = request->getParam("data", true)->value();
-          StaticJsonDocument<512> doc;
-          DeserializationError error = deserializeJson(doc, jsonString);
+            String jsonString = request->getParam("data", true)->value();
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, jsonString);
 
-          if (!error) {
-            controllerSettings.type = doc["type"].as<String>();
-            
-            if (controllerSettings.type == "kt-lcd") {
-              for (int i = 1; i <= 5; i++) {
-                if (doc["p"].containsKey(String(i))) {
-                  controllerSettings.ktParams[i-1] = doc["p"][String(i)].as<int>();
+            if (!error) {
+                controllerSettings.type = doc["type"].as<String>();
+                
+                if (controllerSettings.type == "kt-lcd") {
+                    for (int i = 1; i <= 5; i++) {
+                        if (doc["p"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i-1] = doc["p"][String(i)].as<int>();
+                        }
+                    }
+                    for (int i = 1; i <= 15; i++) {
+                        if (doc["c"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i+4] = doc["c"][String(i)].as<int>();
+                        }
+                    }
+                    for (int i = 1; i <= 3; i++) {
+                        if (doc["l"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i+19] = doc["l"][String(i)].as<int>();
+                        }
+                    }
+                } else {
+                    for (int i = 1; i <= 20; i++) {
+                        if (doc["p"].containsKey(String(i))) {
+                            controllerSettings.s866Params[i-1] = doc["p"][String(i)].as<int>();
+                        }
+                    }
                 }
-              }
-              for (int i = 1; i <= 15; i++) {
-                if (doc["c"].containsKey(String(i))) {
-                  controllerSettings.ktParams[i+4] = doc["c"][String(i)].as<int>();
-                }
-              }
-              for (int i = 1; i <= 3; i++) {
-                if (doc["l"].containsKey(String(i))) {
-                  controllerSettings.ktParams[i+19] = doc["l"][String(i)].as<int>();
-                }
-              }
+                
+                saveSettings();
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
             } else {
-              for (int i = 1; i <= 20; i++) {
-                if (doc["p"].containsKey(String(i))) {
-                  controllerSettings.s866Params[i-1] = doc["p"][String(i)].as<int>();
-                }
-              }
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
             }
-            
-            saveSettings();
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
-          } else {
-            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
-          }
         } else {
-          request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
         }
-      });
+    });
 
-  ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-    switch (type) {
-        case WS_EVT_CONNECT:
-            #ifdef DEBUG
-            Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-            #endif
-            break;
-        case WS_EVT_DISCONNECT:
-            #ifdef DEBUG
-            Serial.printf("WebSocket client #%u disconnected\n", client->id());
-            #endif
-            break;
-    }
+    ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+        switch (type) {
+            case WS_EVT_CONNECT:
+                #ifdef DEBUG
+                Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+                #endif
+                break;
+            case WS_EVT_DISCONNECT:
+                #ifdef DEBUG
+                Serial.printf("WebSocket client #%u disconnected\n", client->id());
+                #endif
+                break;
+        }
     });
     server.addHandler(&ws);
 
-  // Start serwera
-  server.begin();
+    // Start serwera
+    server.begin();
 }
 
 // Inicjalizacja domyślnych wartości
 void initializeDefaultSettings() {
-  // Czas
-  timeSettings.ntpEnabled = false;
-  timeSettings.hours = 0;
-  timeSettings.minutes = 0;
-  timeSettings.seconds = 0;
-  timeSettings.day = 1;
-  timeSettings.month = 1;
-  timeSettings.year = 2024;
+    // Czas
+    timeSettings.ntpEnabled = false;
+    timeSettings.hours = 0;
+    timeSettings.minutes = 0;
+    timeSettings.seconds = 0;
+    timeSettings.day = 1;
+    timeSettings.month = 1;
+    timeSettings.year = 2024;
 
-  // Światła
-  lightSettings.dayLights = LightSettings::FRONT;
-  lightSettings.dayBlink = false;
-  lightSettings.nightLights = LightSettings::BOTH;
-  lightSettings.nightBlink = false;
-  lightSettings.blinkEnabled = false;
-  lightSettings.blinkFrequency = 500;
+    // Światła
+    lightSettings.dayLights = LightSettings::FRONT;
+    lightSettings.dayBlink = false;
+    lightSettings.nightLights = LightSettings::BOTH;
+    lightSettings.nightBlink = false;
+    lightSettings.blinkEnabled = false;
+    lightSettings.blinkFrequency = 500;
 
-  // Podświetlenie
-  backlightSettings.dayBrightness = 100;
-  backlightSettings.nightBrightness = 50;
-  backlightSettings.autoMode = false;
+    // Podświetlenie
+    backlightSettings.dayBrightness = 100;
+    backlightSettings.nightBrightness = 50;
+    backlightSettings.autoMode = false;
 
-  // WiFi - początkowo puste
-  memset(wifiSettings.ssid, 0, sizeof(wifiSettings.ssid));
-  memset(wifiSettings.password, 0, sizeof(wifiSettings.password));
+    // WiFi - początkowo puste
+    memset(wifiSettings.ssid, 0, sizeof(wifiSettings.ssid));
+    memset(wifiSettings.password, 0, sizeof(wifiSettings.password));
 }
 
 // Funkcja synchronizacji czasu przez NTP
 void synchronizeTime() {
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  #ifdef DEBUG
-  Serial.println("Waiting for NTP time sync...");
-  #endif
-  time_t now = time(nullptr);
-  while (now < 8 * 3600 * 2) {
-    delay(500);
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     #ifdef DEBUG
-    Serial.print(".");
+    Serial.println("Waiting for NTP time sync...");
     #endif
-    now = time(nullptr);
-  }
-  Serial.println();
+    time_t now = time(nullptr);
+    while (now < 8 * 3600 * 2) {
+        delay(500);
+        #ifdef DEBUG
+        Serial.print(".");
+        #endif
+        now = time(nullptr);
+    }
+    Serial.println();
 
-  struct tm timeinfo;
-  gmtime_r(&now, &timeinfo);
-  rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
-                      timeinfo.tm_mday, timeinfo.tm_hour,
-                      timeinfo.tm_min, timeinfo.tm_sec));
+    struct tm timeinfo;
+    gmtime_r(&now, &timeinfo);
+    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+                        timeinfo.tm_mday, timeinfo.tm_hour,
+                        timeinfo.tm_min, timeinfo.tm_sec));
 }
 
 // Funkcja aktualizacji podświetlenia
 void updateBacklight() {
-  if (backlightSettings.autoMode) {
-    // Auto mode - ustaw jasność na podstawie trybu dzień/noc
-    // Zakładam, że masz zmienną określającą tryb dzienny/nocny
-    bool isDayMode = true;  // Tu trzeba dodać właściwą logikę
-    int brightness = isDayMode ? backlightSettings.dayBrightness : backlightSettings.nightBrightness;
-    // Tu dodaj kod ustawiający jasność wyświetlacza
-  } else {
-    // Manual mode - ustaw stałą jasność
-    // Tu dodaj kod ustawiający jasność wyświetlacza
-  }
+    if (backlightSettings.autoMode) {
+        // Auto mode - ustaw jasność na podstawie trybu dzień/noc
+        // Zakładam, że masz zmienną określającą tryb dzienny/nocny
+        bool isDayMode = true;  // Tu trzeba dodać właściwą logikę
+        int brightness = isDayMode ? backlightSettings.dayBrightness : backlightSettings.nightBrightness;
+        // Tu dodaj kod ustawiający jasność wyświetlacza
+    } else {
+        // Manual mode - ustaw stałą jasność
+        // Tu dodaj kod ustawiający jasność wyświetlacza
+    }
 }
-
-// Funkcja do ustawienia jasności w %
-// void ustawJasnosc(int jasnosc_procent) {
-//   // Przekształcenie procentów na zakres 0-255
-//   int kontrast = map(jasnosc_procent, 0, 100, 0, 255);
-
-//   // Ustawienie kontrastu
-//   u8g2.setContrast(kontrast);
-// }
 
 #include <esp_partition.h>
 
 // Sprawdzenie i formatowanie systemu plików przy starcie
 void initLittleFS() {
-  if (!LittleFS.begin(true)) {
+    if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
+        Serial.println("LittleFS Mount Failed");
+        #endif
+        if (!LittleFS.format()) {
+            #ifdef DEBUG
+            Serial.println("LittleFS Format Failed");
+            #endif
+            return;
+        }
+        if (!LittleFS.begin()) {
+            #ifdef DEBUG
+            Serial.println("LittleFS Mount Failed After Format");
+            #endif
+            return;
+        }
+    }
     #ifdef DEBUG
-    Serial.println("LittleFS Mount Failed");
+    Serial.println("LittleFS Mounted Successfully");
     #endif
-    if (!LittleFS.format()) {
-      #ifdef DEBUG
-      Serial.println("LittleFS Format Failed");
-      #endif
-      return;
-    }
-    if (!LittleFS.begin()) {
-      #ifdef DEBUG
-      Serial.println("LittleFS Mount Failed After Format");
-      #endif
-      return;
-    }
-  }
-  #ifdef DEBUG
-  Serial.println("LittleFS Mounted Successfully");
-  #endif
 }
 
 void listFiles() {
-  #ifdef DEBUG
-  Serial.println("Files in LittleFS:");
-  #endif
-  File root = LittleFS.open("/");
-  if (!root) {
     #ifdef DEBUG
-    Serial.println("- Failed to open directory");
+    Serial.println("Files in LittleFS:");
     #endif
-    return;
-  }
-  if (!root.isDirectory()) {
-    #ifdef DEBUG
-    Serial.println(" - Not a directory");
-    #endif
-    return;
-  }
-
-  File file = root.openNextFile();
-  while (file) {
-    if (file.isDirectory()) {
-      #ifdef DEBUG
-      Serial.print("  DIR : ");
-      Serial.println(file.name());
-      #endif
-    } else {
-      #ifdef DEBUG
-      Serial.print("  FILE: ");
-      Serial.print(file.name());
-      Serial.print("\tSIZE: ");
-      Serial.println(file.size());
-      #endif
+    File root = LittleFS.open("/");
+    if (!root) {
+        #ifdef DEBUG
+        Serial.println("- Failed to open directory");
+        #endif
+        return;
     }
-    file = root.openNextFile();
-  }
+    if (!root.isDirectory()) {
+        #ifdef DEBUG
+        Serial.println(" - Not a directory");
+        #endif
+        return;
+    }
+
+    File file = root.openNextFile();
+    while (file) {
+        if (file.isDirectory()) {
+            #ifdef DEBUG
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+            #endif
+        } else {
+            #ifdef DEBUG
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("\tSIZE: ");
+            Serial.println(file.size());
+            #endif
+        }
+        file = root.openNextFile();
+    }
 }
 
 bool loadConfig() {
@@ -1966,6 +1959,10 @@ void setup() {
     //display.enableUTF8Print();
     display.setFontDirection(0);
     display.clearBuffer();
+
+    // Zastosuj zapisane ustawienia jasności
+    applyBacklightSettings();
+
     display.sendBuffer();
 
     // display.setFont(czcionka_mala);
