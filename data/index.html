@@ -35,13 +35,13 @@
                             Światła dzienne
                             <button class="info-icon" data-info="day-lights-info">ℹ</button>
                         </label>
-                        <select id="day-lights">
-                            <option value="none">Wyłączone</option>
+                        <select id="night-lights">
+                            <option value="off">Wyłączone</option>
                             <option value="front-day">Przód dzień</option>
-                            <option value="front-normal">Przód zwykłe</option>
+                            <option value="front">Przód zwykłe</option>
                             <option value="rear">Tył</option>
                             <option value="front-day-rear">Przód dzień + tył</option>
-                            <option value="front-normal-rear">Przód zwykłe + tył</option>
+                            <option value="front-rear">Przód zwykłe + tył</option>
                         </select>
                     </div>
 
@@ -51,10 +51,7 @@
                             <button class="info-icon" data-info="day-blink-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
-                            <select id="day-blink">
-                                <option value="false">Nie</option>
-                                <option value="true">Tak</option>
-                            </select>
+                            <input type="checkbox" id="day-blink">
                         </div>
                     </div>
 
@@ -79,10 +76,7 @@
                             <button class="info-icon" data-info="night-blink-info">ℹ</button>
                         </label>
                         <div class="toggle-switch">
-                            <select id="night-blink">
-                                <option value="false">Nie</option>
-                                <option value="true">Tak</option>
-                            </select>
+                            <input type="checkbox" id="night-blink">
                         </div>
                     </div>
 
