@@ -1,44 +1,36 @@
 document.addEventListener('DOMContentLoaded', async function() {
+    debug('Inicjalizacja aplikacji...');
+
+    // Poczekaj chwilę na pełne załadowanie DOM
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Inicjalizacja zegara
+    await fetchRTCTime();
+    // Uruchom timer dla zegara dopiero po pierwszym pobraniu
+    setInterval(fetchRTCTime, 1000);
+
+    // Setup formularzy
+    setupFormListeners();
+
+    // Inicjalizacja pozostałych modułów
     try {
-        debug('Inicjalizacja aplikacji...');
-        
-        // Sprawdź czy wszystkie wymagane elementy istnieją
-        const requiredElements = [
-            'rtc-time', 'rtc-date',
-            'day-lights', 'night-lights',
-            'day-blink', 'night-blink',
-            'blink-frequency'
-        ];
-
-        const missingElements = requiredElements.filter(id => !document.getElementById(id));
-        if (missingElements.length > 0) {
-            console.error('Brak elementów:', missingElements);
-            return;
-        }
-
-        // Inicjalizacja modułów
-        await fetchRTCTime();
-        await loadLightConfig();
-        await fetchDisplayConfig();
-        await fetchControllerConfig();
-        await fetchSystemVersion();
-
-        // Odświeżanie zegara
-        setInterval(fetchRTCTime, 1000);
-
-        // Inicjalizacja WebSocket
-        setupWebSocket();
-
-        // Obsługa modala
-        setupModal();
-
-        // Setup formularzy
-        setupFormListeners();
-
-        debug('Inicjalizacja zakończona');
+        await Promise.all([
+            loadLightConfig(),
+            fetchDisplayConfig(),
+            fetchControllerConfig(),
+            fetchSystemVersion()
+        ]);
     } catch (error) {
-        console.error('Błąd podczas inicjalizacji:', error);
+        console.error('Błąd podczas inicjalizacji modułów:', error);
     }
+
+    // Inicjalizacja WebSocket
+    setupWebSocket();
+
+    // Obsługa modala
+    setupModal();
+
+    debug('Inicjalizacja zakończona');
 });
 
 function showModal(title, description) {
@@ -116,31 +108,55 @@ function setupWebSocket() {
 
 async function fetchRTCTime() {
     try {
-        const timeElement = document.getElementById('rtc-time');
-        const dateElement = document.getElementById('rtc-date');
-        
-        if (!timeElement || !dateElement) {
-            console.error('Brak elementów wyświetlania czasu');
-            return;
+        const response = await fetch('/api/status');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const response = await fetch('/api/status');
         const data = await response.json();
-        
+        debug('Otrzymane dane RTC:', data);
+
         if (data.time) {
             const { hours, minutes, seconds, year, month, day } = data.time;
             
             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
             
-            timeElement.value = timeStr;
-            dateElement.value = dateStr;
-            
-            debug('Zaktualizowano czas:', timeStr, dateStr);
+            const timeElement = document.getElementById('rtc-time');
+            const dateElement = document.getElementById('rtc-date');
+
+            if (timeElement && dateElement) {
+                timeElement.value = timeStr;
+                dateElement.value = dateStr;
+                debug('Zaktualizowano czas:', { time: timeStr, date: dateStr });
+            } else {
+                debug('Elementy czasu nie znalezione');
+            }
+        } else {
+            debug('Brak danych czasu w odpowiedzi');
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
     }
+}
+
+function checkElements(...ids) {
+    const missing = [];
+    const elements = {};
+
+    for (const id of ids) {
+        const element = document.getElementById(id);
+        if (!element) {
+            missing.push(id);
+        }
+        elements[id] = element;
+    }
+
+    if (missing.length > 0) {
+        throw new Error(`Brak elementów: ${missing.join(', ')}`);
+    }
+
+    return elements;
 }
 
 // Funkcja zapisująca konfigurację RTC
@@ -264,31 +280,28 @@ async function loadLightConfig() {
 
 async function saveLightConfig() {
     try {
-        const elements = {
-            dayLights: document.getElementById('day-lights'),
-            nightLights: document.getElementById('night-lights'),
-            dayBlink: document.getElementById('day-blink'),
-            nightBlink: document.getElementById('night-blink'),
-            blinkFrequency: document.getElementById('blink-frequency')
-        };
+        debug('Rozpoczynam zapisywanie konfiguracji świateł');
 
-        // Sprawdź czy wszystkie elementy istnieją
-        for (const [name, element] of Object.entries(elements)) {
-            if (!element) {
-                throw new Error(`Nie znaleziono elementu ${name}`);
-            }
-        }
+        // Sprawdź czy elementy istnieją
+        const elements = checkElements(
+            'day-lights',
+            'night-lights',
+            'day-blink',
+            'night-blink',
+            'blink-frequency'
+        );
 
         const data = {
-            frontDay: elements.dayLights.value.includes('front-day'),
-            front: elements.nightLights.value.includes('front'),
-            rear: elements.dayLights.value.includes('rear') || elements.nightLights.value.includes('rear'),
-            dayBlink: elements.dayBlink.checked,
-            nightBlink: elements.nightBlink.checked,
-            blinkFrequency: parseInt(elements.blinkFrequency.value)
+            frontDay: elements['day-lights'].value.includes('front-day'),
+            front: elements['night-lights'].value.includes('front'),
+            rear: elements['day-lights'].value.includes('rear') || 
+                  elements['night-lights'].value.includes('rear'),
+            dayBlink: elements['day-blink'].checked,
+            nightBlink: elements['night-blink'].checked,
+            blinkFrequency: parseInt(elements['blink-frequency'].value)
         };
 
-        debug('Wysyłam dane do API:', data);
+        debug('Przygotowane dane:', data);
 
         const response = await fetch('/api/lights/config', {
             method: 'POST',
@@ -297,6 +310,8 @@ async function saveLightConfig() {
             },
             body: JSON.stringify(data)
         });
+
+        debug('Status odpowiedzi:', response.status);
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -316,6 +331,35 @@ async function saveLightConfig() {
         console.error('Szczegóły błędu:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
+}
+
+async function fetchCurrentState(retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            debug(`Próba pobrania stanu (${i + 1}/${retries})`);
+            const response = await fetch('/api/status');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            debug('Otrzymane dane statusu:', data);
+
+            if (data.lights) {
+                updateLightStatus(data.lights);
+                updateLightForm(data.lights);
+                return true;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+            console.error(`Błąd podczas próby ${i + 1}:`, error);
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+    }
+    return false;
 }
 
 async function fetchCurrentState() {
