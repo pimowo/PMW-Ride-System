@@ -195,12 +195,12 @@ async function saveDisplayConfig() {
             throw new Error('Wartości podświetlenia muszą być między 0 a 100%');
         }
 
+        const formData = new FormData();
+        formData.append('data', JSON.stringify(data));
+
         const response = await fetch('/api/display/config', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
+            body: formData
         });
 
         const result = await response.json();
