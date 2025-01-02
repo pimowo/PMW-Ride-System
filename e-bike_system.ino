@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "1.1.25";
+const char* VERSION = "2.1.25";
 
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
