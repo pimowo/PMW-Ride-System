@@ -1531,6 +1531,13 @@ void setupWebServer() {
         lightsObj["front"] = digitalRead(FrontPin);
         lightsObj["rear"] = digitalRead(RealPin);
 
+        // Dodaj ustawienia podświetlenia
+        JsonObject backlightObj = doc.createNestedObject("backlight");
+        backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
+        backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
+        backlightObj["autoMode"] = backlightSettings.autoMode;
+        backlightObj["currentMode"] = lightMode;  // dodajemy aktualny tryb świateł
+
         // Dodaj temperaturę
         doc["temperature"] = temperatureRead();
 
