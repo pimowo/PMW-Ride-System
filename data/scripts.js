@@ -1,13 +1,17 @@
+// Inicjalizacja wszystkich funkcji
 document.addEventListener('DOMContentLoaded', function() {
     // Pobierz aktualny czas z RTC i konfiguracje przy starcie
     fetchRTCTime();
-    fetchLightConfig();
+    loadLightConfig();  // Zmienione z fetchLightConfig() na loadLightConfig()
     fetchDisplayConfig();
     fetchControllerConfig();
     fetchSystemVersion();
 
     // Dodane: odświeżanie zegara co sekundę
     setInterval(fetchRTCTime, 1000);
+
+    // Inicjalizacja WebSocket
+    setupWebSocket();
 
     // Obsługa WebSocket dla danych w czasie rzeczywistym
     const ws = new WebSocket(`ws://${window.location.hostname}/ws`);
@@ -132,48 +136,6 @@ async function fetchLightConfig() {
     }
 }
 
-async function saveLightConfig() {
-    try {
-        const data = {
-            dayLights: document.getElementById('day-lights').value,
-            nightLights: document.getElementById('night-lights').value,
-            dayBlink: document.getElementById('day-blink').value === 'true',
-            nightBlink: document.getElementById('night-blink').value === 'true',
-            blinkFrequency: parseInt(document.getElementById('blink-frequency').value)
-        };
-
-        console.log('Wysyłam dane:', data);
-
-        const response = await fetch('/api/lights/config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'data=' + encodeURIComponent(JSON.stringify(data))
-        });
-
-        console.log('Status odpowiedzi:', response.status);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('Otrzymana odpowiedź:', result);
-
-        if (result.status === 'ok') {
-            alert('Zapisano ustawienia świateł');
-            // Odśwież stan świateł
-            await loadLightConfig();
-        } else {
-            throw new Error(result.message || 'Nieznany błąd');
-        }
-    } catch (error) {
-        console.error('Błąd podczas zapisywania:', error);
-        alert('Błąd podczas zapisywania ustawień: ' + error.message);
-    }
-}
-
 // Inicjalizacja przy załadowaniu strony
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Strona załadowana, inicjalizuję...');
@@ -281,11 +243,12 @@ async function saveLightConfig() {
 }
 
 // WebSocket do aktualizacji statusu
+let ws = null;
+
 function setupWebSocket() {
-    let ws = null;
-    
+    debug('Inicjalizacja WebSocket...');
+
     function connectWebSocket() {
-        debug('Inicjalizacja WebSocket...');
         ws = new WebSocket('ws://' + window.location.hostname + '/ws');
         
         ws.onopen = () => {
@@ -316,27 +279,6 @@ function setupWebSocket() {
 
     // Rozpocznij połączenie
     connectWebSocket();
-}
-
-function updateLightStatus(lights) {
-    debug('Aktualizacja statusu świateł:', lights);
-    if (!lights) return;
-
-    try {
-        if (lights.frontDay !== undefined) {
-            document.getElementById('day-lights').classList.toggle('active', lights.frontDay);
-        }
-        if (lights.front !== undefined) {
-            document.getElementById('night-lights').classList.toggle('active', lights.front);
-        }
-        if (lights.rear !== undefined) {
-            const isRearActive = lights.rear;
-            document.getElementById('day-blink').classList.toggle('active', isRearActive);
-            document.getElementById('night-blink').classList.toggle('active', isRearActive);
-        }
-    } catch (error) {
-        console.error('Błąd podczas aktualizacji statusu świateł:', error);
-    }
 }
 
 // WebSocket
@@ -385,8 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
     
 // Aktualizacja statusu świateł w czasie rzeczywistym
-let ws = null;
-
 function connectWebSocket() {
     ws = new WebSocket('ws://' + window.location.hostname + '/ws');
     
@@ -408,17 +348,23 @@ function connectWebSocket() {
 }
 
 function updateLightStatus(lights) {
-    // Aktualizacja statusu świateł w interfejsie
-    if (lights.frontDay !== undefined) {
-        document.getElementById('day-lights').classList.toggle('active', lights.frontDay);
-    }
-    if (lights.front !== undefined) {
-        document.getElementById('night-lights').classList.toggle('active', lights.front);
-    }
-    if (lights.rear !== undefined) {
-        const isRearActive = lights.rear;
-        document.getElementById('day-blink').classList.toggle('active', isRearActive);
-        document.getElementById('night-blink').classList.toggle('active', isRearActive);
+    debug('Aktualizacja statusu świateł:', lights);
+    if (!lights) return;
+
+    try {
+        if (lights.frontDay !== undefined) {
+            document.getElementById('day-lights').classList.toggle('active', lights.frontDay);
+        }
+        if (lights.front !== undefined) {
+            document.getElementById('night-lights').classList.toggle('active', lights.front);
+        }
+        if (lights.rear !== undefined) {
+            const isRearActive = lights.rear;
+            document.getElementById('day-blink').classList.toggle('active', isRearActive);
+            document.getElementById('night-blink').classList.toggle('active', isRearActive);
+        }
+    } catch (error) {
+        console.error('Błąd podczas aktualizacji statusu świateł:', error);
     }
 }
 
