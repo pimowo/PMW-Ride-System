@@ -260,27 +260,6 @@ async function saveLightConfig() {
     }
 }
     
-// Aktualizacja statusu świateł w czasie rzeczywistym
-function connectWebSocket() {
-    ws = new WebSocket('ws://' + window.location.hostname + '/ws');
-    
-    ws.onmessage = function(event) {
-        try {
-            const data = JSON.parse(event.data);
-            if (data.lights) {
-                updateLightStatus(data.lights);
-            }
-        } catch (error) {
-            console.error('Błąd podczas przetwarzania danych WebSocket:', error);
-        }
-    };
-
-    ws.onclose = function() {
-        // Próba ponownego połączenia po 5 sekundach
-        setTimeout(connectWebSocket, 5000);
-    };
-}
-
 function updateLightStatus(lights) {
     debug('Aktualizacja statusu świateł:', lights);
     if (!lights) return;
@@ -301,9 +280,6 @@ function updateLightStatus(lights) {
         console.error('Błąd podczas aktualizacji statusu świateł:', error);
     }
 }
-
-// Uruchomienie połączenia WebSocket przy starcie
-connectWebSocket();
 
 // Funkcja pobierająca konfigurację wyświetlacza
 async function fetchDisplayConfig() {
