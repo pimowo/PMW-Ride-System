@@ -1,26 +1,27 @@
 document.addEventListener('DOMContentLoaded', async function() {
     debug('Inicjalizacja aplikacji...');
 
-    // Inicjalizacja zegara
-    initializeClock();
-
-    // Poczekaj na załadowanie DOM
-    await new Promise(resolve => setTimeout(resolve, 200));
-
+    let clockInterval;
+    
     try {
-        // Najpierw inicjalizacja formularza świateł
-        if (initializeLightForm()) {
+        // Inicjalizacja zegara
+        clockInterval = initializeClock();
+        
+        // Poczekaj na załadowanie DOM
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Inicjalizacja pozostałych modułów
+        if (document.querySelector('.light-config')) {
             await loadLightConfig();
         }
 
-        // Następnie pozostałe moduły
         await Promise.all([
             fetchDisplayConfig(),
             fetchControllerConfig(),
             fetchSystemVersion()
         ]);
 
-        // Na końcu WebSocket i modalne
+        // Inicjalizacja WebSocket i UI
         setupWebSocket();
         setupModal();
         setupFormListeners();
@@ -28,8 +29,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         debug('Inicjalizacja zakończona pomyślnie');
     } catch (error) {
         console.error('Błąd podczas inicjalizacji:', error);
+        // W przypadku błędu, zatrzymaj interval zegara
+        if (clockInterval) clearInterval(clockInterval);
     }
 });
+
+function checkAPIResponse(response, errorMessage = 'Błąd API') {
+    if (!response.ok) {
+        throw new Error(`${errorMessage}: ${response.status}`);
+    }
+    return response.json();
+}
 
 function showModal(title, description) {
     const modal = document.getElementById('info-modal');
@@ -104,38 +114,41 @@ function setupWebSocket() {
 //     }
 // }
 
+// Funkcja pobierająca czas
 async function fetchRTCTime() {
     try {
-        const response = await fetch('/api/status');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const timeElement = document.getElementById('rtc-time');
+        const dateElement = document.getElementById('rtc-date');
+
+        if (!timeElement || !dateElement) {
+            debug('Elementy czasu nie są gotowe');
+            return;
         }
 
+        const response = await fetch('/api/status');
         const data = await response.json();
-        debug('Otrzymane dane RTC:', data);
-
-        if (data.time) {
+        
+        if (data && data.time) {
             const { hours, minutes, seconds, year, month, day } = data.time;
             
             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
             
-            const timeElement = document.getElementById('rtc-time');
-            const dateElement = document.getElementById('rtc-date');
-
-            if (timeElement && dateElement) {
-                timeElement.value = timeStr;
-                dateElement.value = dateStr;
-                debug('Zaktualizowano czas:', { time: timeStr, date: dateStr });
-            } else {
-                debug('Elementy czasu nie znalezione');
-            }
-        } else {
-            debug('Brak danych czasu w odpowiedzi');
+            timeElement.value = timeStr;
+            dateElement.value = dateStr;
+            
+            debug('Zaktualizowano czas:', { time: timeStr, date: dateStr });
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
     }
+}
+
+// Funkcja inicjalizacji zegara
+function initializeClock() {
+    debug('Inicjalizacja zegara');
+    fetchRTCTime(); // Pierwsze pobranie
+    return setInterval(fetchRTCTime, 1000); // Aktualizacja co sekundę
 }
 
 function checkElements(...ids) {
@@ -299,16 +312,31 @@ async function loadLightConfig() {
 async function saveLightConfig() {
     debug('Rozpoczynam zapisywanie konfiguracji świateł');
     try {
-        const elements = getLightFormElements();
+        const elements = {
+            dayLights: document.getElementById('day-lights'),
+            nightLights: document.getElementById('night-lights'),
+            dayBlink: document.getElementById('day-blink'),
+            nightBlink: document.getElementById('night-blink'),
+            blinkFrequency: document.getElementById('blink-frequency')
+        };
 
+        // Sprawdź czy wszystkie elementy istnieją
+        for (const [name, element] of Object.entries(elements)) {
+            if (!element) {
+                throw new Error(`Nie znaleziono elementu ${name}`);
+            }
+        }
+
+        // Format danych zgodny z API
         const data = {
-            frontDay: elements.dayLights.value.includes('front-day'),
-            front: elements.nightLights.value.includes('front'),
-            rear: elements.dayLights.value.includes('rear') || 
-                  elements.nightLights.value.includes('rear'),
-            dayBlink: elements.dayBlink.checked,
-            nightBlink: elements.nightBlink.checked,
-            blinkFrequency: parseInt(elements.blinkFrequency.value)
+            lights: {
+                frontDay: elements.dayLights.value.includes('front-day'),
+                front: elements.nightLights.value.includes('front'),
+                rear: elements.dayLights.value.includes('rear') || elements.nightLights.value.includes('rear'),
+                dayBlink: elements.dayBlink.checked,
+                nightBlink: elements.nightBlink.checked,
+                blinkFrequency: parseInt(elements.blinkFrequency.value)
+            }
         };
 
         debug('Wysyłam dane:', data);
@@ -322,7 +350,8 @@ async function saveLightConfig() {
         });
 
         if (!response.ok) {
-            throw new Error(`Błąd HTTP: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Błąd HTTP: ${response.status}, treść: ${errorText}`);
         }
 
         const result = await response.json();
