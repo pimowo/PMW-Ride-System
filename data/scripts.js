@@ -357,25 +357,30 @@ async function saveLightConfig() {
             blinkFrequency: document.getElementById('blink-frequency')
         };
 
-        // Sprawdź czy wszystkie elementy istnieją
-        for (const [name, element] of Object.entries(elements)) {
-            if (!element) {
-                throw new Error(`Nie znaleziono elementu ${name}`);
+        // Funkcja pomocnicza do konwersji wartości na LightMode enum
+        function getLightMode(value) {
+            if (value.includes('front') && value.includes('rear')) {
+                return "BOTH";
+            } else if (value.includes('front')) {
+                return "FRONT";
+            } else if (value.includes('rear')) {
+                return "REAR";
             }
+            return "OFF"; // dodatkowy stan dla wyłączonych świateł
         }
 
-        // Przygotuj dane w formacie zgodnym z serwerem
+        // Przygotuj dane w formacie zgodnym z Arduino
         const lightConfig = {
-            dayLights: elements.dayLights.value,        // Wysyłamy bezpośrednio wartość z select
-            nightLights: elements.nightLights.value,    // Wysyłamy bezpośrednio wartość z select
+            dayLights: getLightMode(elements.dayLights.value),
+            nightLights: getLightMode(elements.nightLights.value),
             dayBlink: elements.dayBlink.checked,
             nightBlink: elements.nightBlink.checked,
+            blinkEnabled: elements.dayBlink.checked || elements.nightBlink.checked,
             blinkFrequency: parseInt(elements.blinkFrequency.value)
         };
 
         debug('Przygotowane dane:', lightConfig);
 
-        // Zakoduj dane jako form-urlencoded
         const formData = new URLSearchParams();
         formData.append('data', JSON.stringify(lightConfig));
 
@@ -457,6 +462,7 @@ async function fetchCurrentState() {
     }
 }
 
+// Funkcja do aktualizacji formularza na podstawie otrzymanego stanu
 function updateLightForm(lights) {
     debug('Aktualizacja formularza, otrzymane dane:', lights);
     
@@ -469,43 +475,26 @@ function updateLightForm(lights) {
             blinkFrequency: document.getElementById('blink-frequency')
         };
 
-        // Sprawdź czy wszystkie elementy istnieją
-        for (const [name, element] of Object.entries(elements)) {
-            if (!element) {
-                throw new Error(`Nie znaleziono elementu ${name}`);
+        // Konwersja LightMode na wartość selecta
+        function getSelectValue(mode) {
+            switch(mode) {
+                case 'BOTH':
+                    return 'front-day-rear';
+                case 'FRONT':
+                    return 'front-day';
+                case 'REAR':
+                    return 'rear';
+                default:
+                    return 'off';
             }
         }
 
-        // Światła dzienne
-        if (lights.frontDay && lights.rear) {
-            elements.dayLights.value = 'front-day-rear';
-        } else if (lights.frontDay) {
-            elements.dayLights.value = 'front-day';
-        } else if (lights.rear) {
-            elements.dayLights.value = 'rear';
-        } else {
-            elements.dayLights.value = 'off';
-        }
-
-        // Światła nocne
-        if (lights.front && lights.rear) {
-            elements.nightLights.value = 'front-rear';
-        } else if (lights.front) {
-            elements.nightLights.value = 'front';
-        } else if (lights.rear) {
-            elements.nightLights.value = 'rear';
-        } else {
-            elements.nightLights.value = 'off';
-        }
-
-        // Mruganie
-        elements.dayBlink.checked = Boolean(lights.dayBlink);
-        elements.nightBlink.checked = Boolean(lights.nightBlink);
-
-        // Częstotliwość
-        if (lights.blinkFrequency) {
-            elements.blinkFrequency.value = lights.blinkFrequency;
-        }
+        // Ustaw wartości formularza
+        elements.dayLights.value = getSelectValue(lights.dayLights);
+        elements.nightLights.value = getSelectValue(lights.nightLights);
+        elements.dayBlink.checked = lights.dayBlink;
+        elements.nightBlink.checked = lights.nightBlink;
+        elements.blinkFrequency.value = lights.blinkFrequency || 500;
 
         debug('Formularz zaktualizowany pomyślnie');
     } catch (error) {
