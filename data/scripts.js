@@ -1,33 +1,44 @@
 document.addEventListener('DOMContentLoaded', async function() {
-    // Pobierz aktualny stan na starcie
-    initializeDefaults();
-    await fetchCurrentState();
+    try {
+        debug('Inicjalizacja aplikacji...');
+        
+        // Sprawdź czy wszystkie wymagane elementy istnieją
+        const requiredElements = [
+            'rtc-time', 'rtc-date',
+            'day-lights', 'night-lights',
+            'day-blink', 'night-blink',
+            'blink-frequency'
+        ];
 
-    // Usuwanie starych listenerów
-    const oldListeners = document.getElementById('save-lights-btn');
-    if (oldListeners) {
-        const newButton = oldListeners.cloneNode(true);
-        oldListeners.parentNode.replaceChild(newButton, oldListeners);
+        const missingElements = requiredElements.filter(id => !document.getElementById(id));
+        if (missingElements.length > 0) {
+            console.error('Brak elementów:', missingElements);
+            return;
+        }
+
+        // Inicjalizacja modułów
+        await fetchRTCTime();
+        await loadLightConfig();
+        await fetchDisplayConfig();
+        await fetchControllerConfig();
+        await fetchSystemVersion();
+
+        // Odświeżanie zegara
+        setInterval(fetchRTCTime, 1000);
+
+        // Inicjalizacja WebSocket
+        setupWebSocket();
+
+        // Obsługa modala
+        setupModal();
+
+        // Setup formularzy
+        setupFormListeners();
+
+        debug('Inicjalizacja zakończona');
+    } catch (error) {
+        console.error('Błąd podczas inicjalizacji:', error);
     }
-
-    // Inicjalizacja wszystkich modułów
-    fetchRTCTime();
-    loadLightConfig();
-    fetchDisplayConfig();
-    fetchControllerConfig();
-    fetchSystemVersion();
-
-    // Odświeżanie zegara
-    setInterval(fetchRTCTime, 1000);
-
-    // Inicjalizacja WebSocket
-    setupWebSocket();
-
-    // Obsługa modala
-    setupModal();
-
-    // Setup formularzy
-    setupFormListeners();
 });
 
 function showModal(title, description) {
@@ -82,21 +93,50 @@ function setupWebSocket() {
 }
 
 // Funkcja pobierająca czas z RTC
+// async function fetchRTCTime() {
+//     try {
+//         const response = await fetch('/api/status');
+//         const data = await response.json();
+//         if (data.time) {
+//             const { hours, minutes, seconds, year, month, day } = data.time;
+            
+//             // Format czasu i daty
+//             //const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+//             //const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+//             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+//             const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+            
+//             document.getElementById('rtc-time').value = timeStr;
+//             document.getElementById('rtc-date').value = dateStr;
+//         }
+//     } catch (error) {
+//         console.error('Błąd podczas pobierania czasu RTC:', error);
+//     }
+// }
+
 async function fetchRTCTime() {
     try {
+        const timeElement = document.getElementById('rtc-time');
+        const dateElement = document.getElementById('rtc-date');
+        
+        if (!timeElement || !dateElement) {
+            console.error('Brak elementów wyświetlania czasu');
+            return;
+        }
+
         const response = await fetch('/api/status');
         const data = await response.json();
+        
         if (data.time) {
             const { hours, minutes, seconds, year, month, day } = data.time;
             
-            // Format czasu i daty
-            //const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            //const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
             
-            document.getElementById('rtc-time').value = timeStr;
-            document.getElementById('rtc-date').value = dateStr;
+            timeElement.value = timeStr;
+            dateElement.value = dateStr;
+            
+            debug('Zaktualizowano czas:', timeStr, dateStr);
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
@@ -224,17 +264,28 @@ async function loadLightConfig() {
 
 async function saveLightConfig() {
     try {
-        const dayLights = document.getElementById('day-lights').value;
-        const nightLights = document.getElementById('night-lights').value;
-        
-        // Konwersja wartości select na stan świateł
+        const elements = {
+            dayLights: document.getElementById('day-lights'),
+            nightLights: document.getElementById('night-lights'),
+            dayBlink: document.getElementById('day-blink'),
+            nightBlink: document.getElementById('night-blink'),
+            blinkFrequency: document.getElementById('blink-frequency')
+        };
+
+        // Sprawdź czy wszystkie elementy istnieją
+        for (const [name, element] of Object.entries(elements)) {
+            if (!element) {
+                throw new Error(`Nie znaleziono elementu ${name}`);
+            }
+        }
+
         const data = {
-            frontDay: dayLights.includes('front-day'),
-            front: nightLights.includes('front'),
-            rear: dayLights.includes('rear') || nightLights.includes('rear'),
-            dayBlink: document.getElementById('day-blink').checked,
-            nightBlink: document.getElementById('night-blink').checked,
-            blinkFrequency: parseInt(document.getElementById('blink-frequency').value)
+            frontDay: elements.dayLights.value.includes('front-day'),
+            front: elements.nightLights.value.includes('front'),
+            rear: elements.dayLights.value.includes('rear') || elements.nightLights.value.includes('rear'),
+            dayBlink: elements.dayBlink.checked,
+            nightBlink: elements.nightBlink.checked,
+            blinkFrequency: parseInt(elements.blinkFrequency.value)
         };
 
         debug('Wysyłam dane do API:', data);
@@ -247,11 +298,9 @@ async function saveLightConfig() {
             body: JSON.stringify(data)
         });
 
-        debug('Status odpowiedzi:', response.status);
-
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            throw new Error(`Błąd HTTP: ${response.status}, treść: ${errorText}`);
         }
 
         const result = await response.json();
@@ -267,14 +316,6 @@ async function saveLightConfig() {
         console.error('Szczegóły błędu:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
-}
-
-function initializeDefaults() {
-    document.getElementById('day-lights').value = 'off';
-    document.getElementById('night-lights').value = 'off';
-    document.getElementById('day-blink').checked = false;
-    document.getElementById('night-blink').checked = false;
-    document.getElementById('blink-frequency').value = '500';
 }
 
 async function fetchCurrentState() {
@@ -304,35 +345,50 @@ function updateLightForm(lights) {
     debug('Aktualizacja formularza, otrzymane dane:', lights);
     
     try {
+        const elements = {
+            dayLights: document.getElementById('day-lights'),
+            nightLights: document.getElementById('night-lights'),
+            dayBlink: document.getElementById('day-blink'),
+            nightBlink: document.getElementById('night-blink'),
+            blinkFrequency: document.getElementById('blink-frequency')
+        };
+
+        // Sprawdź czy wszystkie elementy istnieją
+        for (const [name, element] of Object.entries(elements)) {
+            if (!element) {
+                throw new Error(`Nie znaleziono elementu ${name}`);
+            }
+        }
+
         // Światła dzienne
         if (lights.frontDay && lights.rear) {
-            document.getElementById('day-lights').value = 'front-day-rear';
+            elements.dayLights.value = 'front-day-rear';
         } else if (lights.frontDay) {
-            document.getElementById('day-lights').value = 'front-day';
+            elements.dayLights.value = 'front-day';
         } else if (lights.rear) {
-            document.getElementById('day-lights').value = 'rear';
+            elements.dayLights.value = 'rear';
         } else {
-            document.getElementById('day-lights').value = 'off';
+            elements.dayLights.value = 'off';
         }
 
         // Światła nocne
         if (lights.front && lights.rear) {
-            document.getElementById('night-lights').value = 'front-rear';
+            elements.nightLights.value = 'front-rear';
         } else if (lights.front) {
-            document.getElementById('night-lights').value = 'front';
+            elements.nightLights.value = 'front';
         } else if (lights.rear) {
-            document.getElementById('night-lights').value = 'rear';
+            elements.nightLights.value = 'rear';
         } else {
-            document.getElementById('night-lights').value = 'off';
+            elements.nightLights.value = 'off';
         }
 
-        // Checkboxy mrugania
-        document.getElementById('day-blink').checked = Boolean(lights.dayBlink);
-        document.getElementById('night-blink').checked = Boolean(lights.nightBlink);
+        // Mruganie
+        elements.dayBlink.checked = Boolean(lights.dayBlink);
+        elements.nightBlink.checked = Boolean(lights.nightBlink);
 
-        // Częstotliwość mrugania
+        // Częstotliwość
         if (lights.blinkFrequency) {
-            document.getElementById('blink-frequency').value = lights.blinkFrequency;
+            elements.blinkFrequency.value = lights.blinkFrequency;
         }
 
         debug('Formularz zaktualizowany pomyślnie');
