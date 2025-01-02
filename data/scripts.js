@@ -1,67 +1,81 @@
-// Inicjalizacja wszystkich funkcji
-document.addEventListener('DOMContentLoaded', function() {
-    // Pobierz aktualny czas z RTC i konfiguracje przy starcie
+document.addEventListener('DOMContentLoaded', async function() {
+    // Usuwanie starych listenerów
+    const oldListeners = document.getElementById('save-lights-btn');
+    if (oldListeners) {
+        const newButton = oldListeners.cloneNode(true);
+        oldListeners.parentNode.replaceChild(newButton, oldListeners);
+    }
+
+    // Inicjalizacja wszystkich modułów
     fetchRTCTime();
-    loadLightConfig();  // Zmienione z fetchLightConfig() na loadLightConfig()
+    loadLightConfig();
     fetchDisplayConfig();
     fetchControllerConfig();
     fetchSystemVersion();
 
-    // Dodane: odświeżanie zegara co sekundę
+    // Odświeżanie zegara
     setInterval(fetchRTCTime, 1000);
 
     // Inicjalizacja WebSocket
     setupWebSocket();
 
-    // Obsługa WebSocket dla danych w czasie rzeczywistym
-    const ws = new WebSocket(`ws://${window.location.hostname}/ws`);
-    
-    ws.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        updateDashboard(data);
-    };
+    // Obsługa modala
+    setupModal();
 
-    // Aktualizacja danych na dashboardzie
-    function updateDashboard(data) {
-        // Aktualizacja mocy
-        if(data.power !== undefined) {
-            document.querySelector('.power .value').textContent = data.power;
-        }
-    }
+    // Setup formularzy
+    setupFormListeners();
+});
 
-    // Obsługa modala - przeniesiona z drugiego listenera
+function showModal(title, description) {
     const modal = document.getElementById('info-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalDescription = document.getElementById('modal-description');
     
-    // Otwieranie modala
-    document.querySelectorAll('.info-icon').forEach(button => {
-        button.addEventListener('click', function() {
-            const infoId = this.dataset.info;
-            const info = infoContent[infoId];
-            
-            if (info) {
-                modalTitle.textContent = info.title;
-                modalDescription.textContent = info.description;               
-                modal.style.display = 'block';
-            } else {
-                console.error('Nie znaleziono opisu dla:', infoId);
+    if (modal && modalTitle && modalDescription) {
+        modalTitle.textContent = title;
+        modalDescription.textContent = description;
+        modal.style.display = 'block';
+    }
+}
+
+let ws = null;
+
+function setupWebSocket() {
+    debug('Inicjalizacja WebSocket...');
+    function connect() {
+        ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+        
+        ws.onopen = () => {
+            debug('WebSocket połączony');
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                debug('Otrzymano dane WebSocket:', data);
+                if (data.lights) {
+                    updateLightStatus(data.lights);
+                }
+                if (data.power !== undefined) {
+                    document.querySelector('.power .value').textContent = data.power;
+                }
+            } catch (error) {
+                console.error('Błąd podczas przetwarzania danych WebSocket:', error);
             }
-        });
-    });
-    
-    // Zamykanie modala
-    document.querySelector('.close-modal').addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    // Zamykanie po kliknięciu poza modalem
-    window.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
-});
+        };
+
+        ws.onclose = () => {
+            debug('WebSocket rozłączony, próba ponownego połączenia za 5s');
+            setTimeout(connect, 5000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('Błąd WebSocket:', error);
+        };
+    }
+
+    connect();
+}
 
 // Funkcja pobierająca czas z RTC
 async function fetchRTCTime() {
@@ -136,17 +150,6 @@ async function fetchLightConfig() {
     }
 }
 
-// Inicjalizacja przy załadowaniu strony
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Strona załadowana, inicjalizuję...');
-    try {
-        await loadLightConfig();
-    } catch (error) {
-        console.error('Błąd podczas inicjalizacji:', error);
-    }
-});
-
-// Dodaj nasłuchiwanie zmian w formularzu
 function setupFormListeners() {
     const formElements = [
         'day-lights',
@@ -156,7 +159,22 @@ function setupFormListeners() {
         'blink-frequency'
     ];
 
-    formElements.forEach(i
+    formElements.forEach(elementId => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.addEventListener('change', () => {
+                debug(`Zmieniono wartość ${elementId}:`, 
+                    element.type === 'checkbox' ? element.checked : element.value);
+            });
+        }
+    });
+
+    // Dodaj listener do przycisku zapisu
+    const saveButton = document.getElementById('save-lights-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveLightConfig);
+    }
+}
 
 // Debugowanie
 let DEBUG = true;
@@ -241,90 +259,6 @@ async function saveLightConfig() {
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
-
-// WebSocket do aktualizacji statusu
-let ws = null;
-
-function setupWebSocket() {
-    debug('Inicjalizacja WebSocket...');
-
-    function connectWebSocket() {
-        ws = new WebSocket('ws://' + window.location.hostname + '/ws');
-        
-        ws.onopen = () => {
-            debug('WebSocket połączony');
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                debug('Otrzymano dane WebSocket:', data);
-                if (data.lights) {
-                    updateLightStatus(data.lights);
-                }
-            } catch (error) {
-                console.error('Błąd podczas przetwarzania danych WebSocket:', error);
-            }
-        };
-
-        ws.onclose = () => {
-            debug('WebSocket rozłączony, próba ponownego połączenia za 5s');
-            setTimeout(connectWebSocket, 5000);
-        };
-
-        ws.onerror = (error) => {
-            console.error('Błąd WebSocket:', error);
-        };
-    }
-
-    // Rozpocznij połączenie
-    connectWebSocket();
-}
-
-// WebSocket
-function setupWebSocket() {
-    debug('Inicjalizacja WebSocket...');
-    const ws = new WebSocket('ws://' + window.location.hostname + '/ws');
-    
-    ws.onopen = () => {
-        debug('WebSocket połączony');
-    };
-
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            debug('Otrzymano dane WebSocket:', data);
-            if (data.lights) {
-                updateLightStatus(data.lights);
-            }
-        } catch (error) {
-            console.error('Błąd podczas przetwarzania danych WebSocket:', error);
-        }
-    };
-
-    ws.onclose = () => {
-        debug('WebSocket rozłączony, próba ponownego połączenia za 5s');
-        setTimeout(setupWebSocket, 5000);
-    };
-
-    ws.onerror = (error) => {
-        console.error('Błąd WebSocket:', error);
-    };
-}
-
-// Inicjalizacja przy załadowaniu strony
-document.addEventListener('DOMContentLoaded', () => {
-    // Usuń poprzednie event listenery
-    const oldListeners = document.getElementById('save-lights-btn');
-    if (oldListeners) {
-        const newButton = oldListeners.cloneNode(true);
-        oldListeners.parentNode.replaceChild(newButton, oldListeners);
-    }
-
-    // Inicjalizacja
-    loadLightConfig();
-    setupWebSocket();
-});
     
 // Aktualizacja statusu świateł w czasie rzeczywistym
 function connectWebSocket() {
@@ -426,9 +360,6 @@ async function saveDisplayConfig() {
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
-
-// Dodaj wywołanie funkcji przy załadowaniu strony
-document.addEventListener('DOMContentLoaded', fetchDisplayConfig);
 
 function toggleAutoBrightness() {
     const autoMode = document.getElementById('display-auto').value === 'true';
