@@ -101,18 +101,7 @@
                 </div>
 
                 <div class="card display-config">
-                    <h2>Konfiguracja Wyświetlacza</h2>                    
-                    <div class="display-row">
-                        <label>
-                            Podświetlenie
-                            <button class="info-icon" data-info="brightness-info">ℹ</button>
-                        </label>
-                        <div class="input-with-unit">
-                            <input type="number" id="brightness" min="0" max="100" value="100">
-                            <span class="unit">%</span>
-                        </div>
-                    </div>
-
+                    <h2>Konfiguracja Wyświetlacza</h2>  
                     <div class="display-row">
                         <label>
                             Tryb auto
@@ -124,8 +113,17 @@
                                 <option value="true">Tak</option>
                             </select>
                         </div>
+                    </div>                  
+                    <div class="display-row">
+                        <label>
+                            Podświetlenie
+                            <button class="info-icon" data-info="brightness-info">ℹ</button>
+                        </label>
+                        <div class="input-with-unit">
+                            <input type="number" id="brightness" min="0" max="100" value="100">
+                            <span class="unit">%</span>
+                        </div>
                     </div>
-
                     <div id="auto-brightness-section" style="display: none;">
                         <div class="display-row">
                             <label>
