@@ -355,3 +355,13 @@ footer a:hover {
         overflow-y: auto;
     }
 }
+
+.no-time-icon::-webkit-calendar-picker-indicator,
+.no-calendar-icon::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+.no-time-icon::-webkit-inner-spin-button,
+.no-calendar-icon::-webkit-inner-spin-button {
+    display: none;
+}
