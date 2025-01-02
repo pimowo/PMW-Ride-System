@@ -1602,11 +1602,42 @@ void setupWebServer() {
         timeObj["month"] = now.month();
         timeObj["year"] = now.year();
 
-        // Dodaj stan świateł jako osobny obiekt
-        JsonObject lightsObj = doc.createNestedObject("lights");
-        lightsObj["frontDay"] = digitalRead(FrontDayPin);
-        lightsObj["front"] = digitalRead(FrontPin);
-        lightsObj["rear"] = digitalRead(RealPin);
+    // Dodaj sekcję świateł
+    JsonObject lightsObj = doc.createNestedObject("lights");
+    
+    // Konwersja enum na string
+    switch(lightSettings.dayLights) {
+        case LightSettings::FRONT:
+            lightsObj["dayLights"] = "front-normal";
+            break;
+        case LightSettings::REAR:
+            lightsObj["dayLights"] = "rear";
+            break;
+        case LightSettings::BOTH:
+            lightsObj["dayLights"] = "front-day-rear";
+            break;
+    }
+
+    switch(lightSettings.nightLights) {
+        case LightSettings::FRONT:
+            lightsObj["nightLights"] = "front-normal";
+            break;
+        case LightSettings::REAR:
+            lightsObj["nightLights"] = "rear";
+            break;
+        case LightSettings::BOTH:
+            lightsObj["nightLights"] = "front-day-rear";
+            break;
+    }
+
+    lightsObj["dayBlink"] = lightSettings.dayBlink;
+    lightsObj["nightBlink"] = lightSettings.nightBlink;
+    lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
+    
+    // Dodaj aktualny stan świateł
+    lightsObj["frontDay"] = digitalRead(FrontDayPin);
+    lightsObj["front"] = digitalRead(FrontPin);
+    lightsObj["rear"] = digitalRead(RealPin);
 
         // Dodaj ustawienia podświetlenia
         JsonObject backlightObj = doc.createNestedObject("backlight");
