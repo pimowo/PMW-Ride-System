@@ -22,6 +22,9 @@
 // --- Wersja systemu ---
 const char* VERSION = "2.1.25";
 
+// Stała z nazwą pliku konfiguracyjnego
+const char* CONFIG_FILE = "/display_config.json";
+
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
 AsyncWebServer server(80);
@@ -430,6 +433,79 @@ void setDisplayBrightness(uint8_t brightness) {
     displayBrightness = brightness;
     display.setContrast(displayBrightness);
     // Opcjonalnie: zapisz wartość do EEPROM aby zapamiętać ustawienie
+}
+
+// Funkcja zapisująca ustawienia do pliku
+void saveBacklightSettingsToFile() {
+    File file = LittleFS.open(CONFIG_FILE, "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku do zapisu");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    doc["dayBrightness"] = backlightSettings.dayBrightness;
+    doc["nightBrightness"] = backlightSettings.nightBrightness;
+    doc["autoMode"] = backlightSettings.autoMode;
+
+    // Zapisz JSON do pliku
+    if (serializeJson(doc, file)) {
+        #ifdef DEBUG
+        Serial.println("Zapisano ustawienia do pliku");
+        #endif
+    } else {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu do pliku");
+        #endif
+    }
+    
+    file.close();
+}
+
+// Funkcja odczytująca ustawienia z pliku
+void loadBacklightSettingsFromFile() {
+    File file = LittleFS.open(CONFIG_FILE, "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Brak pliku konfiguracyjnego, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        backlightSettings.dayBrightness = 100;
+        backlightSettings.nightBrightness = 50;
+        backlightSettings.autoMode = false;
+        // Zapisz domyślne ustawienia do pliku
+        saveBacklightSettingsToFile();
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        backlightSettings.dayBrightness = 100;
+        backlightSettings.nightBrightness = 50;
+        backlightSettings.autoMode = false;
+        return;
+    }
+
+    // Wczytaj ustawienia
+    backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
+    backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
+    backlightSettings.autoMode = doc["autoMode"] | false;
+
+    #ifdef DEBUG
+    Serial.println("Wczytano ustawienia z pliku:");
+    Serial.print("Day Brightness: "); Serial.println(backlightSettings.dayBrightness);
+    Serial.print("Night Brightness: "); Serial.println(backlightSettings.nightBrightness);
+    Serial.print("Auto Mode: "); Serial.println(backlightSettings.autoMode);
+    #endif
 }
 
 // Funkcje ustawień
@@ -1622,32 +1698,40 @@ void setupWebServer() {
             }
     });
     
-    server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-        if (request->hasParam("data", true)) {
-            String jsonString = request->getParam("data", true)->value();
-            DynamicJsonDocument doc(200);
-            DeserializationError error = deserializeJson(doc, jsonString);
+    server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index + len != total) {
+                // Jeśli to nie jest ostatni fragment danych, czekamy na więcej
+                return;
+            }
 
+            // Dodaj null terminator do danych
+            data[len] = '\0';
+            
+            StaticJsonDocument<200> doc;
+            DeserializationError error = deserializeJson(doc, (const char*)data);
+            
             if (!error) {
-                // Zapisz konfigurację podświetlenia używając istniejącej struktury backlightSettings
-                backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
-                backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
-                backlightSettings.autoMode = doc["autoMode"] | false;
-
-                // Zapisz ustawienia
-                saveSettings();
+                // Aktualizacja ustawień
+                backlightSettings.dayBrightness = doc["dayBrightness"] | backlightSettings.dayBrightness;
+                backlightSettings.nightBrightness = doc["nightBrightness"] | backlightSettings.nightBrightness;
+                backlightSettings.autoMode = doc["autoMode"] | backlightSettings.autoMode;
+                
+                // Zapisz do pliku
+                saveBacklightSettingsToFile();
                 
                 // Zastosuj nowe ustawienia
                 applyBacklightSettings();
-
-                request->send(200, "application/json", "{\"status\":\"ok\"}");
+                
+                // Odpowiedz używając send()
+                String response = "{\"status\":\"ok\"}";
+                request->send(200, "application/json", response);
             } else {
-                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+                String response = "{\"status\":\"error\",\"message\":\"Invalid JSON\"}";
+                request->send(400, "application/json", response);
             }
-        } else {
-            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
         }
-    });
+    );
 
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
         String json = "{\"backlight\":{";
@@ -1977,23 +2061,26 @@ void setup() {
 
     // Inicjalizacja wyświetlacza
     display.begin();
-    //display.setContrast(displayBrightness); // Ustaw początkowy kontrast
-    //display.enableUTF8Print();
     display.setFontDirection(0);
     display.clearBuffer();
+
+    // Inicjalizacja LittleFS i wczytanie ustawień
+    if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
+        Serial.println("Błąd montowania LittleFS");
+        #endif
+    } else {
+        #ifdef DEBUG
+        Serial.println("LittleFS zamontowany pomyślnie");
+        #endif
+        // Wczytaj ustawienia z pliku
+        loadBacklightSettingsFromFile();
+    }
 
     // Zastosuj zapisane ustawienia jasności
     applyBacklightSettings();
 
     display.sendBuffer();
-
-    // display.setFont(czcionka_mala);
-    // Serial.print("Szerokość cyfry: ");
-    // Serial.println(display.getStrWidth("0"));
-    // Serial.print("Szerokość spacji: ");
-    // Serial.println(display.getStrWidth(" "));
-    // Serial.print("Maksymalna szerokość znaku: ");
-    // Serial.println(display.getMaxCharWidth());
 
     // Jeśli wybudzenie przez przycisk SET
     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
