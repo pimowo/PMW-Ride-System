@@ -24,6 +24,7 @@ const char* VERSION = "2.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
+const char* LIGHT_CONFIG_FILE = "/light_config.json";
 
 // Utworzenie serwera na porcie 80
 bool configModeActive = false;
@@ -427,6 +428,122 @@ void connectToBms() {
           #endif
         }
     }
+}
+
+const char* LIGHT_CONFIG_FILE = "/light_config.json";
+
+const char* LIGHT_CONFIG_FILE = "/light_config.json";
+
+void saveLightSettingsToFile() {
+    File file = LittleFS.open(LIGHT_CONFIG_FILE, "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku do zapisu ustawień świateł");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    
+    // Konwersja enum na stringi zgodnie z logiką w endpoincie
+    switch(lightSettings.dayLights) {
+        case LightSettings::FRONT:
+            doc["dayLights"] = "front-normal";
+            break;
+        case LightSettings::REAR:
+            doc["dayLights"] = "rear";
+            break;
+        case LightSettings::BOTH:
+            doc["dayLights"] = "front-day-rear";
+            break;
+    }
+
+    switch(lightSettings.nightLights) {
+        case LightSettings::FRONT:
+            doc["nightLights"] = "front-normal";
+            break;
+        case LightSettings::REAR:
+            doc["nightLights"] = "rear";
+            break;
+        case LightSettings::BOTH:
+            doc["nightLights"] = "front-day-rear";
+            break;
+    }
+
+    doc["dayBlink"] = lightSettings.dayBlink;
+    doc["nightBlink"] = lightSettings.nightBlink;
+    doc["blinkFrequency"] = lightSettings.blinkFrequency;
+
+    if (serializeJson(doc, file)) {
+        #ifdef DEBUG
+        Serial.println("Zapisano ustawienia świateł do pliku");
+        #endif
+    } else {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu ustawień świateł");
+        #endif
+    }
+    
+    file.close();
+}
+
+void loadLightSettingsFromFile() {
+    File file = LittleFS.open(LIGHT_CONFIG_FILE, "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Brak pliku konfiguracyjnego świateł, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        lightSettings.dayLights = LightSettings::FRONT;
+        lightSettings.nightLights = LightSettings::BOTH;
+        lightSettings.dayBlink = false;
+        lightSettings.nightBlink = false;
+        lightSettings.blinkFrequency = 500;
+        // Zapisz domyślne ustawienia do pliku
+        saveLightSettingsToFile();
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON świateł");
+        #endif
+        return;
+    }
+
+    // Wczytaj ustawienia używając tej samej logiki co w endpoincie
+    String dayLights = doc["dayLights"].as<String>();
+    String nightLights = doc["nightLights"].as<String>();
+
+    // Konwersja dla świateł dziennych
+    if (dayLights == "front-day" || dayLights == "front-normal") {
+        lightSettings.dayLights = LightSettings::FRONT;
+    } else if (dayLights == "rear") {
+        lightSettings.dayLights = LightSettings::REAR;
+    } else if (dayLights == "front-day-rear" || dayLights == "front-normal-rear") {
+        lightSettings.dayLights = LightSettings::BOTH;
+    }
+
+    // Konwersja dla świateł nocnych
+    if (nightLights == "front-day" || nightLights == "front-normal") {
+        lightSettings.nightLights = LightSettings::FRONT;
+    } else if (nightLights == "rear") {
+        lightSettings.nightLights = LightSettings::REAR;
+    } else if (nightLights == "front-day-rear" || nightLights == "front-normal-rear") {
+        lightSettings.nightLights = LightSettings::BOTH;
+    }
+
+    lightSettings.dayBlink = doc["dayBlink"] | false;
+    lightSettings.nightBlink = doc["nightBlink"] | false;
+    lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+
+    #ifdef DEBUG
+    Serial.println("Wczytano ustawienia świateł z pliku");
+    #endif
 }
 
 void setDisplayBrightness(uint8_t brightness) {
@@ -1624,47 +1741,49 @@ void setupWebServer() {
 
     // Endpoint dla ustawień świateł
     server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    if (request->hasParam("data", true)) {
-        String jsonString = request->getParam("data", true)->value();
-        DynamicJsonDocument doc(200);
-        DeserializationError error = deserializeJson(doc, jsonString);
+        if (request->hasParam("data", true)) {
+            String jsonString = request->getParam("data", true)->value();
+            DynamicJsonDocument doc(200);
+            DeserializationError error = deserializeJson(doc, jsonString);
 
-        if (!error) {
-            // Zapisz konfigurację świateł
-            String dayLights = doc["dayLights"].as<String>();
-            String nightLights = doc["nightLights"].as<String>();
-            bool dayBlink = doc["dayBlink"].as<bool>();
-            bool nightBlink = doc["nightBlink"].as<bool>();
-            int blinkFrequency = doc["blinkFrequency"] | 500;
+            if (!error) {
+                // Zapisz konfigurację świateł
+                String dayLights = doc["dayLights"].as<String>();
+                String nightLights = doc["nightLights"].as<String>();
+                bool dayBlink = doc["dayBlink"].as<bool>();
+                bool nightBlink = doc["nightBlink"].as<bool>();
+                int blinkFrequency = doc["blinkFrequency"] | 500;
 
-            // Zaktualizuj strukturę lightSettings
-            if (dayLights == "front-day") lightSettings.dayLights = LightSettings::FRONT;
-            else if (dayLights == "front-normal") lightSettings.dayLights = LightSettings::FRONT;
-            else if (dayLights == "rear") lightSettings.dayLights = LightSettings::REAR;
-            else if (dayLights == "front-day-rear") lightSettings.dayLights = LightSettings::BOTH;
-            else if (dayLights == "front-normal-rear") lightSettings.dayLights = LightSettings::BOTH;
+                // Zaktualizuj strukturę lightSettings
+                if (dayLights == "front-day") lightSettings.dayLights = LightSettings::FRONT;
+                else if (dayLights == "front-normal") lightSettings.dayLights = LightSettings::FRONT;
+                else if (dayLights == "rear") lightSettings.dayLights = LightSettings::REAR;
+                else if (dayLights == "front-day-rear") lightSettings.dayLights = LightSettings::BOTH;
+                else if (dayLights == "front-normal-rear") lightSettings.dayLights = LightSettings::BOTH;
 
-            // To samo dla świateł nocnych
-            if (nightLights == "front-day") lightSettings.nightLights = LightSettings::FRONT;
-            else if (nightLights == "front-normal") lightSettings.nightLights = LightSettings::FRONT;
-            else if (nightLights == "rear") lightSettings.nightLights = LightSettings::REAR;
-            else if (nightLights == "front-day-rear") lightSettings.nightLights = LightSettings::BOTH;
-            else if (nightLights == "front-normal-rear") lightSettings.nightLights = LightSettings::BOTH;
+                if (nightLights == "front-day") lightSettings.nightLights = LightSettings::FRONT;
+                else if (nightLights == "front-normal") lightSettings.nightLights = LightSettings::FRONT;
+                else if (nightLights == "rear") lightSettings.nightLights = LightSettings::REAR;
+                else if (nightLights == "front-day-rear") lightSettings.nightLights = LightSettings::BOTH;
+                else if (nightLights == "front-normal-rear") lightSettings.nightLights = LightSettings::BOTH;
 
-            lightSettings.dayBlink = dayBlink;
-            lightSettings.nightBlink = nightBlink;
-            lightSettings.blinkFrequency = blinkFrequency;
+                lightSettings.dayBlink = dayBlink;
+                lightSettings.nightBlink = nightBlink;
+                lightSettings.blinkFrequency = blinkFrequency;
 
-            // Zapisz ustawienia w EEPROM/LittleFS
-            saveSettings();
+                // Użyj istniejącej funkcji saveSettings()
+                saveSettings();
+                
+                // Zastosuj nowe ustawienia świateł
+                setLights();
 
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            }
         } else {
-            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
         }
-    } else {
-        request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
-    }
     });
 
     server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
@@ -2075,6 +2194,7 @@ void setup() {
         #endif
         // Wczytaj ustawienia z pliku
         loadBacklightSettingsFromFile();
+        loadSettings();
     }
 
     // Zastosuj zapisane ustawienia jasności
