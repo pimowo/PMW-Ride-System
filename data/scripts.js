@@ -171,6 +171,8 @@ async function fetchDisplayConfig() {
             document.getElementById('day-brightness').value = data.backlight.dayBrightness;
             document.getElementById('night-brightness').value = data.backlight.nightBrightness;
             document.getElementById('display-auto').value = data.backlight.autoMode.toString();
+            // Ustawienie jasności normalnej na podstawie jasności dziennej w trybie manualnym
+            document.getElementById('brightness').value = data.backlight.dayBrightness;
             // Wywołaj funkcję przełączania, aby odpowiednio pokazać/ukryć sekcje
             toggleAutoBrightness();
         }
@@ -184,7 +186,9 @@ async function saveDisplayConfig() {
     try {
         const autoMode = document.getElementById('display-auto').value === 'true';
         const data = {
-            dayBrightness: parseInt(document.getElementById('day-brightness').value),
+            dayBrightness: parseInt(autoMode ? 
+                document.getElementById('day-brightness').value : 
+                document.getElementById('brightness').value),
             nightBrightness: parseInt(document.getElementById('night-brightness').value),
             autoMode: autoMode
         };
@@ -227,9 +231,13 @@ function toggleAutoBrightness() {
     if (autoMode) {
         autoBrightnessSection.style.display = 'block';
         normalBrightness.style.display = 'none';
+        // Ustaw jasność dzienną jako domyślną jasność
+        document.getElementById('day-brightness').value = document.getElementById('brightness').value;
     } else {
         autoBrightnessSection.style.display = 'none';
         normalBrightness.style.display = 'flex';
+        // Ustaw normalną jasność na wartość jasności dziennej
+        document.getElementById('brightness').value = document.getElementById('day-brightness').value;
     }
 }
 
