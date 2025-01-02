@@ -286,21 +286,58 @@ function getLightFormElements() {
 }
 
 // Funkcje obsługi świateł
-// Funkcja ładowania konfiguracji świateł
 async function loadLightConfig() {
     debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     try {
-        if (!initializeLightForm()) {
-            return;
-        }
-
         const response = await fetch('/api/status');
         const data = await response.json();
         debug('Otrzymane dane:', data);
 
         if (data.lights) {
+            const elements = {
+                dayLights: document.getElementById('day-lights'),
+                nightLights: document.getElementById('night-lights'),
+                dayBlink: document.getElementById('day-blink'),
+                nightBlink: document.getElementById('night-blink'),
+                blinkFrequency: document.getElementById('blink-frequency')
+            };
+
+            // Sprawdź czy wszystkie elementy istnieją
+            for (const [name, element] of Object.entries(elements)) {
+                if (!element) {
+                    throw new Error(`Nie znaleziono elementu ${name}`);
+                }
+            }
+
+            // Aktualizuj stan świateł
             updateLightStatus(data.lights);
-            updateLightForm(data.lights);
+
+            // Aktualizuj formularz
+            if (data.lights.frontDay && data.lights.rear) {
+                elements.dayLights.value = 'front-day-rear';
+            } else if (data.lights.frontDay) {
+                elements.dayLights.value = 'front-day';
+            } else if (data.lights.rear) {
+                elements.dayLights.value = 'rear';
+            } else {
+                elements.dayLights.value = 'off';
+            }
+
+            if (data.lights.front && data.lights.rear) {
+                elements.nightLights.value = 'front-rear';
+            } else if (data.lights.front) {
+                elements.nightLights.value = 'front';
+            } else if (data.lights.rear) {
+                elements.nightLights.value = 'rear';
+            } else {
+                elements.nightLights.value = 'off';
+            }
+
+            elements.dayBlink.checked = Boolean(data.lights.dayBlink);
+            elements.nightBlink.checked = Boolean(data.lights.nightBlink);
+            elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
+
+            debug('Formularz zaktualizowany pomyślnie');
         }
     } catch (error) {
         console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
@@ -327,26 +364,27 @@ async function saveLightConfig() {
             }
         }
 
-        // Format danych zgodny z API
-        const data = {
-            lights: {
-                frontDay: elements.dayLights.value.includes('front-day'),
-                front: elements.nightLights.value.includes('front'),
-                rear: elements.dayLights.value.includes('rear') || elements.nightLights.value.includes('rear'),
-                dayBlink: elements.dayBlink.checked,
-                nightBlink: elements.nightBlink.checked,
-                blinkFrequency: parseInt(elements.blinkFrequency.value)
-            }
+        // Przygotuj dane w formacie zgodnym z serwerem
+        const lightConfig = {
+            dayLights: elements.dayLights.value,        // Wysyłamy bezpośrednio wartość z select
+            nightLights: elements.nightLights.value,    // Wysyłamy bezpośrednio wartość z select
+            dayBlink: elements.dayBlink.checked,
+            nightBlink: elements.nightBlink.checked,
+            blinkFrequency: parseInt(elements.blinkFrequency.value)
         };
 
-        debug('Wysyłam dane:', data);
+        debug('Przygotowane dane:', lightConfig);
+
+        // Zakoduj dane jako form-urlencoded
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify(lightConfig));
 
         const response = await fetch('/api/lights/config', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: JSON.stringify(data)
+            body: formData.toString()
         });
 
         if (!response.ok) {
