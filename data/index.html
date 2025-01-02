@@ -13,24 +13,19 @@
         </header>
 
         <main>
-            <section class="dashboard">
-                <div class="config-section">
-                    <div class="section-header">
-                        <h2>Konfiguracja zegara</h2>
-                        <span class="info-container">
-                            <button class="info-button" data-info="rtc-info">i</button>
-                        </span>
-                    </div>
-                    <div class="config-row">
-                        <label>Data:</label>
-                        <input type="date" id="rtc-date" readonly class="config-input">
-                    </div>
-                    <div class="config-row">
+            <section class="dashboard">                
+                <div class="card clock-config">
+                    <h2>Konfiguracja zegara <button class="info-icon" data-info="rtc-info">ℹ</button></h2>
+                    <div class="rtc-row">
                         <label>Czas:</label>
-                        <input type="time" id="rtc-time" step="1" readonly class="config-input">
+                        <input type="text" id="rtc-time" readonly>
+                    </div>
+                    <div class="rtc-row">
+                        <label>Data:</label>
+                        <input type="text" id="rtc-date" readonly>
                     </div>
                     <div class="button-container">
-                        <button class="primary-button" onclick="saveRTCConfig()">Ustaw aktualny czas</button>
+                        <button class="btn-save" onclick="saveRTCConfig()">Ustaw aktualny czas</button>
                     </div>
                 </div>
                 <div class="card light-config">
