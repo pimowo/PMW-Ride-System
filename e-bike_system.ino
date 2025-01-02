@@ -1955,7 +1955,7 @@ void setup() {
 
     // Inicjalizacja wyświetlacza
     display.begin();
-    display.setContrast(displayBrightness); // Ustaw początkowy kontrast
+    //display.setContrast(displayBrightness); // Ustaw początkowy kontrast
     //display.enableUTF8Print();
     display.setFontDirection(0);
     display.clearBuffer();
