@@ -171,12 +171,8 @@ async function fetchDisplayConfig() {
             document.getElementById('day-brightness').value = data.backlight.dayBrightness;
             document.getElementById('night-brightness').value = data.backlight.nightBrightness;
             document.getElementById('display-auto').value = data.backlight.autoMode.toString();
-            
             // Wywołaj funkcję przełączania, aby odpowiednio pokazać/ukryć sekcje
             toggleAutoBrightness();
-            
-            // Ustaw także podstawową jasność dla trybu manualnego
-            document.getElementById('brightness').value = data.backlight.dayBrightness;
         }
     } catch (error) {
         console.error('Błąd podczas pobierania konfiguracji wyświetlacza:', error);
@@ -186,13 +182,11 @@ async function fetchDisplayConfig() {
 // Funkcja zapisująca konfigurację wyświetlacza
 async function saveDisplayConfig() {
     try {
-        const isAutoMode = document.getElementById('display-auto').value === 'true';
+        const autoMode = document.getElementById('display-auto').value === 'true';
         const data = {
-            dayBrightness: isAutoMode ? 
-                parseInt(document.getElementById('day-brightness').value) : 
-                parseInt(document.getElementById('brightness').value),
+            dayBrightness: parseInt(document.getElementById('day-brightness').value),
             nightBrightness: parseInt(document.getElementById('night-brightness').value),
-            autoMode: isAutoMode
+            autoMode: autoMode
         };
 
         // Walidacja wartości
@@ -204,15 +198,15 @@ async function saveDisplayConfig() {
         const response = await fetch('/api/display/config', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Type': 'application/json',
             },
-            body: 'data=' + encodeURIComponent(JSON.stringify(data))
+            body: JSON.stringify(data)
         });
 
         const result = await response.json();
         if (result.status === 'ok') {
             alert('Zapisano ustawienia wyświetlacza');
-            fetchDisplayConfig(); // Odśwież wyświetlane wartości
+            fetchDisplayConfig();
         } else {
             throw new Error('Błąd odpowiedzi serwera');
         }
