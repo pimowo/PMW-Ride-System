@@ -81,13 +81,12 @@ async function saveLightConfig() {
             }
 
             const result = await response.json();
-            if (result.status !== 'ok') {
+            if (result.status === 'ok') {
+                alert('Zapisano ustawienia świateł'); // Dodajemy to
+                await loadLightConfig(); // Odświeżamy konfigurację
+            } else {
                 throw new Error(result.message || 'Nieznany błąd');
             }
-
-            // Odśwież konfigurację po zapisie
-            await loadLightConfig();
-            
         } catch (error) {
             console.error('Błąd podczas zapisywania:', error);
             alert('Błąd podczas zapisywania ustawień: ' + error.message);
@@ -861,6 +860,29 @@ const infoContent = {
         
         ⚠️ UWAGA:
         System zawsze zapisze wszystkie ustawienia przed wyłączeniem`
+    },
+
+    // Sekcja sterownika //
+
+    'display-type-info': {
+        title: '🔍 Wybór typu wyświetlacza',
+        description: `Wybierz odpowiedni model wyświetlacza LCD zainstalowanego w Twoim rowerze.
+
+        🟦 KT-LCD:
+        • Standardowy wyświetlacz z serii KT
+        • Obsługuje parametry P1-P5, C1-C15, L1-L3
+        • Kompatybilny z większością kontrolerów KT
+        
+        🟨 S866:
+        • Wyświetlacz z serii Bigstone/S866
+        • Obsługuje parametry P1-P20
+        • Posiada dodatkowe funkcje konfiguracyjne
+        
+        ⚠️ UWAGA: 
+        Wybór niewłaściwego typu wyświetlacza może 
+        spowodować nieprawidłowe działanie systemu.
+        Upewnij się, że wybrany model odpowiada 
+        fizycznie zainstalowanemu wyświetlaczowi.`
     },
 
     // Parametry sterownika KT-LCD //
