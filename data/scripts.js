@@ -286,6 +286,64 @@ function getLightFormElements() {
 }
 
 // Funkcje obsługi świateł
+// async function loadLightConfig() {
+//     debug('Rozpoczynam wczytywanie konfiguracji świateł...');
+//     try {
+//         const response = await fetch('/api/status');
+//         const data = await response.json();
+//         debug('Otrzymane dane:', data);
+
+//         if (data.lights) {
+//             const elements = {
+//                 dayLights: document.getElementById('day-lights'),
+//                 nightLights: document.getElementById('night-lights'),
+//                 dayBlink: document.getElementById('day-blink'),
+//                 nightBlink: document.getElementById('night-blink'),
+//                 blinkFrequency: document.getElementById('blink-frequency')
+//             };
+
+//             // Sprawdź czy wszystkie elementy istnieją
+//             for (const [name, element] of Object.entries(elements)) {
+//                 if (!element) {
+//                     throw new Error(`Nie znaleziono elementu ${name}`);
+//                 }
+//             }
+
+//             // Aktualizuj stan świateł
+//             updateLightStatus(data.lights);
+
+//             // Aktualizuj formularz
+//             if (data.lights.frontDay && data.lights.rear) {
+//                 elements.dayLights.value = 'front-day-rear';
+//             } else if (data.lights.frontDay) {
+//                 elements.dayLights.value = 'front-day';
+//             } else if (data.lights.rear) {
+//                 elements.dayLights.value = 'rear';
+//             } else {
+//                 elements.dayLights.value = 'off';
+//             }
+
+//             if (data.lights.front && data.lights.rear) {
+//                 elements.nightLights.value = 'front-rear';
+//             } else if (data.lights.front) {
+//                 elements.nightLights.value = 'front';
+//             } else if (data.lights.rear) {
+//                 elements.nightLights.value = 'rear';
+//             } else {
+//                 elements.nightLights.value = 'off';
+//             }
+
+//             elements.dayBlink.checked = Boolean(data.lights.dayBlink);
+//             elements.nightBlink.checked = Boolean(data.lights.nightBlink);
+//             elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
+
+//             debug('Formularz zaktualizowany pomyślnie');
+//         }
+//     } catch (error) {
+//         console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
+//     }
+// }
+
 async function loadLightConfig() {
     debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     try {
@@ -294,45 +352,21 @@ async function loadLightConfig() {
         debug('Otrzymane dane:', data);
 
         if (data.lights) {
-            const elements = {
-                dayLights: document.getElementById('day-lights'),
-                nightLights: document.getElementById('night-lights'),
-                dayBlink: document.getElementById('day-blink'),
-                nightBlink: document.getElementById('night-blink'),
-                blinkFrequency: document.getElementById('blink-frequency')
-            };
-
-            // Sprawdź czy wszystkie elementy istnieją
-            for (const [name, element] of Object.entries(elements)) {
-                if (!element) {
-                    throw new Error(`Nie znaleziono elementu ${name}`);
+            const elements = getLightFormElements();
+            
+            // Konwersja wartości z serwera na wartości formularza
+            function convertServerToFormValue(serverValue) {
+                switch(serverValue) {
+                    case 'FRONT': return 'front-day';
+                    case 'REAR': return 'rear';
+                    case 'BOTH': return 'front-day-rear';
+                    case 'OFF':
+                    default: return 'off';
                 }
             }
 
-            // Aktualizuj stan świateł
-            updateLightStatus(data.lights);
-
-            // Aktualizuj formularz
-            if (data.lights.frontDay && data.lights.rear) {
-                elements.dayLights.value = 'front-day-rear';
-            } else if (data.lights.frontDay) {
-                elements.dayLights.value = 'front-day';
-            } else if (data.lights.rear) {
-                elements.dayLights.value = 'rear';
-            } else {
-                elements.dayLights.value = 'off';
-            }
-
-            if (data.lights.front && data.lights.rear) {
-                elements.nightLights.value = 'front-rear';
-            } else if (data.lights.front) {
-                elements.nightLights.value = 'front';
-            } else if (data.lights.rear) {
-                elements.nightLights.value = 'rear';
-            } else {
-                elements.nightLights.value = 'off';
-            }
-
+            elements.dayLights.value = convertServerToFormValue(data.lights.dayLights);
+            elements.nightLights.value = convertServerToFormValue(data.lights.nightLights);
             elements.dayBlink.checked = Boolean(data.lights.dayBlink);
             elements.nightBlink.checked = Boolean(data.lights.nightBlink);
             elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
@@ -343,7 +377,6 @@ async function loadLightConfig() {
         console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
     }
 }
-
 
 // Funkcja zapisywania konfiguracji świateł
 async function saveLightConfig() {
@@ -359,14 +392,19 @@ async function saveLightConfig() {
 
         // Funkcja pomocnicza do konwersji wartości na LightMode enum
         function getLightMode(value) {
-            if (value.includes('front') && value.includes('rear')) {
-                return "BOTH";
-            } else if (value.includes('front')) {
-                return "FRONT";
-            } else if (value.includes('rear')) {
-                return "REAR";
+            switch(value) {
+                case 'front-day':
+                case 'front-normal':
+                    return "FRONT";
+                case 'rear':
+                    return "REAR";
+                case 'front-day-rear':
+                case 'front-normal-rear':
+                    return "BOTH";
+                case 'off':
+                default:
+                    return "OFF";
             }
-            return "OFF"; // dodatkowy stan dla wyłączonych świateł
         }
 
         // Przygotuj dane w formacie zgodnym z Arduino
