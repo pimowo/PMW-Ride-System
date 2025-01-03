@@ -97,6 +97,10 @@ WiFiSettings wifiSettings;
 // Czujnik temperatury powietrza
 #define ONE_WIRE_BUS 15  // Pin do którego podłączony jest DS18B20
 
+// Zmienne do obsługi mrugania światła
+unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
+bool blinkState = false;          // Stan mrugania (włączone/wyłączone)
+
 const uint8_t* czcionka_mala = u8g2_font_profont11_mf;  // opis ekranów
 const uint8_t* czcionka_srednia = u8g2_font_pxplusibmvga9_mf; // górna belka
 const uint8_t* czcionka_duza = u8g2_font_fub20_tr;
@@ -1405,11 +1409,15 @@ void setLights() {
                 digitalWrite(FrontDayPin, HIGH);
                 break;
             case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
+                if (!lightSettings.dayBlink) {
+                    digitalWrite(RealPin, HIGH);
+                }
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontDayPin, HIGH);
-                digitalWrite(RealPin, HIGH);
+                if (!lightSettings.dayBlink) {
+                    digitalWrite(RealPin, HIGH);
+                }
                 break;
             default:
                 break;
@@ -1420,16 +1428,21 @@ void setLights() {
                 digitalWrite(FrontPin, HIGH);
                 break;
             case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
+                if (!lightSettings.nightBlink) {
+                    digitalWrite(RealPin, HIGH);
+                }
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontPin, HIGH);
-                digitalWrite(RealPin, HIGH);
+                if (!lightSettings.nightBlink) {
+                    digitalWrite(RealPin, HIGH);
+                }
                 break;
             default:
                 break;
         }
     }
+
     // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
     applyBacklightSettings();
 }
@@ -2265,6 +2278,20 @@ void loop() {
     const unsigned long updateInterval = 2000;
 
     unsigned long currentTime = millis();
+
+    // Obsługa mrugania światła tylnego
+    if ((lightMode == 1 && lightSettings.dayBlink && 
+        (lightSettings.dayLights == LightSettings::REAR || lightSettings.dayLights == LightSettings::BOTH)) || 
+        (lightMode == 2 && lightSettings.nightBlink && 
+        (lightSettings.nightLights == LightSettings::REAR || lightSettings.nightLights == LightSettings::BOTH))) {
+        
+        unsigned long currentMillis = millis();
+        if (currentMillis - lastBlinkTime >= lightSettings.blinkFrequency) {
+            lastBlinkTime = currentMillis;
+            blinkState = !blinkState;
+            digitalWrite(RealPin, blinkState);
+        }
+    }
 
     if (configModeActive) {      
         display.clearBuffer();
