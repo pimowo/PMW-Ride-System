@@ -1525,78 +1525,66 @@ void handleTemperature() {
 
 // Funkcja ładowania ustawień z LittleFS
 void loadSettings() {
-  File configFile = LittleFS.open("/config.json", "r");
-  if (!configFile) {
-    #ifdef DEBUG
-    Serial.println("Failed to open config file");
-    #endif
-    return;
-  }
+    File configFile = LittleFS.open("/config.json", "r");
+    if (!configFile) {
+        #ifdef DEBUG
+        Serial.println("Failed to open config file");
+        #endif
+        return;
+    }
 
-  StaticJsonDocument<1024> doc;
-  DeserializationError error = deserializeJson(doc, configFile);
+    StaticJsonDocument<1024> doc;
+    DeserializationError error = deserializeJson(doc, configFile);
 
-  if (error) {
-    #ifdef DEBUG
-    Serial.println("Failed to parse config file");
-    #endif
-    return;
-  }
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Failed to parse config file");
+        #endif
+        return;
+    }
 
-  // Wczytywanie ustawień czasu
-  if (doc.containsKey("time")) {
-    timeSettings.ntpEnabled = doc["time"]["ntpEnabled"] | false;
-    timeSettings.hours = doc["time"]["hours"] | 0;
-    timeSettings.minutes = doc["time"]["minutes"] | 0;
-    timeSettings.seconds = doc["time"]["seconds"] | 0;
-    timeSettings.day = doc["time"]["day"] | 1;
-    timeSettings.month = doc["time"]["month"] | 1;
-    timeSettings.year = doc["time"]["year"] | 2024;
-  }
+    // Wczytywanie ustawień świateł
+    if (doc.containsKey("light")) {
+        lightSettings.dayLights = static_cast<LightSettings::LightMode>(doc["light"]["dayLights"] | 0);
+        lightSettings.nightLights = static_cast<LightSettings::LightMode>(doc["light"]["nightLights"] | 0);
+        lightSettings.dayBlink = doc["light"]["dayBlink"] | false;
+        lightSettings.nightBlink = doc["light"]["nightBlink"] | false;
+        lightSettings.blinkFrequency = doc["light"]["blinkFrequency"] | 500;
+    }
 
-  // Wczytywanie ustawień świateł
-  if (doc.containsKey("light")) {
-    lightSettings.dayLights = static_cast<LightSettings::LightMode>(doc["light"]["dayLights"] | 0);
-    lightSettings.dayBlink = doc["light"]["dayBlink"] | false;
-    lightSettings.nightLights = static_cast<LightSettings::LightMode>(doc["light"]["nightLights"] | 0);
-    lightSettings.nightBlink = doc["light"]["nightBlink"] | false;
-    lightSettings.blinkEnabled = doc["light"]["blinkEnabled"] | false;
-    lightSettings.blinkFrequency = doc["light"]["blinkFrequency"] | 500;
-  }
+    // Wczytywanie ustawień podświetlenia
+    if (doc.containsKey("backlight")) {
+        backlightSettings.dayBrightness = doc["backlight"]["dayBrightness"] | 100;
+        backlightSettings.nightBrightness = doc["backlight"]["nightBrightness"] | 50;
+        backlightSettings.autoMode = doc["backlight"]["autoMode"] | false;
+    }
 
-  // Wczytywanie ustawień podświetlenia
-  if (doc.containsKey("backlight")) {
-    backlightSettings.dayBrightness = doc["backlight"]["dayBrightness"] | 100;
-    backlightSettings.nightBrightness = doc["backlight"]["nightBrightness"] | 50;
-    backlightSettings.autoMode = doc["backlight"]["autoMode"] | false;
-  }
-
-  // Wczytywanie ustawień WiFi
-  if (doc.containsKey("wifi")) {
-    strlcpy(wifiSettings.ssid, doc["wifi"]["ssid"] | "", sizeof(wifiSettings.ssid));
-    strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
-  }
+    // Wczytywanie ustawień WiFi
+    if (doc.containsKey("wifi")) {
+        strlcpy(wifiSettings.ssid, doc["wifi"]["ssid"] | "", sizeof(wifiSettings.ssid));
+        strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
+    }
 
 
     // Wczytywanie ustawień sterownika
     if (doc.containsKey("controller")) {
-      controllerSettings.type = doc["controller"]["type"] | "kt-lcd";
-      
-      if (controllerSettings.type == "kt-lcd") {
-        for (int i = 1; i <= 5; i++) {
-          controllerSettings.ktParams[i-1] = doc["controller"]["p"][String(i)] | 0;
+        controllerSettings.type = doc["controller"]["type"] | "kt-lcd";
+        
+        if (controllerSettings.type == "kt-lcd") {
+            for (int i = 1; i <= 5; i++) {
+                controllerSettings.ktParams[i-1] = doc["controller"]["p"][String(i)] | 0;
+            }
+            for (int i = 1; i <= 15; i++) {
+                controllerSettings.ktParams[i+4] = doc["controller"]["c"][String(i)] | 0;
+            }
+            for (int i = 1; i <= 3; i++) {
+                controllerSettings.ktParams[i+19] = doc["controller"]["l"][String(i)] | 0;
+            }
+        } else {
+            for (int i = 1; i <= 20; i++) {
+                controllerSettings.s866Params[i-1] = doc["controller"]["p"][String(i)] | 0;
+            }
         }
-        for (int i = 1; i <= 15; i++) {
-          controllerSettings.ktParams[i+4] = doc["controller"]["c"][String(i)] | 0;
-        }
-        for (int i = 1; i <= 3; i++) {
-          controllerSettings.ktParams[i+19] = doc["controller"]["l"][String(i)] | 0;
-        }
-      } else {
-        for (int i = 1; i <= 20; i++) {
-          controllerSettings.s866Params[i-1] = doc["controller"]["p"][String(i)] | 0;
-        }
-      }
     }
 
   configFile.close();
@@ -1604,37 +1592,36 @@ void loadSettings() {
 
 // Funkcja zapisu ustawień do LittleFS
 void saveSettings() {
-  StaticJsonDocument<1024> doc;
+    StaticJsonDocument<1024> doc;
 
-  // Zapisywanie ustawień czasu
-  JsonObject timeObj = doc.createNestedObject("time");
-  timeObj["ntpEnabled"] = timeSettings.ntpEnabled;
-  timeObj["hours"] = timeSettings.hours;
-  timeObj["minutes"] = timeSettings.minutes;
-  timeObj["seconds"] = timeSettings.seconds;
-  timeObj["day"] = timeSettings.day;
-  timeObj["month"] = timeSettings.month;
-  timeObj["year"] = timeSettings.year;
+    // Zapisywanie ustawień czasu
+    JsonObject timeObj = doc.createNestedObject("time");
+    timeObj["ntpEnabled"] = timeSettings.ntpEnabled;
+    timeObj["hours"] = timeSettings.hours;
+    timeObj["minutes"] = timeSettings.minutes;
+    timeObj["seconds"] = timeSettings.seconds;
+    timeObj["day"] = timeSettings.day;
+    timeObj["month"] = timeSettings.month;
+    timeObj["year"] = timeSettings.year;
 
-  // Zapisywanie ustawień świateł
-  JsonObject lightObj = doc.createNestedObject("light");
-  lightObj["dayLights"] = static_cast<int>(lightSettings.dayLights);
-  lightObj["dayBlink"] = lightSettings.dayBlink;
-  lightObj["nightLights"] = static_cast<int>(lightSettings.nightLights);
-  lightObj["nightBlink"] = lightSettings.nightBlink;
-  lightObj["blinkEnabled"] = lightSettings.blinkEnabled;
-  lightObj["blinkFrequency"] = lightSettings.blinkFrequency;
+    // Zapisywanie ustawień świateł
+    JsonObject lightObj = doc.createNestedObject("light");
+    lightObj["dayLights"] = static_cast<int>(lightSettings.dayLights);
+    lightObj["nightLights"] = static_cast<int>(lightSettings.nightLights);
+    lightObj["dayBlink"] = lightSettings.dayBlink;
+    lightObj["nightBlink"] = lightSettings.nightBlink;
+    lightObj["blinkFrequency"] = lightSettings.blinkFrequency;
 
-  // Zapisywanie ustawień podświetlenia
-  JsonObject backlightObj = doc.createNestedObject("backlight");
-  backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
-  backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
-  backlightObj["autoMode"] = backlightSettings.autoMode;
+    // Zapisywanie ustawień podświetlenia
+    JsonObject backlightObj = doc.createNestedObject("backlight");
+    backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
+    backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
+    backlightObj["autoMode"] = backlightSettings.autoMode;
 
-  // Zapisywanie ustawień WiFi
-  JsonObject wifiObj = doc.createNestedObject("wifi");
-  wifiObj["ssid"] = wifiSettings.ssid;
-  wifiObj["password"] = wifiSettings.password;
+    // Zapisywanie ustawień WiFi
+    JsonObject wifiObj = doc.createNestedObject("wifi");
+    wifiObj["ssid"] = wifiSettings.ssid;
+    wifiObj["password"] = wifiSettings.password;
 
     // Zapisywanie ustawień sterownika
     JsonObject controllerObj = doc.createNestedObject("controller");
@@ -1706,11 +1693,9 @@ void updateControllerParam(const String& param, int value) {
 // Funkcja pomocnicza - dodaj ją przed definicją setupWebServer()
 const char* getLightModeString(LightSettings::LightMode mode) {
     switch (mode) {
-        case LightSettings::FRONT_DAY: return "FRONT_DAY";
-        case LightSettings::FRONT_NIGHT: return "FRONT_NIGHT";
+        case LightSettings::FRONT: return "FRONT";
         case LightSettings::REAR: return "REAR";
-        case LightSettings::BOTH_DAY: return "BOTH_DAY";
-        case LightSettings::BOTH_NIGHT: return "BOTH_NIGHT";
+        case LightSettings::BOTH: return "BOTH";
         case LightSettings::NONE:
         default: return "NONE";
     }
@@ -1746,7 +1731,7 @@ void setupWebServer() {
                 const char* dayLightsStr = doc["dayLights"] | "OFF";
                 const char* nightLightsStr = doc["nightLights"] | "OFF";
                 
-                // Zapisz ustawienia do struktury
+                // Konwersja stringów na enum
                 if (strcmp(dayLightsStr, "OFF") == 0) 
                     lightSettings.dayLights = LightSettings::NONE;
                 else if (strcmp(dayLightsStr, "FRONT") == 0) 
@@ -1967,8 +1952,8 @@ void initializeDefaultSettings() {
     timeSettings.year = 2024;
 
     // Ustawienia świateł
-    lightSettings.dayLights = LightSettings::FRONT_DAY;
-    lightSettings.nightLights = LightSettings::BOTH_NIGHT;
+    lightSettings.dayLights = LightSettings::FRONT;
+    lightSettings.nightLights = LightSettings::BOTH;
     lightSettings.dayBlink = false;
     lightSettings.nightBlink = false;
     lightSettings.blinkFrequency = 500;
