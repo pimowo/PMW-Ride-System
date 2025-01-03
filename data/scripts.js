@@ -1,3 +1,129 @@
+// Dodaj te funkcje na początku pliku scripts.js, przed innymi funkcjami
+
+// Funkcja konwersji wartości z formularza na wartości API
+function getLightMode(value) {
+    debug('Konwersja wartości formularza:', value);
+    switch(value) {
+        case 'front-day':
+        case 'front-normal':
+            return "FRONT";
+        case 'rear':
+            return "REAR";
+        case 'front-day-rear':
+        case 'front-normal-rear':
+            return "BOTH";
+        case 'off':
+        default:
+            return "OFF";
+    }
+}
+
+// Funkcja konwersji wartości z API na wartości formularza
+function getFormValue(serverValue, isNightMode = false) {
+    debug('Konwersja wartości z serwera:', serverValue);
+    switch(serverValue) {
+        case 'FRONT':
+            return isNightMode ? 'front-normal' : 'front-day';
+        case 'REAR':
+            return 'rear';
+        case 'BOTH':
+            return isNightMode ? 'front-normal-rear' : 'front-day-rear';
+        case 'OFF':
+        default:
+            return 'off';
+    }
+}
+
+// Zmodyfikuj istniejącą funkcję saveLightConfig
+async function saveLightConfig() {
+    debug('Rozpoczynam zapisywanie konfiguracji świateł');
+    try {
+        const elements = {
+            dayLights: document.getElementById('day-lights'),
+            nightLights: document.getElementById('night-lights'),
+            dayBlink: document.getElementById('day-blink'),
+            nightBlink: document.getElementById('night-blink'),
+            blinkFrequency: document.getElementById('blink-frequency')
+        };
+
+        const lightConfig = {
+            dayLights: getLightMode(elements.dayLights.value),
+            nightLights: getLightMode(elements.nightLights.value),
+            dayBlink: elements.dayBlink.checked,
+            nightBlink: elements.nightBlink.checked,
+            blinkEnabled: elements.dayBlink.checked || elements.nightBlink.checked,
+            blinkFrequency: parseInt(elements.blinkFrequency.value)
+        };
+
+        debug('Przygotowane dane:', lightConfig);
+
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify(lightConfig));
+
+        const response = await fetch('/api/lights/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData.toString()
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.status === 'ok') {
+            alert('Zapisano ustawienia świateł');
+            await loadLightConfig();
+        } else {
+            throw new Error(result.message || 'Nieznany błąd');
+        }
+    } catch (error) {
+        console.error('Błąd podczas zapisywania:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+// Zmodyfikuj istniejącą funkcję loadLightConfig
+async function loadLightConfig() {
+    debug('Rozpoczynam wczytywanie konfiguracji świateł...');
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        debug('Otrzymane dane:', data);
+
+        if (data.lights) {
+            const elements = {
+                dayLights: document.getElementById('day-lights'),
+                nightLights: document.getElementById('night-lights'),
+                dayBlink: document.getElementById('day-blink'),
+                nightBlink: document.getElementById('night-blink'),
+                blinkFrequency: document.getElementById('blink-frequency')
+            };
+
+            debug('Aktualizacja formularza, otrzymane dane:', data.lights);
+
+            elements.dayLights.value = getFormValue(data.lights.dayLights, false);
+            elements.nightLights.value = getFormValue(data.lights.nightLights, true);
+            elements.dayBlink.checked = Boolean(data.lights.dayBlink);
+            elements.nightBlink.checked = Boolean(data.lights.nightBlink);
+            elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
+
+            debug('Formularz zaktualizowany pomyślnie');
+        }
+    } catch (error) {
+        console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
+    }
+}
+
+// Funkcja pomocnicza do debugowania
+function debug(...args) {
+    if (typeof console !== 'undefined') {
+        console.log('[DEBUG]', ...args);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
     debug('Inicjalizacja aplikacji...');
 
@@ -92,28 +218,6 @@ function setupWebSocket() {
     connect();
 }
 
-// Funkcja pobierająca czas z RTC
-// async function fetchRTCTime() {
-//     try {
-//         const response = await fetch('/api/status');
-//         const data = await response.json();
-//         if (data.time) {
-//             const { hours, minutes, seconds, year, month, day } = data.time;
-            
-//             // Format czasu i daty
-//             //const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-//             //const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-//             const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-//             const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-            
-//             document.getElementById('rtc-time').value = timeStr;
-//             document.getElementById('rtc-date').value = dateStr;
-//         }
-//     } catch (error) {
-//         console.error('Błąd podczas pobierania czasu RTC:', error);
-//     }
-// }
-
 // Funkcja pobierająca czas
 async function fetchRTCTime() {
     try {
@@ -126,8 +230,11 @@ async function fetchRTCTime() {
         }
 
         const response = await fetch('/api/status');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
-        
         if (data && data.time) {
             const { hours, minutes, seconds, year, month, day } = data.time;
             
@@ -141,6 +248,7 @@ async function fetchRTCTime() {
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
+        // Nie wyświetlaj alertu, tylko zaloguj błąd
     }
 }
 
@@ -247,12 +355,6 @@ function setupFormListeners() {
     }
 }
 
-// Debugowanie
-let DEBUG = true;
-function debug(...args) {
-    if (DEBUG) console.log('[DEBUG]', ...args);
-}
-
 // Funkcja inicjalizacji formularza świateł
 function initializeLightForm() {
     debug('Inicjalizacja formularza świateł');
@@ -283,106 +385,6 @@ function getLightFormElements() {
     }
 
     return elements;
-}
-
-// Modyfikacja funkcji loadLightConfig
-async function loadLightConfig() {
-    debug('Rozpoczynam wczytywanie konfiguracji świateł...');
-    try {
-        const response = await fetch('/api/status');
-        const data = await response.json();
-        debug('Otrzymane dane:', data);
-
-        if (data.lights) {
-            const elements = {
-                dayLights: document.getElementById('day-lights'),
-                nightLights: document.getElementById('night-lights'),
-                dayBlink: document.getElementById('day-blink'),
-                nightBlink: document.getElementById('night-blink'),
-                blinkFrequency: document.getElementById('blink-frequency')
-            };
-
-            debug('Aktualizacja formularza, otrzymane dane:', data.lights);
-
-            // Użyj funkcji konwersji z uwzględnieniem trybu dzień/noc
-            elements.dayLights.value = getFormValue(data.lights.dayLights, false);
-            elements.nightLights.value = getFormValue(data.lights.nightLights, true);
-            elements.dayBlink.checked = Boolean(data.lights.dayBlink);
-            elements.nightBlink.checked = Boolean(data.lights.nightBlink);
-            elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
-
-            debug('Formularz zaktualizowany pomyślnie');
-        }
-    } catch (error) {
-        console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
-    }
-}
-
-// Funkcja konwersji wartości z API na wartości formularza
-function getFormValue(serverValue, isNightMode = false) {
-    console.log('Konwersja wartości z serwera:', serverValue);
-    switch(serverValue) {
-        case 'FRONT':
-            return isNightMode ? 'front-normal' : 'front-day';
-        case 'REAR':
-            return 'rear';
-        case 'BOTH':
-            return isNightMode ? 'front-normal-rear' : 'front-day-rear';
-        case 'OFF':
-        default:
-            return 'off';
-    }
-}
-
-// Funkcja zapisywania konfiguracji świateł
-async function saveLightConfig() {
-    debug('Rozpoczynam zapisywanie konfiguracji świateł');
-    try {
-        const elements = {
-            dayLights: document.getElementById('day-lights'),
-            nightLights: document.getElementById('night-lights'),
-            dayBlink: document.getElementById('day-blink'),
-            nightBlink: document.getElementById('night-blink'),
-            blinkFrequency: document.getElementById('blink-frequency')
-        };
-
-        const lightConfig = {
-            dayLights: getLightMode(elements.dayLights.value),
-            nightLights: getLightMode(elements.nightLights.value),
-            dayBlink: elements.dayBlink.checked,
-            nightBlink: elements.nightBlink.checked,
-            blinkEnabled: elements.dayBlink.checked || elements.nightBlink.checked,
-            blinkFrequency: parseInt(elements.blinkFrequency.value)
-        };
-
-        debug('Przygotowane dane:', lightConfig);
-
-        const formData = new URLSearchParams();
-        formData.append('data', JSON.stringify(lightConfig));
-
-        const response = await fetch('/api/lights/config', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: formData.toString()
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (result.status === 'ok') {
-            alert('Zapisano ustawienia świateł');
-            await loadLightConfig();
-        } else {
-            throw new Error(result.message || 'Nieznany błąd');
-        }
-    } catch (error) {
-        console.error('Błąd podczas zapisywania:', error);
-        alert('Błąd podczas zapisywania ustawień: ' + error.message);
-    }
 }
 
 async function fetchCurrentState(retries = 3) {
