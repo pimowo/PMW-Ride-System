@@ -1765,6 +1765,17 @@ void updateControllerParam(const String& param, int value) {
     saveSettings();
 }
 
+// Funkcja pomocnicza - dodaj ją przed definicją setupWebServer()
+const char* getLightModeString(LightSettings::LightMode mode) {
+    switch(mode) {
+        case LightSettings::FRONT: return "FRONT";
+        case LightSettings::REAR: return "REAR";
+        case LightSettings::BOTH: return "BOTH";
+        case LightSettings::NONE:
+        default: return "OFF";
+    }
+}
+
 // W funkcji setup(), po inicjalizacji wyświetlacza, dodaj:
 void setupWebServer() {
     // Serwowanie plików statycznych
@@ -1850,31 +1861,20 @@ void setupWebServer() {
     //     request->send(200, "application/json", response);
     // });
 
-    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-        StaticJsonDocument<512> doc;
-        JsonObject lightsObj = doc.createNestedObject("lights");
-        
-        // Konwersja enum na string
-        const char* getLightModeString(LightSettings::LightMode mode) {
-            switch(mode) {
-                case LightSettings::FRONT: return "FRONT";
-                case LightSettings::REAR: return "REAR";
-                case LightSettings::BOTH: return "BOTH";
-                case LightSettings::NONE:
-                default: return "OFF";
-            }
-        }
-
-        lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
-        lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
-        lightsObj["dayBlink"] = lightSettings.dayBlink;
-        lightsObj["nightBlink"] = lightSettings.nightBlink;
-        lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
-        
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
+server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+    StaticJsonDocument<512> doc;
+    JsonObject lightsObj = doc.createNestedObject("lights");
+    
+    lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
+    lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
+    lightsObj["dayBlink"] = lightSettings.dayBlink;
+    lightsObj["nightBlink"] = lightSettings.nightBlink;
+    lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
+    
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+});
 
     // Endpoint dla ustawień świateł
     // server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
