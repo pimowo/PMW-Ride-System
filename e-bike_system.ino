@@ -1405,44 +1405,38 @@ void setLights() {
     // Zastosuj ustawienia zgodnie z trybem
     if (lightMode == 1) { // Tryb dzienny
         switch (lightSettings.dayLights) {
+            case LightSettings::NONE:
+                // Wszystkie światła pozostają wyłączone
+                break;
             case LightSettings::FRONT:
                 digitalWrite(FrontDayPin, HIGH);
                 break;
             case LightSettings::REAR:
-                if (!lightSettings.dayBlink) {
-                    digitalWrite(RealPin, HIGH);
-                }
+                digitalWrite(RealPin, HIGH);
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontDayPin, HIGH);
-                if (!lightSettings.dayBlink) {
-                    digitalWrite(RealPin, HIGH);
-                }
-                break;
-            default:
+                digitalWrite(RealPin, HIGH);
                 break;
         }
     } else if (lightMode == 2) { // Tryb nocny
         switch (lightSettings.nightLights) {
+            case LightSettings::NONE:
+                // Wszystkie światła pozostają wyłączone
+                break;
             case LightSettings::FRONT:
                 digitalWrite(FrontPin, HIGH);
                 break;
             case LightSettings::REAR:
-                if (!lightSettings.nightBlink) {
-                    digitalWrite(RealPin, HIGH);
-                }
+                digitalWrite(RealPin, HIGH);
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontPin, HIGH);
-                if (!lightSettings.nightBlink) {
-                    digitalWrite(RealPin, HIGH);
-                }
-                break;
-            default:
+                digitalWrite(RealPin, HIGH);
                 break;
         }
     }
-
+    
     // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
     applyBacklightSettings();
 }
