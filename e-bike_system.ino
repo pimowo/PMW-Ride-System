@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "2.1.25";
+const char* VERSION = "3.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -45,18 +45,19 @@ struct TimeSettings {
 
 struct LightSettings {
     enum LightMode {
-        NONE = 0,   // stan "wyłączone"
-        FRONT,      // tylko przednie
-        REAR,       // tylko tylne
-        BOTH        // przednie i tylne
+        NONE,           // Światła wyłączone
+        FRONT_DAY,      // Przednie światło dzienne
+        FRONT_NIGHT,    // Przednie światło nocne
+        REAR,           // Tylne światło
+        BOTH_DAY,       // Przednie dzienne + tylne
+        BOTH_NIGHT      // Przednie nocne + tylne
     };
-
-    LightMode dayLights;    // konfiguracja świateł dziennych
-    LightMode nightLights;  // konfiguracja świateł nocnych
-    bool dayBlink;         // mruganie w trybie dziennym
-    bool nightBlink;       // mruganie w trybie nocnym
-    bool blinkEnabled;     // ogólne włączenie mrugania
-    int blinkFrequency;    // częstotliwość mrugania
+    
+    LightMode dayLights;    // Konfiguracja świateł dziennych
+    LightMode nightLights;  // Konfiguracja świateł nocnych
+    bool dayBlink;         // Miganie w trybie dziennym
+    bool nightBlink;       // Miganie w trybie nocnym
+    uint16_t blinkFrequency; // Częstotliwość migania
 };
 
 struct BacklightSettings {
@@ -373,121 +374,105 @@ void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uin
 
 // Funkcja zapisująca ustawienia świateł do pliku
 void saveLightSettings() {
-    // Utwórz dokument JSON
-    DynamicJsonDocument doc(256);
+    #ifdef DEBUG
+    Serial.println("Zapisywanie ustawień świateł");
+    #endif
+
+    // Przygotuj dokument JSON
+    StaticJsonDocument<256> doc;
     
-    // Konwersja enum na string
-    const char* dayLightsStr;
-    const char* nightLightsStr;
-    
-    switch(lightSettings.dayLights) {
-        case LightSettings::FRONT: dayLightsStr = "FRONT"; break;
-        case LightSettings::REAR: dayLightsStr = "REAR"; break;
-        case LightSettings::BOTH: dayLightsStr = "BOTH"; break;
-        default: dayLightsStr = "OFF"; break;
-    }
-    
-    switch(lightSettings.nightLights) {
-        case LightSettings::FRONT: nightLightsStr = "FRONT"; break;
-        case LightSettings::REAR: nightLightsStr = "REAR"; break;
-        case LightSettings::BOTH: nightLightsStr = "BOTH"; break;
-        default: nightLightsStr = "OFF"; break;
-    }
-    
-    // Zapisz ustawienia do dokumentu JSON
-    doc["dayLights"] = dayLightsStr;
-    doc["nightLights"] = nightLightsStr;
+    // Zapisz ustawienia
+    doc["dayLights"] = lightSettings.dayLights;
+    doc["nightLights"] = lightSettings.nightLights;
     doc["dayBlink"] = lightSettings.dayBlink;
     doc["nightBlink"] = lightSettings.nightBlink;
-    doc["blinkEnabled"] = lightSettings.blinkEnabled;
     doc["blinkFrequency"] = lightSettings.blinkFrequency;
-    
+
     // Otwórz plik do zapisu
-    File file = LittleFS.open(LIGHT_CONFIG_FILE, "w");
+    File file = LittleFS.open("/lights.json", "w");
     if (!file) {
         #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku do zapisu!");
+        Serial.println("Błąd otwarcia pliku do zapisu");
         #endif
         return;
     }
-    
+
     // Zapisz JSON do pliku
     if (serializeJson(doc, file) == 0) {
         #ifdef DEBUG
-        Serial.println("Nie udało się zapisać do pliku!");
+        Serial.println("Błąd podczas zapisu do pliku");
         #endif
     }
-    
+
     file.close();
-    
+
     #ifdef DEBUG
-    Serial.println("Ustawienia świateł zostały zapisane");
+    Serial.println("Ustawienia świateł zapisane");
+    Serial.print("dayLights: "); Serial.println(lightSettings.dayLights);
+    Serial.print("nightLights: "); Serial.println(lightSettings.nightLights);
     #endif
+
+    // Od razu zastosuj nowe ustawienia
+    setLights();
 }
 
 // Funkcja wczytująca ustawienia świateł z pliku
 void loadLightSettings() {
-    // Sprawdź czy plik istnieje
-    if (!LittleFS.exists(LIGHT_CONFIG_FILE)) {
-        #ifdef DEBUG
-        Serial.println("Plik konfiguracyjny nie istnieje, używam ustawień domyślnych");
-        #endif
-        // Ustaw wartości domyślne
-        lightSettings.dayLights = LightSettings::FRONT;
-        lightSettings.nightLights = LightSettings::BOTH;
+    #ifdef DEBUG
+    Serial.println("Wczytywanie ustawień świateł");
+    #endif
+
+    if (LittleFS.exists("/lights.json")) {
+        File file = LittleFS.open("/lights.json", "r");
+        if (file) {
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, file);
+            file.close();
+
+            if (!error) {
+                const char* dayLightsStr = doc["dayLights"] | "FRONT_DAY";
+                const char* nightLightsStr = doc["nightLights"] | "BOTH_NIGHT";
+
+                // Konwersja stringów na enum
+                if (strcmp(dayLightsStr, "FRONT_DAY") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT_DAY;
+                else if (strcmp(dayLightsStr, "FRONT_NIGHT") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT_NIGHT;
+                else if (strcmp(dayLightsStr, "REAR") == 0) 
+                    lightSettings.dayLights = LightSettings::REAR;
+                else if (strcmp(dayLightsStr, "BOTH_DAY") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH_DAY;
+                else if (strcmp(dayLightsStr, "BOTH_NIGHT") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH_NIGHT;
+                else 
+                    lightSettings.dayLights = LightSettings::NONE;
+
+                if (strcmp(nightLightsStr, "FRONT_DAY") == 0) 
+                    lightSettings.nightLights = LightSettings::FRONT_DAY;
+                else if (strcmp(nightLightsStr, "FRONT_NIGHT") == 0) 
+                    lightSettings.nightLights = LightSettings::FRONT_NIGHT;
+                else if (strcmp(nightLightsStr, "REAR") == 0) 
+                    lightSettings.nightLights = LightSettings::REAR;
+                else if (strcmp(nightLightsStr, "BOTH_DAY") == 0) 
+                    lightSettings.nightLights = LightSettings::BOTH_DAY;
+                else if (strcmp(nightLightsStr, "BOTH_NIGHT") == 0) 
+                    lightSettings.nightLights = LightSettings::BOTH_NIGHT;
+                else 
+                    lightSettings.nightLights = LightSettings::NONE;
+
+                lightSettings.dayBlink = doc["dayBlink"] | false;
+                lightSettings.nightBlink = doc["nightBlink"] | false;
+                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+            }
+        }
+    } else {
+        // Ustawienia domyślne
+        lightSettings.dayLights = LightSettings::FRONT_DAY;
+        lightSettings.nightLights = LightSettings::BOTH_NIGHT;
         lightSettings.dayBlink = false;
         lightSettings.nightBlink = false;
-        lightSettings.blinkEnabled = false;
         lightSettings.blinkFrequency = 500;
-        // Zapisz domyślne ustawienia
-        saveLightSettings();
-        return;
     }
-    
-    // Otwórz plik
-    File file = LittleFS.open(LIGHT_CONFIG_FILE, "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku!");
-        #endif
-        return;
-    }
-    
-    // Przeczytaj zawartość pliku
-    DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, file);
-    file.close();
-    
-    if (error) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas parsowania JSON!");
-        #endif
-        return;
-    }
-    
-    // Konwersja string na enum
-    const char* dayLightsStr = doc["dayLights"] | "OFF";
-    const char* nightLightsStr = doc["nightLights"] | "OFF";
-    
-    // Ustaw tryb świateł dziennych
-    if (strcmp(dayLightsStr, "FRONT") == 0) lightSettings.dayLights = LightSettings::FRONT;
-    else if (strcmp(dayLightsStr, "REAR") == 0) lightSettings.dayLights = LightSettings::REAR;
-    else if (strcmp(dayLightsStr, "BOTH") == 0) lightSettings.dayLights = LightSettings::BOTH;
-    
-    // Ustaw tryb świateł nocnych
-    if (strcmp(nightLightsStr, "FRONT") == 0) lightSettings.nightLights = LightSettings::FRONT;
-    else if (strcmp(nightLightsStr, "REAR") == 0) lightSettings.nightLights = LightSettings::REAR;
-    else if (strcmp(nightLightsStr, "BOTH") == 0) lightSettings.nightLights = LightSettings::BOTH;
-    
-    // Wczytaj pozostałe ustawienia
-    lightSettings.dayBlink = doc["dayBlink"] | false;
-    lightSettings.nightBlink = doc["nightBlink"] | false;
-    lightSettings.blinkEnabled = doc["blinkEnabled"] | false;
-    lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
-    
-    #ifdef DEBUG
-    Serial.println("Ustawienia świateł zostały wczytane");
-    #endif
 }
 
 // --- Połączenie z BMS ---
@@ -1077,7 +1062,7 @@ void showWelcomeMessage() {
     unsigned long lastUpdate = millis();
     while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
         unsigned long currentMillis = millis();
-        if (currentMillis - lastUpdate >= 5) { // Aktualizuj co 10ms dla płynności
+        if (currentMillis - lastUpdate >= 2) { // Aktualizuj co 5ms dla płynności
             display.clearBuffer();
             
             // Statyczny tekst "Witaj!"
@@ -1087,7 +1072,9 @@ void showWelcomeMessage() {
             display.drawStr(x, 50, scrollText.c_str());
             display.sendBuffer();
             
-            x--; // Prędkość przewijania
+            // Prędkość przewijania
+            //x--; // jeden px na krok
+            x -= 2; // try px na krok
             lastUpdate = currentMillis;
         }
     }
@@ -1161,7 +1148,13 @@ void handleButtons() {
                 upPressStartTime = currentTime;
             } else if (!upLongPressExecuted && (currentTime - upPressStartTime) > LONG_PRESS_TIME) {
                 lightMode = (lightMode + 1) % 3;
-                setLights();
+                
+                #ifdef DEBUG
+                Serial.print("Zmieniono tryb świateł na: ");
+                Serial.println(lightMode);
+                #endif
+                
+                setLights(); // Zastosuj ustawienia zgodnie z trybem
                 upLongPressExecuted = true;
             }
         } else if (upState && upPressStartTime) {
@@ -1401,97 +1394,43 @@ void goToSleep() {
   esp_deep_sleep_start();
 }
 
-// void setLights() {
-//     // Wyłącz wszystkie światła
-//     digitalWrite(FrontDayPin, LOW);
-//     digitalWrite(FrontPin, LOW);
-//     digitalWrite(RealPin, LOW);
-
-//     // Zastosuj ustawienia zgodnie z aktualnym trybem
-//     switch (lightMode) {
-//         case 0: // Wszystko wyłączone
-//             break;
-            
-//         case 1: // Tryb dzienny - użyj zapisanych ustawień dziennych
-//             switch (lightSettings.dayLights) {
-//                 case LightSettings::FRONT:
-//                     digitalWrite(FrontDayPin, HIGH);
-//                     break;
-//                 case LightSettings::REAR:
-//                     digitalWrite(RealPin, HIGH);
-//                     break;
-//                 case LightSettings::BOTH:
-//                     digitalWrite(FrontDayPin, HIGH);
-//                     digitalWrite(RealPin, HIGH);
-//                     break;
-//             }
-//             break;
-            
-//         case 2: // Tryb nocny - użyj zapisanych ustawień nocnych
-//             switch (lightSettings.nightLights) {
-//                 case LightSettings::FRONT:
-//                     digitalWrite(FrontPin, HIGH);
-//                     break;
-//                 case LightSettings::REAR:
-//                     digitalWrite(RealPin, HIGH);
-//                     break;
-//                 case LightSettings::BOTH:
-//                     digitalWrite(FrontPin, HIGH);
-//                     digitalWrite(RealPin, HIGH);
-//                     break;
-//             }
-//             break;
-//     }
-    
-//     // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
-//     applyBacklightSettings();
-// }
-
 void setLights() {
     // Wyłącz wszystkie światła
     digitalWrite(FrontDayPin, LOW);
     digitalWrite(FrontPin, LOW);
     digitalWrite(RealPin, LOW);
 
-    // Jeśli tryb świateł jest wyłączony, wyjdź
+    // Jeśli światła wyłączone (lightMode == 0), kończymy
     if (lightMode == 0) {
+        #ifdef DEBUG
+        Serial.println("Światła wyłączone");
+        #endif
         return;
     }
 
-    // Wybierz odpowiednią konfigurację w zależności od trybu
-    LightSettings::LightMode currentMode = 
-        (lightMode == 1) ? lightSettings.dayLights : lightSettings.nightLights;
-    bool blinkEnabled = 
-        (lightMode == 1) ? lightSettings.dayBlink : lightSettings.nightBlink;
-
-    // Jeśli tryb jest NONE, nie włączaj żadnych świateł
-    if (currentMode == LightSettings::NONE) {
-        return;
-    }
-
-    // Zastosuj konfigurację
+    // Zastosuj ustawienia zgodnie z trybem
     if (lightMode == 1) { // Tryb dzienny
-        switch (currentMode) {
-            case LightSettings::FRONT:
+        switch (lightSettings.dayLights) {
+            case LightSettings::FRONT_DAY:
                 digitalWrite(FrontDayPin, HIGH);
                 break;
             case LightSettings::REAR:
                 digitalWrite(RealPin, HIGH);
                 break;
-            case LightSettings::BOTH:
+            case LightSettings::BOTH_DAY:
                 digitalWrite(FrontDayPin, HIGH);
                 digitalWrite(RealPin, HIGH);
                 break;
         }
     } else if (lightMode == 2) { // Tryb nocny
-        switch (currentMode) {
-            case LightSettings::FRONT:
+        switch (lightSettings.nightLights) {
+            case LightSettings::FRONT_NIGHT:
                 digitalWrite(FrontPin, HIGH);
                 break;
             case LightSettings::REAR:
                 digitalWrite(RealPin, HIGH);
                 break;
-            case LightSettings::BOTH:
+            case LightSettings::BOTH_NIGHT:
                 digitalWrite(FrontPin, HIGH);
                 digitalWrite(RealPin, HIGH);
                 break;
@@ -1772,12 +1711,14 @@ void updateControllerParam(const String& param, int value) {
 
 // Funkcja pomocnicza - dodaj ją przed definicją setupWebServer()
 const char* getLightModeString(LightSettings::LightMode mode) {
-    switch(mode) {
-        case LightSettings::FRONT: return "FRONT";
+    switch (mode) {
+        case LightSettings::FRONT_DAY: return "FRONT_DAY";
+        case LightSettings::FRONT_NIGHT: return "FRONT_NIGHT";
         case LightSettings::REAR: return "REAR";
-        case LightSettings::BOTH: return "BOTH";
+        case LightSettings::BOTH_DAY: return "BOTH_DAY";
+        case LightSettings::BOTH_NIGHT: return "BOTH_NIGHT";
         case LightSettings::NONE:
-        default: return "OFF";
+        default: return "NONE";
     }
 }
 
@@ -1786,145 +1727,20 @@ void setupWebServer() {
     // Serwowanie plików statycznych
     server.serveStatic("/", LittleFS, "/");
 
-    // Endpoint dla aktualnego stanu
-    // server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-    //     StaticJsonDocument<512> doc;
+    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        StaticJsonDocument<512> doc;
+        JsonObject lightsObj = doc.createNestedObject("lights");
         
-    //     // Pobierz czas z RTC
-    //     DateTime now = rtc.now();
+        lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
+        lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
+        lightsObj["dayBlink"] = lightSettings.dayBlink;
+        lightsObj["nightBlink"] = lightSettings.nightBlink;
+        lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
         
-    //     // Utwórz obiekt czasu
-    //     JsonObject timeObj = doc.createNestedObject("time");
-        
-    //     // Format czasu dla wyświetlania
-    //     char timeStr[64];
-    //     snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02d %02d:%02d:%02d",
-    //         now.year(), now.month(), now.day(),
-    //         now.hour(), now.minute(), now.second());
-        
-    //     // Dodaj czas w dwóch formatach
-    //     timeObj["formatted"] = timeStr;  // Format czytelny
-    //     timeObj["timezone"] = "Europe/Warsaw";
-        
-    //     // Dodaj poszczególne komponenty czasu
-    //     timeObj["hours"] = now.hour();
-    //     timeObj["minutes"] = now.minute();
-    //     timeObj["seconds"] = now.second();
-    //     timeObj["day"] = now.day();
-    //     timeObj["month"] = now.month();
-    //     timeObj["year"] = now.year();
-
-    // // Dodaj sekcję świateł
-    // JsonObject lightsObj = doc.createNestedObject("lights");
-    
-    // // Konwersja enum na string
-    // switch(lightSettings.dayLights) {
-    //     case LightSettings::FRONT:
-    //         lightsObj["dayLights"] = "front-normal";
-    //         break;
-    //     case LightSettings::REAR:
-    //         lightsObj["dayLights"] = "rear";
-    //         break;
-    //     case LightSettings::BOTH:
-    //         lightsObj["dayLights"] = "front-day-rear";
-    //         break;
-    // }
-
-    // switch(lightSettings.nightLights) {
-    //     case LightSettings::FRONT:
-    //         lightsObj["nightLights"] = "front-normal";
-    //         break;
-    //     case LightSettings::REAR:
-    //         lightsObj["nightLights"] = "rear";
-    //         break;
-    //     case LightSettings::BOTH:
-    //         lightsObj["nightLights"] = "front-day-rear";
-    //         break;
-    // }
-
-    // lightsObj["dayBlink"] = lightSettings.dayBlink;
-    // lightsObj["nightBlink"] = lightSettings.nightBlink;
-    // lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
-    
-    // // Dodaj aktualny stan świateł
-    // lightsObj["frontDay"] = digitalRead(FrontDayPin);
-    // lightsObj["front"] = digitalRead(FrontPin);
-    // lightsObj["rear"] = digitalRead(RealPin);
-
-    //     // Dodaj ustawienia podświetlenia
-    //     JsonObject backlightObj = doc.createNestedObject("backlight");
-    //     backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
-    //     backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
-    //     backlightObj["autoMode"] = backlightSettings.autoMode;
-    //     backlightObj["currentMode"] = lightMode;  // dodajemy aktualny tryb świateł
-
-    //     // Dodaj temperaturę
-    //     doc["temperature"] = temperatureRead();
-
-    //     String response;
-    //     serializeJson(doc, response);
-    //     request->send(200, "application/json", response);
-    // });
-
-server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-    StaticJsonDocument<512> doc;
-    JsonObject lightsObj = doc.createNestedObject("lights");
-    
-    lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
-    lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
-    lightsObj["dayBlink"] = lightSettings.dayBlink;
-    lightsObj["nightBlink"] = lightSettings.nightBlink;
-    lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
-    
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
-});
-
-    // Endpoint dla ustawień świateł
-    // server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-    //     if (request->hasParam("data", true)) {
-    //         String jsonString = request->getParam("data", true)->value();
-    //         DynamicJsonDocument doc(256);
-    //         DeserializationError error = deserializeJson(doc, jsonString);
-
-    //         if (!error) {
-    //             // Zapisz tylko konfigurację, bez zmiany aktualnego stanu świateł
-    //             const char* dayLightsStr = doc["dayLights"] | "OFF";
-    //             const char* nightLightsStr = doc["nightLights"] | "OFF";
-                
-    //             // Konwersja string na enum
-    //             if (strcmp(dayLightsStr, "FRONT") == 0) 
-    //                 lightSettings.dayLights = LightSettings::FRONT;
-    //             else if (strcmp(dayLightsStr, "REAR") == 0) 
-    //                 lightSettings.dayLights = LightSettings::REAR;
-    //             else if (strcmp(dayLightsStr, "BOTH") == 0) 
-    //                 lightSettings.dayLights = LightSettings::BOTH;
-                
-    //             if (strcmp(nightLightsStr, "FRONT") == 0) 
-    //                 lightSettings.nightLights = LightSettings::FRONT;
-    //             else if (strcmp(nightLightsStr, "REAR") == 0) 
-    //                 lightSettings.nightLights = LightSettings::REAR;
-    //             else if (strcmp(nightLightsStr, "BOTH") == 0) 
-    //                 lightSettings.nightLights = LightSettings::BOTH;
-                
-    //             // Zapisz pozostałe ustawienia
-    //             lightSettings.dayBlink = doc["dayBlink"] | false;
-    //             lightSettings.nightBlink = doc["nightBlink"] | false;
-    //             lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
-                
-    //             // Zapisz konfigurację do pliku
-    //             saveLightSettings();
-                
-    //             // Nie zmieniaj aktualnego stanu świateł
-    //             // setLights() będzie wywoływane tylko przy użyciu fizycznego przycisku
-                
-    //             request->send(200, "application/json", "{\"status\":\"ok\"}");
-    //         } else {
-    //             request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
-    //         }
-    //     }
-    // });
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
 
     server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
@@ -1936,28 +1752,37 @@ server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
                 const char* dayLightsStr = doc["dayLights"] | "OFF";
                 const char* nightLightsStr = doc["nightLights"] | "OFF";
                 
-                // Funkcja pomocnicza do konwersji
-                auto stringToLightMode = [](const char* str) -> LightSettings::LightMode {
-                    if (strcmp(str, "FRONT") == 0) return LightSettings::FRONT;
-                    if (strcmp(str, "REAR") == 0) return LightSettings::REAR;
-                    if (strcmp(str, "BOTH") == 0) return LightSettings::BOTH;
-                    return LightSettings::NONE;
-                };
-
-                lightSettings.dayLights = stringToLightMode(dayLightsStr);
-                lightSettings.nightLights = stringToLightMode(nightLightsStr);
+                // Zapisz ustawienia do struktury
+                if (strcmp(dayLightsStr, "OFF") == 0) 
+                    lightSettings.dayLights = LightSettings::NONE;
+                else if (strcmp(dayLightsStr, "FRONT") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT;
+                else if (strcmp(dayLightsStr, "REAR") == 0) 
+                    lightSettings.dayLights = LightSettings::REAR;
+                else if (strcmp(dayLightsStr, "BOTH") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH;
+                
+                if (strcmp(nightLightsStr, "OFF") == 0)
+                    lightSettings.nightLights = LightSettings::NONE;
+                else if (strcmp(nightLightsStr, "FRONT") == 0)
+                    lightSettings.nightLights = LightSettings::FRONT;
+                else if (strcmp(nightLightsStr, "REAR") == 0)
+                    lightSettings.nightLights = LightSettings::REAR;
+                else if (strcmp(nightLightsStr, "BOTH") == 0)
+                    lightSettings.nightLights = LightSettings::BOTH;
+                
                 lightSettings.dayBlink = doc["dayBlink"] | false;
                 lightSettings.nightBlink = doc["nightBlink"] | false;
                 lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
                 
+                // Zapisz do pliku
                 saveLightSettings();
                 
-                #ifdef DEBUG
-                Serial.println("Zapisano nowe ustawienia świateł:");
-                Serial.print("dayLights: "); Serial.println(dayLightsStr);
-                Serial.print("nightLights: "); Serial.println(nightLightsStr);
-                #endif
-
+                // Od razu zastosuj nowe ustawienia jeśli jakiś tryb jest aktywny
+                if (lightMode > 0) {
+                    setLights();
+                }
+                
                 request->send(200, "application/json", "{\"status\":\"ok\"}");
             } else {
                 request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
@@ -1965,6 +1790,31 @@ server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
         }
     });
 
+    // Endpoint do pobierania czasu (GET)
+    server.on("/api/time", HTTP_GET, [](AsyncWebServerRequest* request) {
+        DateTime now = rtc.now();
+        
+        StaticJsonDocument<200> doc;
+        JsonObject time = doc.createNestedObject("time");
+        time["year"] = now.year();
+        time["month"] = now.month();
+        time["day"] = now.day();
+        time["hours"] = now.hour();
+        time["minutes"] = now.minute();
+        time["seconds"] = now.second();
+        
+        String response;
+        serializeJson(doc, response);
+        
+        #ifdef DEBUG
+        Serial.print("Wysyłam aktualny czas: ");
+        Serial.println(response);
+        #endif
+        
+        request->send(200, "application/json", response);
+    });
+
+    // Endpoint do ustawiania czasu (POST)
     server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
         [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
             StaticJsonDocument<200> doc;
@@ -1987,11 +1837,28 @@ server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
                     second >= 0 && second <= 59) {
                     
                     rtc.adjust(DateTime(year, month, day, hour, minute, second));
+                    
+                    #ifdef DEBUG
+                    Serial.println("Czas został zaktualizowany:");
+                    Serial.print(year); Serial.print("-");
+                    Serial.print(month); Serial.print("-");
+                    Serial.print(day); Serial.print(" ");
+                    Serial.print(hour); Serial.print(":");
+                    Serial.print(minute); Serial.print(":");
+                    Serial.println(second);
+                    #endif
+                    
                     request->send(200, "application/json", "{\"status\":\"ok\"}");
                 } else {
+                    #ifdef DEBUG
+                    Serial.println("Błędne wartości daty/czasu");
+                    #endif
                     request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
                 }
             } else {
+                #ifdef DEBUG
+                Serial.println("Błędny format JSON");
+                #endif
                 request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
             }
     });
@@ -2030,15 +1897,6 @@ server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
             }
         }
     );
-
-    // server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-    //     String json = "{\"backlight\":{";
-    //     json += "\"dayBrightness\":" + String(backlightSettings.dayBrightness) + ",";
-    //     json += "\"nightBrightness\":" + String(backlightSettings.nightBrightness) + ",";
-    //     json += "\"autoMode\":" + String(backlightSettings.autoMode ? "true" : "false");
-    //     json += "}}";
-    //     request->send(200, "application/json", json);
-    // });
 
     server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
@@ -2114,12 +1972,11 @@ void initializeDefaultSettings() {
     timeSettings.month = 1;
     timeSettings.year = 2024;
 
-    // Światła
-    lightSettings.dayLights = LightSettings::FRONT;
+    // Ustawienia świateł
+    lightSettings.dayLights = LightSettings::FRONT_DAY;
+    lightSettings.nightLights = LightSettings::BOTH_NIGHT;
     lightSettings.dayBlink = false;
-    lightSettings.nightLights = LightSettings::BOTH;
     lightSettings.nightBlink = false;
-    lightSettings.blinkEnabled = false;
     lightSettings.blinkFrequency = 500;
 
     // Podświetlenie
