@@ -45,18 +45,16 @@ struct TimeSettings {
 
 struct LightSettings {
     enum LightMode {
-        NONE,           // Światła wyłączone
-        FRONT_DAY,      // Przednie światło dzienne
-        FRONT_NIGHT,    // Przednie światło nocne
-        REAR,           // Tylne światło
-        BOTH_DAY,       // Przednie dzienne + tylne
-        BOTH_NIGHT      // Przednie nocne + tylne
+        NONE,
+        FRONT,
+        REAR,
+        BOTH
     };
     
-    LightMode dayLights;    // Konfiguracja świateł dziennych
-    LightMode nightLights;  // Konfiguracja świateł nocnych
-    bool dayBlink;         // Miganie w trybie dziennym
-    bool nightBlink;       // Miganie w trybie nocnym
+    LightMode dayLights;      // Konfiguracja świateł dziennych
+    LightMode nightLights;    // Konfiguracja świateł nocnych
+    bool dayBlink;           // Miganie w trybie dziennym
+    bool nightBlink;         // Miganie w trybie nocnym
     uint16_t blinkFrequency; // Częstotliwość migania
 };
 
@@ -430,33 +428,25 @@ void loadLightSettings() {
             file.close();
 
             if (!error) {
-                const char* dayLightsStr = doc["dayLights"] | "FRONT_DAY";
-                const char* nightLightsStr = doc["nightLights"] | "BOTH_NIGHT";
+                const char* dayLightsStr = doc["dayLights"] | "FRONT";
+                const char* nightLightsStr = doc["nightLights"] | "BOTH";
 
                 // Konwersja stringów na enum
-                if (strcmp(dayLightsStr, "FRONT_DAY") == 0) 
-                    lightSettings.dayLights = LightSettings::FRONT_DAY;
-                else if (strcmp(dayLightsStr, "FRONT_NIGHT") == 0) 
-                    lightSettings.dayLights = LightSettings::FRONT_NIGHT;
+                if (strcmp(dayLightsStr, "FRONT") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT;
                 else if (strcmp(dayLightsStr, "REAR") == 0) 
                     lightSettings.dayLights = LightSettings::REAR;
-                else if (strcmp(dayLightsStr, "BOTH_DAY") == 0) 
-                    lightSettings.dayLights = LightSettings::BOTH_DAY;
-                else if (strcmp(dayLightsStr, "BOTH_NIGHT") == 0) 
-                    lightSettings.dayLights = LightSettings::BOTH_NIGHT;
+                else if (strcmp(dayLightsStr, "BOTH") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH;
                 else 
                     lightSettings.dayLights = LightSettings::NONE;
 
-                if (strcmp(nightLightsStr, "FRONT_DAY") == 0) 
-                    lightSettings.nightLights = LightSettings::FRONT_DAY;
-                else if (strcmp(nightLightsStr, "FRONT_NIGHT") == 0) 
-                    lightSettings.nightLights = LightSettings::FRONT_NIGHT;
+                if (strcmp(nightLightsStr, "FRONT") == 0) 
+                    lightSettings.nightLights = LightSettings::FRONT;
                 else if (strcmp(nightLightsStr, "REAR") == 0) 
                     lightSettings.nightLights = LightSettings::REAR;
-                else if (strcmp(nightLightsStr, "BOTH_DAY") == 0) 
-                    lightSettings.nightLights = LightSettings::BOTH_DAY;
-                else if (strcmp(nightLightsStr, "BOTH_NIGHT") == 0) 
-                    lightSettings.nightLights = LightSettings::BOTH_NIGHT;
+                else if (strcmp(nightLightsStr, "BOTH") == 0) 
+                    lightSettings.nightLights = LightSettings::BOTH;
                 else 
                     lightSettings.nightLights = LightSettings::NONE;
 
@@ -467,8 +457,8 @@ void loadLightSettings() {
         }
     } else {
         // Ustawienia domyślne
-        lightSettings.dayLights = LightSettings::FRONT_DAY;
-        lightSettings.nightLights = LightSettings::BOTH_NIGHT;
+        lightSettings.dayLights = LightSettings::FRONT;
+        lightSettings.nightLights = LightSettings::BOTH;
         lightSettings.dayBlink = false;
         lightSettings.nightBlink = false;
         lightSettings.blinkFrequency = 500;
@@ -1411,28 +1401,32 @@ void setLights() {
     // Zastosuj ustawienia zgodnie z trybem
     if (lightMode == 1) { // Tryb dzienny
         switch (lightSettings.dayLights) {
-            case LightSettings::FRONT_DAY:
+            case LightSettings::FRONT:
                 digitalWrite(FrontDayPin, HIGH);
                 break;
             case LightSettings::REAR:
                 digitalWrite(RealPin, HIGH);
                 break;
-            case LightSettings::BOTH_DAY:
+            case LightSettings::BOTH:
                 digitalWrite(FrontDayPin, HIGH);
                 digitalWrite(RealPin, HIGH);
+                break;
+            default:
                 break;
         }
     } else if (lightMode == 2) { // Tryb nocny
         switch (lightSettings.nightLights) {
-            case LightSettings::FRONT_NIGHT:
+            case LightSettings::FRONT:
                 digitalWrite(FrontPin, HIGH);
                 break;
             case LightSettings::REAR:
                 digitalWrite(RealPin, HIGH);
                 break;
-            case LightSettings::BOTH_NIGHT:
+            case LightSettings::BOTH:
                 digitalWrite(FrontPin, HIGH);
                 digitalWrite(RealPin, HIGH);
+                break;
+            default:
                 break;
         }
     }
