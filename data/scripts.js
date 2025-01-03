@@ -1,6 +1,4 @@
-// Dodaj te funkcje na początku pliku scripts.js, przed innymi funkcjami
-
-// Funkcja konwersji wartości z formularza na wartości API
+// Funkcja konwersji wartości formularza na wartości API
 function getLightMode(value) {
     debug('Konwersja wartości formularza:', value);
     switch(value) {
@@ -14,7 +12,7 @@ function getLightMode(value) {
             return "BOTH";
         case 'off':
         default:
-            return "OFF";
+            return "NONE";
     }
 }
 
@@ -28,13 +26,13 @@ function getFormValue(serverValue, isNightMode = false) {
             return 'rear';
         case 'BOTH':
             return isNightMode ? 'front-normal-rear' : 'front-day-rear';
-        case 'OFF':
+        case 'NONE':
         default:
             return 'off';
     }
 }
 
-// Zmodyfikuj istniejącą funkcję saveLightConfig
+// Funkcja zapisywania konfiguracji
 async function saveLightConfig() {
     debug('Rozpoczynam zapisywanie konfiguracji świateł');
     try {
@@ -51,7 +49,6 @@ async function saveLightConfig() {
             nightLights: getLightMode(elements.nightLights.value),
             dayBlink: elements.dayBlink.checked,
             nightBlink: elements.nightBlink.checked,
-            blinkEnabled: elements.dayBlink.checked || elements.nightBlink.checked,
             blinkFrequency: parseInt(elements.blinkFrequency.value)
         };
 
@@ -73,19 +70,20 @@ async function saveLightConfig() {
         }
 
         const result = await response.json();
-        if (result.status === 'ok') {
-            alert('Zapisano ustawienia świateł');
-            await loadLightConfig();
-        } else {
+        if (result.status !== 'ok') {
             throw new Error(result.message || 'Nieznany błąd');
         }
+
+        // Poczekaj chwilę przed odświeżeniem stanu
+        setTimeout(loadLightConfig, 500);
+        
     } catch (error) {
         console.error('Błąd podczas zapisywania:', error);
         alert('Błąd podczas zapisywania ustawień: ' + error.message);
     }
 }
 
-// Zmodyfikuj istniejącą funkcję loadLightConfig
+// Funkcja wczytywania konfiguracji
 async function loadLightConfig() {
     debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     try {
@@ -94,6 +92,8 @@ async function loadLightConfig() {
         debug('Otrzymane dane:', data);
 
         if (data.lights) {
+            debug('Aktualizacja formularza, otrzymane dane:', data.lights);
+            
             const elements = {
                 dayLights: document.getElementById('day-lights'),
                 nightLights: document.getElementById('night-lights'),
@@ -101,8 +101,6 @@ async function loadLightConfig() {
                 nightBlink: document.getElementById('night-blink'),
                 blinkFrequency: document.getElementById('blink-frequency')
             };
-
-            debug('Aktualizacja formularza, otrzymane dane:', data.lights);
 
             elements.dayLights.value = getFormValue(data.lights.dayLights, false);
             elements.nightLights.value = getFormValue(data.lights.nightLights, true);
@@ -218,7 +216,6 @@ function setupWebSocket() {
     connect();
 }
 
-// Funkcja pobierająca czas
 async function fetchRTCTime() {
     try {
         const timeElement = document.getElementById('rtc-time');
@@ -229,7 +226,7 @@ async function fetchRTCTime() {
             return;
         }
 
-        const response = await fetch('/api/status');
+        const response = await fetch('/api/time');
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -248,7 +245,6 @@ async function fetchRTCTime() {
         }
     } catch (error) {
         console.error('Błąd podczas pobierania czasu RTC:', error);
-        // Nie wyświetlaj alertu, tylko zaloguj błąd
     }
 }
 
