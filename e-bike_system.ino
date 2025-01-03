@@ -45,18 +45,18 @@ struct TimeSettings {
 
 struct LightSettings {
     enum LightMode {
-        NONE = 0,
-        FRONT,
-        REAR,
-        BOTH
+        NONE = 0,   // stan "wyłączone"
+        FRONT,      // tylko przednie
+        REAR,       // tylko tylne
+        BOTH        // przednie i tylne
     };
 
-    LightMode dayLights;
-    bool dayBlink;
-    LightMode nightLights;
-    bool nightBlink;
-    bool blinkEnabled;
-    int blinkFrequency;  // ms
+    LightMode dayLights;    // konfiguracja świateł dziennych
+    LightMode nightLights;  // konfiguracja świateł nocnych
+    bool dayBlink;         // mruganie w trybie dziennym
+    bool nightBlink;       // mruganie w trybie nocnym
+    bool blinkEnabled;     // ogólne włączenie mrugania
+    int blinkFrequency;    // częstotliwość mrugania
 };
 
 struct BacklightSettings {
@@ -1453,17 +1453,25 @@ void setLights() {
     digitalWrite(FrontPin, LOW);
     digitalWrite(RealPin, LOW);
 
-    // Jeśli tryb świateł jest wyłączony (lightMode = 0), nie włączaj żadnych świateł
+    // Jeśli tryb świateł jest wyłączony, wyjdź
     if (lightMode == 0) {
         return;
     }
 
-    // Zastosuj ustawienia zgodnie z aktualnym trybem
+    // Wybierz odpowiednią konfigurację w zależności od trybu
+    LightSettings::LightMode currentMode = 
+        (lightMode == 1) ? lightSettings.dayLights : lightSettings.nightLights;
+    bool blinkEnabled = 
+        (lightMode == 1) ? lightSettings.dayBlink : lightSettings.nightBlink;
+
+    // Jeśli tryb jest NONE, nie włączaj żadnych świateł
+    if (currentMode == LightSettings::NONE) {
+        return;
+    }
+
+    // Zastosuj konfigurację
     if (lightMode == 1) { // Tryb dzienny
-        if (lightSettings.dayLights == LightSettings::NONE) {
-            return;  // wszystko wyłączone
-        }
-        switch (lightSettings.dayLights) {
+        switch (currentMode) {
             case LightSettings::FRONT:
                 digitalWrite(FrontDayPin, HIGH);
                 break;
@@ -1476,10 +1484,7 @@ void setLights() {
                 break;
         }
     } else if (lightMode == 2) { // Tryb nocny
-        if (lightSettings.nightLights == LightSettings::NONE) {
-            return;  // wszystko wyłączone
-        }
-        switch (lightSettings.nightLights) {
+        switch (currentMode) {
             case LightSettings::FRONT:
                 digitalWrite(FrontPin, HIGH);
                 break;
