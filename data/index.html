@@ -13,7 +13,10 @@
         </header>
 
         <main>
-            <section class="dashboard">                
+            <section class="dashboard">          
+
+    <!-- sekcja zegara -->
+      
                 <div class="card clock-config">
                     <h2>Konfiguracja zegara <button class="info-icon" data-info="rtc-info">ℹ</button></h2>
                     <div class="rtc-row">
@@ -29,7 +32,8 @@
                     </div>
                 </div>
 
-                <!-- sekcja light-config -->
+    <!-- sekcja świateł -->
+
                 <div class="card light-config">
                     <h2>Konfiguracja świateł</h2>                    
                     <form id="lights-form">
@@ -95,6 +99,8 @@
                     </form>
                 </div>
 
+    <!-- sekcja wyświetlacza -->
+
                 <div class="card display-config">
                     <h2>Konfiguracja Wyświetlacza</h2>  
                     <div class="display-row">
@@ -157,16 +163,14 @@
                     <button class="btn-save" onclick="saveDisplayConfig()">Zapisz</button>
                 </div>
 
+    <!-- sekcja sterownika -->
+
                 <div class="card controller-config">
-                    <h2>
-                        Konfiguracja sterownika
-                        <button class="info-icon" data-info="controller-config-info">ℹ</button>
-                    </h2>
-                    
+                    <h2>Konfiguracja sterownika</h2>                    
                     <div class="setting-row">
                         <label>
-                            Typ sterownika
-                            <button class="info-icon" data-info="controller-type-info">ℹ</button>
+                            Typ wyświetlacza
+                            <button class="info-icon" data-info="display-type-info">ℹ</button>
                         </label>
                         <select id="controller-type" onchange="toggleControllerParams()">
                             <option value="kt-lcd">KT-LCD</option>
@@ -174,7 +178,8 @@
                         </select>
                     </div>
 
-                    <!-- Parametry KT-LCD -->
+    <!-- Parametry KT-LCD -->
+
                     <div id="kt-lcd-params">
                         <!-- P1-P5 -->
                         <h3>Parametry P</h3>
@@ -353,7 +358,8 @@
                         </div>
                     </div>
 
-                    <!-- Parametry S866 -->
+    <!-- Parametry S866 -->
+
                     <div id="s866-params" style="display: none;">
                         <h3>Parametry P</h3>
                         <div class="settings-group">
@@ -507,7 +513,9 @@
             <span>Project by PMW e-Bike System ver. <span id="system-version">...</span></span>
         </footer>
     </div>
+
     <!-- Modal -->
+
     <div id="info-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
