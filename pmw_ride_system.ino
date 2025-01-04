@@ -532,7 +532,6 @@ void connectToBms() {
 void setDisplayBrightness(uint8_t brightness) {
     displayBrightness = brightness;
     display.setContrast(displayBrightness);
-    // Opcjonalnie: zapisz wartość do EEPROM aby zapamiętać ustawienie
 }
 
 // Funkcja zapisująca ustawienia do pliku
@@ -608,7 +607,6 @@ void loadBacklightSettingsFromFile() {
     #endif
 }
 
-// Funkcje ustawień
 // Wczytywanie ustawień z EEPROM
 void loadSettingsFromEEPROM() {
     // Wczytanie ustawień z EEPROM
@@ -617,7 +615,6 @@ void loadSettingsFromEEPROM() {
     // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
     storedSettings = bikeSettings;
 
-    // Możesz dodać weryfikację wczytanych danych
     if (bikeSettings.wheelCircumference == 0) {
         bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
         bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
@@ -745,9 +742,10 @@ void drawAssistLevel() {
 
     display.setFont(czcionka_mala);
     const char* modeText;
+    const char* modeText2;
     switch (assistMode) {
         case 0:
-            modeText = "STOP";
+            modeText2 = "STOP";
             break;
         case 1:
             modeText = "PAS";
@@ -762,7 +760,8 @@ void drawAssistLevel() {
             modeText = "MIX";
             break;
     }
-    display.drawStr(30, 24, modeText);
+    display.drawStr(30, 24, modeText);  // wyświetl rodzaj sterowania
+    display.drawStr(30, 36, modeText2);  // wyświetl STOP przy hamowaniu
 }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
