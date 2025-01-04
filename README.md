@@ -19,7 +19,7 @@ PMW Ride System to zaawansowany system zaprojektowany dla rowerów elektrycznych
 - **🖥️ Wyświetlacz**: SSD1306 128x64 OLED (0.96", 1.54" i 2.42")
 - **🌡️ Czujnik temperatury**: 2x DS18B20 i NTC10k
 - **⏰ Zegar czasu rzeczywistego (RTC)**: DS3231
-- **📶 Bluetooth**: BLE do komunikacji z systemem zarządzania baterią (BMS)
+- **📶 Bluetooth**: BLE do komunikacji z systemem zarządzania baterią (BMS) i TPMS
 - **💾 EEPROM**: Do przechowywania ustawień użytkownika
 
 ## 📍 Definicje pinów
