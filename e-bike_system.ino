@@ -1049,7 +1049,8 @@ void showWelcomeMessage() {
     int welcomeX = (128 - welcomeWidth) / 2;
 
     // Tekst przewijany
-    String scrollText = "e-Bike System PMW  ";
+    //String scrollText = "e-Bike System PMW  ";
+    String scrollText = "PMW Ride System  ";
     int messageWidth = display.getStrWidth(scrollText.c_str());
     int x = 128; // Start poza prawą krawędzią
 
@@ -1286,7 +1287,8 @@ void activateConfigMode() {
 
     // 2. Włączenie WiFi w trybie AP
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("e-Bike System", "#mamrower");
+    //WiFi.softAP("e-Bike System", "#mamrower");
+    WiFi.softAP("PMW Ride System, #mamower");
     #ifdef DEBUG
     Serial.println("Tryb AP aktywny");
     #endif
@@ -2291,9 +2293,11 @@ void loop() {
         display.clearBuffer();
 
         // Wycentruj każdą linię tekstu
-        drawCenteredText("e-Bike System", 12, czcionka_srednia);
+        //drawCenteredText("e-Bike System", 12, czcionka_srednia);
+        drawCenteredText("PMW Ride System", 12, czcionka_srednia);
         drawCenteredText("Konfiguracja on-line", 25, czcionka_mala);
-        drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
+        //drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
+        drawCenteredText("siec: PMW Ride System", 40, czcionka_mala);
         drawCenteredText("haslo: #mamrower", 51, czcionka_mala);
         drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
 
