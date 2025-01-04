@@ -20,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "3.1.25";
+const char* VERSION = "4.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -648,7 +648,7 @@ void drawHorizontalLine() {
 
 void drawVerticalLine() {
     display.drawVLine(25, 16, 28);
-    display.drawVLine(67, 16, 28);
+    display.drawVLine(64, 16, 28);
 }
 
 void drawTopBar() {
@@ -692,12 +692,10 @@ void drawLightStatus() {
 
     switch (lightMode) {
         case 1:
-            //display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(30, 44, "Dzien");
+            display.drawStr(30, 45, "Dzien");
             break;
         case 2:
-            //display.drawUTF8(22, 36, "Swiatlo");
-            display.drawUTF8(30, 44, "Noc");
+            display.drawStr(30, 45, "Noc");
             break;
     }
 }
@@ -761,8 +759,11 @@ void drawAssistLevel() {
             modeText = "MIX";
             break;
     }
-    display.drawStr(30, 24, modeText);  // wyświetl rodzaj sterowania
-    display.drawStr(30, 36, modeText2);  // wyświetl STOP przy hamowaniu
+    display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
+    display.drawStr(30, 34, modeText2);  // wyświetl STOP przy hamowaniu
+    drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
+
+    //display.sendBuffer();
 }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
@@ -1049,8 +1050,7 @@ void showWelcomeMessage() {
     int welcomeX = (128 - welcomeWidth) / 2;
 
     // Tekst przewijany
-    //String scrollText = "e-Bike System PMW  ";
-    String scrollText = "PMW Ride System  ";
+    String scrollText = "e-Bike System PMW  ";
     int messageWidth = display.getStrWidth(scrollText.c_str());
     int x = 128; // Start poza prawą krawędzią
 
@@ -1287,8 +1287,7 @@ void activateConfigMode() {
 
     // 2. Włączenie WiFi w trybie AP
     WiFi.mode(WIFI_AP);
-    //WiFi.softAP("e-Bike System", "#mamrower");
-    WiFi.softAP("PMW Ride System, #mamower");
+    WiFi.softAP("e-Bike System PMW", "#mamrower");
     #ifdef DEBUG
     Serial.println("Tryb AP aktywny");
     #endif
@@ -2264,7 +2263,7 @@ void drawCenteredText(const char* text, int y, const uint8_t* font) {
     // Rysuje tekst w obliczonej pozycji
     // x - pozycja pozioma (wycentrowana)
     // y - pozycja pionowa (określona przez parametr)
-    display.drawUTF8(x, y, text);
+    display.drawStr(x, y, text);
 }
 
 void loop() {
@@ -2293,11 +2292,9 @@ void loop() {
         display.clearBuffer();
 
         // Wycentruj każdą linię tekstu
-        //drawCenteredText("e-Bike System", 12, czcionka_srednia);
-        drawCenteredText("PMW Ride System", 12, czcionka_srednia);
+        drawCenteredText("e-Bike System", 12, czcionka_srednia);
         drawCenteredText("Konfiguracja on-line", 25, czcionka_mala);
-        //drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
-        drawCenteredText("siec: PMW Ride System", 40, czcionka_mala);
+        drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
         drawCenteredText("haslo: #mamrower", 51, czcionka_mala);
         drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
 
