@@ -1,3 +1,247 @@
+// Konfiguracja debugowania
+const DEBUG_CONFIG = {
+    ENABLED: true,  // można zmienić na false na produkcji
+    LOG_LEVELS: {
+        INFO: 'INFO',
+        WARNING: 'WARNING',
+        ERROR: 'ERROR',
+        DEBUG: 'DEBUG'
+    }
+};
+
+// Dodaj na początku pliku (po DEBUG_CONFIG)
+const WS_CONFIG = {
+    RECONNECT_DELAY: 5000,      // 5 sekund
+    MAX_RETRIES: 3,             // maksymalna liczba prób ponownego połączenia
+    PING_INTERVAL: 30000,       // 30 sekund
+    CONNECTION_TIMEOUT: 10000    // 10 sekund
+};
+
+// Klasa do zarządzania połączeniem WebSocket
+class WebSocketManager {
+    constructor(hostname) {
+        this.hostname = hostname;
+        this.ws = null;
+        this.retries = 0;
+        this.isConnecting = false;
+        this.pingInterval = null;
+        this.reconnectTimeout = null;
+    }
+
+    connect() {
+        if (this.isConnecting || this.retries >= WS_CONFIG.MAX_RETRIES) {
+            return;
+        }
+
+        this.isConnecting = true;
+        logInfo('Próba połączenia WebSocket...');
+
+        try {
+            this.ws = new WebSocket(`ws://${this.hostname}/ws`);
+            this.setupEventHandlers();
+            this.setupConnectionTimeout();
+        } catch (error) {
+            logError('Błąd podczas tworzenia połączenia WebSocket', error);
+            this.handleConnectionError();
+        }
+    }
+
+    setupEventHandlers() {
+        this.ws.onopen = () => {
+            this.isConnecting = false;
+            this.retries = 0;
+            logInfo('WebSocket połączony');
+            this.startPingInterval();
+            loadLightConfig(); // Załaduj aktualny stan po połączeniu
+        };
+
+        this.ws.onclose = () => {
+            this.isConnecting = false;
+            this.stopPingInterval();
+            logWarning('Połączenie WebSocket zostało zamknięte');
+            this.handleConnectionError();
+        };
+
+        this.ws.onerror = (error) => {
+            logError('Błąd WebSocket', error);
+            this.handleConnectionError();
+        };
+
+        this.ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                this.handleMessage(data);
+            } catch (error) {
+                logError('Błąd podczas przetwarzania wiadomości WebSocket', error);
+            }
+        };
+    }
+
+    setupConnectionTimeout() {
+        setTimeout(() => {
+            if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+                logWarning('Przekroczono limit czasu połączenia');
+                this.ws.close();
+                this.handleConnectionError();
+            }
+        }, WS_CONFIG.CONNECTION_TIMEOUT);
+    }
+
+    handleConnectionError() {
+        if (this.retries < WS_CONFIG.MAX_RETRIES) {
+            this.retries++;
+            logInfo(`Próba ponownego połączenia (${this.retries}/${WS_CONFIG.MAX_RETRIES})`);
+            this.reconnectTimeout = setTimeout(() => this.connect(), WS_CONFIG.RECONNECT_DELAY);
+        } else {
+            logError('Przekroczono maksymalną liczbę prób połączenia');
+        }
+    }
+
+    startPingInterval() {
+        this.pingInterval = setInterval(() => {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({ type: 'ping' }));
+                logInfo('Wysłano ping');
+            }
+        }, WS_CONFIG.PING_INTERVAL);
+    }
+
+    stopPingInterval() {
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+            this.pingInterval = null;
+        }
+    }
+
+    handleMessage(data) {
+        switch (data.type) {
+            case 'pong':
+                logInfo('Otrzymano pong');
+                break;
+            case 'config_update':
+                logInfo('Otrzymano aktualizację konfiguracji', data);
+                loadLightConfig();
+                break;
+            case 'error':
+                logError('Otrzymano błąd z serwera', data);
+                handleError(new Error(data.message), ERROR_TYPES.NETWORK);
+                break;
+            default:
+                logWarning('Otrzymano nieznany typ wiadomości', data);
+        }
+    }
+
+    cleanup() {
+        this.stopPingInterval();
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+        }
+        if (this.ws) {
+            this.ws.close();
+        }
+    }
+}
+
+// Inicjalizacja WebSocketManager
+let wsManager = null;
+
+function initializeWebSocket() {
+    if (wsManager) {
+        wsManager.cleanup();
+    }
+    wsManager = new WebSocketManager(window.location.hostname);
+    wsManager.connect();
+}
+
+// Nasłuchiwanie na zamknięcie okna
+window.addEventListener('beforeunload', () => {
+    if (wsManager) {
+        wsManager.cleanup();
+    }
+});
+
+// Ulepszona funkcja debug
+const debug = (() => {
+    // Jeśli debugowanie jest wyłączone, zwracamy pustą funkcję
+    if (!DEBUG_CONFIG.ENABLED) {
+        return () => {};
+    }
+
+    return (message, data = null, level = DEBUG_CONFIG.LOG_LEVELS.DEBUG) => {
+        const timestamp = new Date().toISOString();
+        const prefix = `[${level}][${timestamp}]`;
+        
+        if (data) {
+            console.log(prefix, message, data);
+        } else {
+            console.log(prefix, message);
+        }
+    };
+})();
+
+// Pomocnicze funkcje do logowania
+const logInfo = (message, data) => debug(message, data, DEBUG_CONFIG.LOG_LEVELS.INFO);
+const logWarning = (message, data) => debug(message, data, DEBUG_CONFIG.LOG_LEVELS.WARNING);
+const logError = (message, data) => debug(message, data, DEBUG_CONFIG.LOG_LEVELS.ERROR);
+
+const FORM_ELEMENTS = {
+    dayLights: 'day-lights',
+    nightLights: 'night-lights',
+    dayBlink: 'day-blink',
+    nightBlink: 'night-blink',
+    blinkFrequency: 'blink-frequency'
+};
+
+function debounce(fn, time) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn.apply(this, args), time);
+    };
+}
+
+// Stałe dla typów błędów
+const ERROR_TYPES = {
+    SAVE: 'zapisywania',
+    LOAD: 'wczytywania',
+    VALIDATION: 'walidacji',
+    NETWORK: 'połączenia sieciowego'
+};
+
+// Centralna funkcja obsługi błędów
+function handleError(error, context) {
+    const errorMessage = error.message || 'Nieznany błąd';
+    console.error(`Błąd podczas ${context}:`, error);
+    alert(`Błąd podczas ${context}: ${errorMessage}`);
+}
+
+// Funkcja walidacji konfiguracji świateł
+function validateLightConfig(config) {
+    const errors = [];
+    
+    // Sprawdzenie wymaganych pól
+    if (!config.dayLights) errors.push('Nieprawidłowe światła dzienne');
+    if (!config.nightLights) errors.push('Nieprawidłowe światła nocne');
+    
+    // Sprawdzenie częstotliwości mrugania
+    const frequency = config.blinkFrequency;
+    if (isNaN(frequency) || frequency < 100 || frequency > 2000) {
+        errors.push('Nieprawidłowa częstotliwość mrugania (zakres 100-2000ms)');
+    }
+
+    return errors;
+}
+
+function getFormElements() {
+    if (!getFormElements.cache) {
+        getFormElements.cache = Object.entries(FORM_ELEMENTS).reduce((acc, [key, id]) => {
+            acc[key] = document.getElementById(id);
+            return acc;
+        }, {});
+    }
+    return getFormElements.cache;
+}
+
 // Funkcja konwersji wartości formularza na wartości API
 function getLightMode(value) {
     debug('Konwersja wartości formularza:', value);
@@ -32,8 +276,97 @@ function getFormValue(serverValue, isNightMode = false) {
     }
 }
 
-// Dodaj zmienną do kontroli debounce
-let saveTimeout = null;
+// Implementacja głównej funkcji saveLightConfig
+async function saveLightConfigImpl() {
+    try {
+        const elements = getFormElements();
+        const lightConfig = {
+            dayLights: getLightMode(elements.dayLights.value),
+            nightLights: getLightMode(elements.nightLights.value),
+            dayBlink: elements.dayBlink.checked,
+            nightBlink: elements.nightBlink.checked,
+            blinkFrequency: parseInt(elements.blinkFrequency.value, 10)
+        };
+
+        const validationErrors = validateLightConfig(lightConfig);
+        if (validationErrors.length > 0) {
+            logError('Błędy walidacji', validationErrors);
+            throw new Error(`Błędy walidacji: ${validationErrors.join(', ')}`);
+        }
+
+        logInfo('Przygotowane dane konfiguracji', lightConfig);
+
+        const formData = new URLSearchParams();
+        formData.append('data', JSON.stringify(lightConfig));
+
+        const response = await fetch('/api/lights/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData.toString()
+        }).catch(error => {
+            logError('Błąd sieci', error);
+            throw new Error(`Błąd sieci: ${error.message}`);
+        });
+
+        if (!response.ok) {
+            logError('Błąd HTTP', { status: response.status });
+            throw new Error(`Błąd HTTP: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.status === 'ok') {
+            logInfo('Zapisano ustawienia świateł');
+            alert('Zapisano ustawienia świateł');
+            await loadLightConfig();
+        } else {
+            throw new Error(result.message || 'Nieznany błąd odpowiedzi');
+        }
+    } catch (error) {
+        handleError(error, ERROR_TYPES.SAVE);
+    }
+}
+
+// Implementacja głównej funkcji loadLightConfig
+async function loadLightConfigImpl() {
+    try {
+        const response = await fetch('/api/status').catch(error => {
+            throw new Error(`Błąd sieci: ${error.message}`);
+        });
+
+        if (!response.ok) {
+            throw new Error(`Błąd HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        debug('Otrzymane dane:', data);
+
+        if (!data.lights) {
+            throw new Error('Brak danych konfiguracji świateł');
+        }
+
+        const elements = getFormElements();
+        
+        try {
+            elements.dayLights.value = getFormValue(data.lights.dayLights, false);
+            elements.nightLights.value = getFormValue(data.lights.nightLights, true);
+            elements.dayBlink.checked = Boolean(data.lights.dayBlink);
+            elements.nightBlink.checked = Boolean(data.lights.nightBlink);
+            elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
+            
+            debug('Formularz zaktualizowany pomyślnie');
+        } catch (error) {
+            throw new Error(`Błąd aktualizacji formularza: ${error.message}`);
+        }
+    } catch (error) {
+        handleError(error, ERROR_TYPES.LOAD);
+    }
+}
+
+// Utworzenie wersji debounced funkcji
+const saveLightConfig = debounce(saveLightConfigImpl, 500);
+const loadLightConfig = debounce(loadLightConfigImpl, 250);
 
 // Funkcja zapisywania konfiguracji z debounce
 async function saveLightConfig() {
@@ -47,20 +380,15 @@ async function saveLightConfig() {
     // Ustaw nowy timeout
     saveTimeout = setTimeout(async () => {
         try {
-            const elements = {
-                dayLights: document.getElementById('day-lights'),
-                nightLights: document.getElementById('night-lights'),
-                dayBlink: document.getElementById('day-blink'),
-                nightBlink: document.getElementById('night-blink'),
-                blinkFrequency: document.getElementById('blink-frequency')
-            };
+            // Użycie nowej funkcji getFormElements zamiast bezpośredniego pobierania elementów
+            const elements = getFormElements();
 
             const lightConfig = {
                 dayLights: getLightMode(elements.dayLights.value),
                 nightLights: getLightMode(elements.nightLights.value),
                 dayBlink: elements.dayBlink.checked,
                 nightBlink: elements.nightBlink.checked,
-                blinkFrequency: parseInt(elements.blinkFrequency.value)
+                blinkFrequency: parseInt(elements.blinkFrequency.value, 10) // dodano drugi argument do parseInt
             };
 
             debug('Przygotowane dane:', lightConfig);
@@ -82,8 +410,8 @@ async function saveLightConfig() {
 
             const result = await response.json();
             if (result.status === 'ok') {
-                alert('Zapisano ustawienia świateł'); // Dodajemy to
-                await loadLightConfig(); // Odświeżamy konfigurację
+                alert('Zapisano ustawienia świateł');
+                await loadLightConfig();
             } else {
                 throw new Error(result.message || 'Nieznany błąd');
             }
@@ -91,22 +419,17 @@ async function saveLightConfig() {
             console.error('Błąd podczas zapisywania:', error);
             alert('Błąd podczas zapisywania ustawień: ' + error.message);
         }
-    }, 500); // Czekaj 500ms przed zapisem
+    }, 500);
 }
-
-// Dodaj debounce dla loadLightConfig
-let loadTimeout = null;
 
 // Funkcja wczytywania konfiguracji z debounce
 async function loadLightConfig() {
     debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     
-    // Anuluj poprzedni timeout jeśli istnieje
     if (loadTimeout) {
         clearTimeout(loadTimeout);
     }
 
-    // Ustaw nowy timeout
     loadTimeout = setTimeout(async () => {
         try {
             const response = await fetch('/api/status');
@@ -116,13 +439,8 @@ async function loadLightConfig() {
             if (data.lights) {
                 debug('Aktualizacja formularza, otrzymane dane:', data.lights);
                 
-                const elements = {
-                    dayLights: document.getElementById('day-lights'),
-                    nightLights: document.getElementById('night-lights'),
-                    dayBlink: document.getElementById('day-blink'),
-                    nightBlink: document.getElementById('night-blink'),
-                    blinkFrequency: document.getElementById('blink-frequency')
-                };
+                // Użycie nowej funkcji getFormElements
+                const elements = getFormElements();
 
                 elements.dayLights.value = getFormValue(data.lights.dayLights, false);
                 elements.nightLights.value = getFormValue(data.lights.nightLights, true);
@@ -135,7 +453,7 @@ async function loadLightConfig() {
         } catch (error) {
             console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
         }
-    }, 250); // Czekaj 250ms przed odświeżeniem
+    }, 250);
 }
 
 // Funkcja pomocnicza do debugowania
@@ -1362,6 +1680,11 @@ async function fetchSystemVersion() {
         document.getElementById('system-version').textContent = 'N/A';
     }
 }
+
+// Dodaj na końcu pliku lub w odpowiednim miejscu inicjalizacji
+document.addEventListener('DOMContentLoaded', () => {
+    initializeWebSocket();
+});
 
 /*
 WAŻNE KOMUNIKATY:
