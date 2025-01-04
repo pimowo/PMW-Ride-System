@@ -112,7 +112,8 @@ void toggleLegalMode();            // Zdefiniuj tę funkcję
 void showWelcomeMessage();         // Zdefiniuj tę funkcję
 
 // Dodaj stałe jeśli ich nie ma
-#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
+//#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
+
 // --- Stałe czasowe ---
 const unsigned long DEBOUNCE_DELAY = 25;
 const unsigned long BUTTON_DELAY = 200;
