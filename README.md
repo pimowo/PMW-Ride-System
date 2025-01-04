@@ -16,7 +16,7 @@ PMW Ride System to zaawansowany system zaprojektowany dla rowerów elektrycznych
 
 ## 🛠️ Komponenty
 - **🧠 Mikrokontroler**: ESP32
-- **🖥️ Wyświetlacz**: SSD1306 128x64 OLED
+- **🖥️ Wyświetlacz**: SSD1306 128x64 OLED (0.96", 1.54" i 2.42")
 - **🌡️ Czujnik temperatury**: DS18B20
 - **⏰ Zegar czasu rzeczywistego (RTC)**: DS3231
 - **📶 Bluetooth**: BLE do komunikacji z systemem zarządzania baterią (BMS)
@@ -31,10 +31,14 @@ PMW Ride System to zaawansowany system zaprojektowany dla rowerów elektrycznych
   - `FrontDayPin`: GPIO 5
   - `FrontPin`: GPIO 18
   - `RearPin`: GPIO 19
+  - docelowo światła na osobnym uC
+    ATtyny85 z możliwością przełącznia świateł, różnymi trybami mrugania tylnego światła
 - **🔌 Ładowarka USB**:
   - `UsbPin`: GPIO 32
 - **🌡️ Czujnik temperatury**:
-  - `ONE_WIRE_BUS`: GPIO 15
+  - `ONE_WIRE_BUS`: GPIO 15 (DS18B20)
+  - `ONE_WIRE_BUS`: GPIO (DS18B20)
+  - `ADC`: GPIO (NTC10k)
 
 ## 📱 Interfejs webowy
 System oferuje intuicyjny interfejs webowy dostępny przez przeglądarkę, który umożliwia:
@@ -51,12 +55,23 @@ System oferuje intuicyjny interfejs webowy dostępny przez przeglądarkę, któr
     - Skonfiguruj połączenie WiFi przez interfejs webowy
 
 2. **🎮 Obsługa fizycznych przycisków**:
-    - Użyj przycisku `BTN_SET` do nawigacji między głównymi ekranami
-    - Użyj przycisków `BTN_UP` i `BTN_DOWN` do zmiany ustawień
-    - Długie naciśnięcie `BTN_SET` włącza/wyłącza wyświetlacz
-    - Podwójne kliknięcie `BTN_SET` przełącza wyjście USB
-
-3. **⚙️ Konfiguracja przez interfejs webowy**:
+    BTN_SET:
+    - Długie (3s) naciśnięcie `BTN_SET` włącza/wyłącza wyświetlacz (system e-bike)
+    - Krótkie (0,1s) naciśnięcia `BTN_SET` do nawigacji po głównych ekranach i pod-ekranach
+    - Podwójne naciśnięcie `BTN_SET` do wejścia/wyjścia w pod-ekrany
+    - Podwójne kliknięcie `BTN_SET` na ekranie "USB" przełącza wyjście USB
+    BTN_UP
+    - Użyj przycisków `BTN_UP` do zwiększenia trybu wspomagania (0->5)
+    - Długie (1s) naciśnięcie `BTN_UP` przełacza tryb świateł: dzień/noc/włączone
+    BTN_DOWN
+    - Użyj przycisków `BTN_DOWN` do zmniejszenia trybu wspomagania (5->0)
+    - Długie (1s) naciśnięcie `BTN_DOWN` włącza tryb prowadzenia roweru
+    - Długie (1s) naciśnięcie `BTN_DOWN` podczas jazdy włącza tempomat
+    BTN
+    - Użyj przycisków `BTN_UP` + `BTN_DOWN` do uruchomienia trybu konfiguracji
+    - Użyj przycisków `BTN_UP` + `BTN_SET` do przełączenia trybu legalnego
+      
+4. **⚙️ Konfiguracja przez interfejs webowy**:
     - Połącz się z siecią WiFi utworzoną przez urządzenie
     - Otwórz przeglądarkę i przejdź pod adres IP urządzenia
     - Skonfiguruj wszystkie parametry przez intuicyjny interfejs
@@ -64,16 +79,13 @@ System oferuje intuicyjny interfejs webowy dostępny przez przeglądarkę, któr
 ## 📦 Struktura kodu
 - **📚 Biblioteki**:
   - `Wire.h`, `U8g2lib.h`, `RTClib.h`, `OneWire.h`, `DallasTemperature.h`, `EEPROM.h`, `WiFi.h`, `ESPAsyncWebServer.h`, `SPIFFS.h`
-- **💾 System plików SPIFFS**:
+- **💾 System plików LitteFS**:
   - Przechowywanie plików interfejsu webowego
   - Konfiguracja systemu
   - Logi systemowe
 
 ## 📄 Licencja
 Projekt jest licencjonowany na podstawie licencji MIT. Zobacz plik [LICENSE](LICENSE) dla szczegółów.
-
-## 🤝 Wkład
-Wkłady są mile widziane! Proszę rozwidlić repozytorium i złożyć pull request na wszelkie ulepszenia lub poprawki błędów.
 
 ## 📧 Kontakt
 W razie pytań lub wsparcia, prosimy o utworzenie "Issue" w repozytorium GitHub.
