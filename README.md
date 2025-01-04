@@ -1,4 +1,4 @@
-# 🚲 PMW Ride System
+# 🚲 PMW Ride System (PMW RS)
 
 ## 📝 Przegląd
 PMW Ride System to zaawansowany system zaprojektowany dla rowerów elektrycznych. Oferuje funkcje takie jak monitorowanie prędkości, pomiar temperatury, zarządzanie baterią, pomiar mocy i wiele innych. System wykorzystuje różne czujniki i komponenty, aby dostarczać dane w czasie rzeczywistym oraz opcje sterowania, które poprawiają doświadczenie jazdy na rowerze elektrycznym.
