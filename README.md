@@ -55,19 +55,19 @@ System oferuje intuicyjny interfejs webowy dostępny przez przeglądarkę, któr
     - Skonfiguruj połączenie WiFi przez interfejs webowy
 
 2. **🎮 Obsługa fizycznych przycisków**:
-    BTN_SET:
+    1. BTN_SET:
     - Długie (3s) naciśnięcie `BTN_SET` włącza/wyłącza wyświetlacz (system e-bike)
     - Krótkie (0,1s) naciśnięcia `BTN_SET` do nawigacji po głównych ekranach i pod-ekranach
     - Podwójne naciśnięcie `BTN_SET` do wejścia/wyjścia w pod-ekrany
     - Podwójne kliknięcie `BTN_SET` na ekranie "USB" przełącza wyjście USB
-    BTN_UP
+    2. BTN_UP
     - Użyj przycisków `BTN_UP` do zwiększenia trybu wspomagania (0->5)
     - Długie (1s) naciśnięcie `BTN_UP` przełacza tryb świateł: dzień/noc/włączone
-    BTN_DOWN
+    3. BTN_DOWN
     - Użyj przycisków `BTN_DOWN` do zmniejszenia trybu wspomagania (5->0)
     - Długie (1s) naciśnięcie `BTN_DOWN` włącza tryb prowadzenia roweru
     - Długie (1s) naciśnięcie `BTN_DOWN` podczas jazdy włącza tempomat
-    BTN
+    4. BTN
     - Użyj przycisków `BTN_UP` + `BTN_DOWN` do uruchomienia trybu konfiguracji
     - Użyj przycisków `BTN_UP` + `BTN_SET` do przełączenia trybu legalnego
       
