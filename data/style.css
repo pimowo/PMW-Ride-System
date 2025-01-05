@@ -365,3 +365,15 @@ footer a:hover {
 .no-calendar-icon::-webkit-inner-spin-button {
     display: none;
 }
+
+#kt-lcd-params, #s866-lcd-params {
+    display: none; /* domyślnie ukryte */
+}
+
+#kt-lcd-params.active, #s866-lcd-params.active {
+    display: block;
+}
+
+.settings-group {
+    margin: 10px 0;
+}
