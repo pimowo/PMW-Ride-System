@@ -1,3 +1,33 @@
+/*
+01＿info Throttle Abnormality
+03＿info Motor Hall Signal Abnormality
+04＿info Torque sensor Signal Abnormality
+05＿info Axis speed sensor Abnormality(only applied to torque sensor )
+06＿info Motor or controller has short circuit Abnormality
+
+01_info - Problem z Manetką
+    W skrócie: Manetka nie działa prawidłowo
+    Możliwe przyczyny: uszkodzenie manetki, złe połączenie, problemy z przewodami
+
+03_info - Problem z Czujnikami w Silniku
+    W skrócie: Silnik nie otrzymuje prawidłowych sygnałów od swoich wewnętrznych czujników
+    Możliwe przyczyny: uszkodzenie czujników, problemy z okablowaniem silnika
+
+04_info - Problem z Czujnikiem Siły Nacisku
+    W skrócie: System nie wykrywa prawidłowo siły pedałowania
+    Możliwe przyczyny: uszkodzenie czujnika, problemy z kalibracją
+
+05_info - Problem z Czujnikiem Prędkości
+    W skrócie: System ma problem z pomiarem prędkości
+    Uwaga: Ten błąd pojawia się tylko w systemach z czujnikiem siły nacisku
+    Możliwe przyczyny: uszkodzony czujnik, złe ustawienie magnesów
+
+06_info - Wykryto Zwarcie
+    W skrócie: Poważny problem elektryczny w silniku lub kontrolerze
+    Możliwe przyczyny: uszkodzenie przewodów, zalanie wodą, wewnętrzne uszkodzenie
+    UWAGA: Ten błąd wymaga natychmiastowej kontroli, aby uniknąć poważniejszych uszkodzeń!
+*/
+
 // --- Biblioteki ---
 #include <Wire.h>
 #include <U8g2lib.h>
