@@ -401,41 +401,75 @@
                                     C13 - Hamowanie regeneracyjne
                                     <button class="info-icon" data-info="kt-c13-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-c13" class="param-input">
+                                <select id="kt-c12" name="kt-c12" class="param-input">
+                                    <option value="0">0: -2.0V</option>
+                                    <option value="1">1: -1.5V</option>
+                                    <option value="2">2: -1.0V</option>
+                                    <option value="3">3: -0.5V</option>
+                                    <option value="4">4: Domyślnie</option>
+                                    <option value="5">5: +0.5V</option>
+                                    <option value="6">6: +1.0V</option>
+                                    <option value="7">7: +1.5V</option>
+                                </select>
                             </div>
+				    
                             <div class="setting-row">
                                 <label>
                                     C14 - Dodatkowe ustawienia PAS
                                     <button class="info-icon" data-info="kt-c14-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-c14" class="param-input">
+                                <select id="kt-c14" name="kt-c14" class="param-input">
+                                    <option value="1">1: Niski poziom wspomagania przez silnik</option>
+				    <option value="2">2: Średni poziom wspomagania przez silnik</option>
+				    <option value="3">3: Wysoki poziom wspomagania przez silnik</option>
+                                </select>
                             </div>
+
+    <!-- C15 -->
+				    
                             <div class="setting-row">
                                 <label>
                                     C15 - Prędkość w trybie prowadzenia
                                     <button class="info-icon" data-info="kt-c15-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-c15" class="param-input">
+                                <select id="kt-c15" name="kt-c15" class="param-input">
+                                    <option value="0">0</option>
+                                </select>
                             </div>
+				    
                         </div>
 
     <!-- L1-L3 -->
 			    
                         <h3>Parametry L</h3>
                         <div class="settings-group">
+
+    <!-- L1 -->
+				
                             <div class="setting-row">
                                 <label>
                                     L1 - Napięcie minimalne (LVC)
                                     <button class="info-icon" data-info="kt-l1-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-l1" class="param-input">
+                                <select id="kt-l1" name="kt-l1" class="param-input">
+                                    <option value="0">0:</option>
+                                    <option value="1">1: Wymusza na sterowniku próg wyłączenia 20V</option>
+	                            <option value="2">2: Wymusza na sterowniku próg wyłączenia 30V</option>
+                                    <option value="3">3: Wymusza na sterowniku próg wyłączenia 40V</option>
+                                </select>
                             </div>
+
+    <!-- L2 -->
+				
                             <div class="setting-row">
                                 <label>
                                     L2 - Silniki wysokoobrotowe
                                     <button class="info-icon" data-info="kt-l2-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-l2" class="param-input">
+                                <select id="kt-l2" name="kt-l2" class="param-input">
+                                    <option value="0">0</option>
+                                    <option value="1">1</option>
+                                </select>
                             </div>
 
     <!-- L3 -->
