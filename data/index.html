@@ -197,20 +197,20 @@
                                 <label>
                                     P1 - Ilość magnesów w silniku
                                     <button class="info-icon" data-info="kt-p1-info">ℹ</button>
-			    </label>
-			    <select id="kt-p3" name="kt-p3" class="param-input">
-			    </select>
-			</div>
+			    	</label>
+			    	    <select id="kt-p3" name="kt-p3" class="param-input">
+			            </select>
+			    </div>
 			
-			<script>
-			const select = document.getElementById('kt-p3');
-			for (let i = 1; i <= 128; i++) {
-			    const option = document.createElement('option');
-			    option.value = i;
-			    option.textContent = i;
-			    select.appendChild(option);
-			}
-			</script>
+			    <script>
+				const select = document.getElementById('kt-p3');
+				for (let i = 1; i <= 128; i++) {
+			    	    const option = document.createElement('option');
+			    	    option.value = i;
+			            option.textContent = i;
+			            select.appendChild(option);
+			        }
+			    </script>
 				
     <!-- P2 -->
                             
@@ -264,31 +264,34 @@
                                     <button class="info-icon" data-info="kt-p5-info">ℹ</button>
                                 </label>
                                 <select id="kt-p5" name="kt-p5" class="param-input">
-                                    <option value="0">0 - 1: Automatycznie</option>
-                                    <option value="4">4 - 24V</option>
-                                    <option value="5">5 - 24V</option>
-                                    <option value="6">6 - 24V</option>
-                                    <option value="7">7 - 24V</option>
-                                    <option value="8">8 - 24V</option>
-                                    <option value="9">9 - 24V</option>
-                                    <option value="10">10 - 24V</option>
-                                    <option value="11">11 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
-                                    <option value="1">1 - 24V</option>
+                                    <option value="0">0: Automatycznie</option>
+                                    <option value="4">4: 24V/---/---/---</option>
+                                    <option value="5">5: 24V/36V/---/---</option>
+                                    <option value="6">6: 24V/36V/48V/---</option>
+                                    <option value="7">7: 24V/36V/48V/60V</option>
+                                    <option value="8">8: 24V/36V/48V/60V</option>
+                                    <option value="9">9: 24V/36V/48V/60V</option>
+                                    <option value="10">10: 24V/36V/48V/60V</option>
+                                    <option value="11">11: 24V/36V/48V/60V</option>
+                                    <option value="12">12: ---/36V/48V/60V</option>
+                                    <option value="13">13: ---/36V/48V/60V</option>
+                                    <option value="14">14: ---/36V/48V/60V</option>
+                                    <option value="15">15: ---/36V/48V/60V</option>
+                                    <option value="16">16: ---/---/48V/60V</option>
+                                    <option value="17">17: ---/---/48V/60V</option>
+                                    <option value="18">18: ---/---/48V/60V</option>
+                                    <option value="19">19: ---/---/48V/60V</option>
+                                    <option value="20">20: ---/---/48V/60V</option>
+                                    <option value="21">21: ---/---/---/60V</option>
+                                    <option value="22">22: ---/---/---/60V</option>
+                                    <option value="23">23: ---/---/---/60V</option>
+                                    <option value="24">24: ---/---/---/60V</option>
+                                    <option value="25">25: ---/---/---/60V</option>
+                                    <option value="26">26: ---/---/---/60V</option>
+                                    <option value="27">27: ---/---/---/60V</option>
+				    <option value="28">28: ---/---/---/60V</option>
+                                    <option value="29">29: ---/---/---/60V</option>
+                                    <option value="30">30: ---/---/---/60V</option>
                                 </select>
                             </div>
 
@@ -307,8 +310,14 @@
                                     <button class="info-icon" data-info="kt-c1-info">ℹ</button>
                                 </label>
                                 <select id="kt-c1" name="kt-c1" class="param-input">
-                                    <option value="0">0 - Czujnik PRAWY</option>
-                                    <option value="1">1 - Manetka działa dopiero po ruszeniu</option>
+                                    <option value="0">0: Czujnik PRAWY</option>
+                                    <option value="1">1: Czujnik PRAWY</option>
+				    <option value="2">2: Czujnik PRAWY</option>
+                                    <option value="3">3: Czujnik PRAWY</option>
+				    <option value="4">4: Czujnik PRAWY</option>
+                                    <option value="5">5: Czujnik LEWY</option>
+				    <option value="6">6: Czujnik LEWY</option>
+                                    <option value="7">7: Czujnik LEWY</option>
                                 </select>
 				    
     <!-- C2 -->
@@ -318,7 +327,16 @@
                                     C2 - Próbkowanie faz silnika
                                     <button class="info-icon" data-info="kt-c2-info">ℹ</button>
                                 </label>
-                                <input type="number" id="kt-c2" class="param-input">
+                                <select id="kt-c3" name="kt-c3" class="param-input">
+                                    <option value="0">0: Domyślnie</option>
+                                    <option value="1">1:</option>
+                                    <option value="2">2:</option>
+                                    <option value="3">3:</option>
+                                    <option value="4">4:</option>
+                                    <option value="5">5:</option>
+                                    <option value="6">6:</option>
+                                    <option value="7">7:</option>
+                                </select>
                             </div>
 
     <!-- C3 -->
@@ -343,13 +361,57 @@
 				    
     <!-- C4 -->
 				    
-                            <div class="setting-row">
-                                <label>
-                                    C4 - Zachowanie manetki i PAS
-                                    <button class="info-icon" data-info="kt-c4-info">ℹ</button>
-                                </label>
-                                <input type="number" id="kt-c4" class="param-input">
-                            </div>
+			    <div class="setting-row">
+			        <label>
+				    C4 - Zachowanie manetki i PAS
+				    <button class="info-icon" data-info="kt-c4-info">ℹ</button>
+			        </label>
+			        <select id="kt-c4" name="kt-c4" class="param-input">
+				    <option value="0">0</option>
+				    <option value="1">1</option>
+				    <option value="2">2</option>
+				    <option value="3">3</option>
+				    <option value="4">4</option>
+			        </select>
+			    </div>
+			
+			    <script>
+				// Obiekt zawierający opisy dla różnych kombinacji P4 i C4
+				const descriptions = {
+				    '0': { // gdy P4 = 0
+					0: "0 - Manetka: pełna moc od 0km/h",
+					1: "1 - Manetka: ograniczenie do 6km/h od 0km/h",
+					2: "2 - Manetka: bieg 0 wyłączony, bieg 1 ograniczona moc",
+					3: "3 - Manetka: regulacja mocy przez PAS, bieg 0 pełna moc",
+					4: "4 - Manetka: bieg 0 wyłączony, biegi 1-5 regulacja mocy + opcja PAS"
+				    },
+				    '1': { // gdy P4 = 1
+					0: "0 - Manetka: pełna moc po ruszeniu z PAS/nóg",
+					1: "1 - Manetka: limit 6km/h, pełna prędkość po użyciu PAS",
+					2: "2 - Manetka: działa po ruszeniu, ograniczona moc na biegu 1",
+					3: "3 - Manetka: pełna moc z PAS, spadek do 6km/h bez PAS",
+					4: "4 - Manetka: start z PAS/nóg, bieg 0 wyłączony, biegi 1-5 regulacja"
+				    }
+				};
+				
+				// Funkcja aktualizująca opisy w C4
+				function updateC4Options() {
+				    const p4Value = document.getElementById('kt-p4').value;
+				    const c4Select = document.getElementById('kt-c4');
+				    
+				    // Aktualizacja opisów dla każdej opcji
+				    Array.from(c4Select.options).forEach(option => {
+					const value = option.value;
+					option.textContent = descriptions[p4Value][value];
+				    });
+				}
+				
+				// Nasłuchiwanie zmiany wartości P4
+				document.getElementById('kt-p4').addEventListener('change', updateC4Options);
+				
+				// Inicjalne ustawienie opisów przy załadowaniu strony
+				updateC4Options();
+			    </script>
 
     <!-- C5 -->
 				    
