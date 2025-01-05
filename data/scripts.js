@@ -644,7 +644,7 @@ document.querySelectorAll('#day-brightness, #night-brightness').forEach(input =>
 function toggleControllerParams() {
     const controllerType = document.getElementById('controller-type').value;
     const ktLcdParams = document.getElementById('kt-lcd-params');
-    const s866Params = document.getElementById('s866-params');
+    const s866Params = document.getElementById('s866-lcd-params');
 
     if (controllerType === 'kt-lcd') {
         ktLcdParams.style.display = 'block';
@@ -654,6 +654,11 @@ function toggleControllerParams() {
         s866Params.style.display = 'block';
     }
 }
+
+// Dodajemy wywołanie funkcji przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', function() {
+    toggleControllerParams();
+});
 
 // Funkcja pobierająca konfigurację sterownika
 async function fetchControllerConfig() {
@@ -1342,6 +1347,27 @@ const infoContent = {
     1: Protokół 5S
     2: Protokół Standby
     3: Protokół Standby alternatywny`
+    },
+
+    'bms-info': {
+        title: 'System zarządzania baterią (BMS)',
+        description: `BMS (Battery Management System) to system monitorujący stan baterii. Po włączeniu tej opcji, urządzenie będzie odbierać dane o stanie baterii przez Bluetooth, takie jak:
+             
+    • Napięcie baterii
+    • Prąd ładowania/rozładowania
+    • Temperatura ogniw
+    • Stan naładowania (SOC)
+    • Stan zdrowia baterii (SOH)`
+    },
+
+    // Opis dla TPMS
+    'tpms-info': {
+        title: 'System monitorowania ciśnienia w oponach (TPMS)',
+        description: `TPMS (Tire Pressure Monitoring System) to system monitorujący ciśnienie w oponach. Po włączeniu tej opcji, urządzenie będzie odbierać dane z czujników przez Bluetooth, takie jak:
+                
+    • Ciśnienie w oponach
+    • Temperatura opon
+    • Stan baterii czujników`
     }
 };
 
@@ -1361,6 +1387,32 @@ async function fetchSystemVersion() {
         console.error('Błąd podczas pobierania wersji systemu:', error);
         document.getElementById('system-version').textContent = 'N/A';
     }
+}
+
+function saveBluetoothConfig() {
+    const bmsEnabled = document.getElementById('bms-enabled').value;
+    const tpmsEnabled = document.getElementById('tpms-enabled').value;
+    
+    // Tutaj dodaj kod do zapisywania konfiguracji
+    fetch('/save-bluetooth-config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            bmsEnabled: bmsEnabled === 'true',
+            tpmsEnabled: tpmsEnabled === 'true'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Konfiguracja Bluetooth zapisana pomyślnie');
+        }
+    })
+    .catch(error => {
+        console.error('Błąd podczas zapisywania konfiguracji Bluetooth:', error);
+    });
 }
 
 /*
