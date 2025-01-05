@@ -646,17 +646,24 @@ function toggleControllerParams() {
     const ktLcdParams = document.getElementById('kt-lcd-params');
     const s866Params = document.getElementById('s866-lcd-params');
 
+    console.log('Wybrany typ:', controllerType);
+    console.log('Element KT-LCD:', ktLcdParams);
+    console.log('Element S866:', s866Params);
+
     if (controllerType === 'kt-lcd') {
         ktLcdParams.style.display = 'block';
         s866Params.style.display = 'none';
-    } else {
+        console.log('Przełączam na KT-LCD');
+    } else if (controllerType === 's866') {
         ktLcdParams.style.display = 'none';
         s866Params.style.display = 'block';
+        console.log('Przełączam na S866');
     }
 }
 
-// Dodajemy wywołanie funkcji przy załadowaniu strony
+// Wywołanie przy załadowaniu strony
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Strona załadowana');
     toggleControllerParams();
 });
 
