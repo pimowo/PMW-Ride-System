@@ -186,16 +186,33 @@
 
                     <div id="kt-lcd-params">
 			    
-    <!-- P1-P5 -->
+    <!-- Parametry P -->
 			    
                         <h3>Parametry P</h3>
                         <div class="settings-group">
+
+    <!-- P1 -->
+				
                             <div class="setting-row">
                                 <label>
                                     P1 - Ilość magnesów w silniku
                                     <button class="info-icon" data-info="kt-p1-info">ℹ</button>
-                                </label>
-                            </div>
+			    </label>
+			    <select id="kt-p3" name="kt-p3" class="param-input">
+			    </select>
+			</div>
+			
+			<script>
+			const select = document.getElementById('kt-p3');
+			for (let i = 1; i <= 128; i++) {
+			    const option = document.createElement('option');
+			    option.value = i;
+			    option.textContent = i;
+			    select.appendChild(option);
+			}
+			</script>
+				
+    <!-- P2 -->
                             
                             <div class="setting-row">
                                 <label>
@@ -212,6 +229,8 @@
                                     <option value="1">6 - Pomiar z koła 6x magnes</option>
                                 </select>
                             </div>
+				
+    <!-- P3 -->
 
                             <div class="setting-row">
                                 <label>
@@ -223,7 +242,9 @@
                                     <option value="1">1 - Moment obrotowy</option>
                                 </select>
                             </div>
-
+				
+    <!-- P4 -->		
+				
                             <div class="setting-row">
                                 <label>
                                     P4 - Ruszanie z manetki
@@ -234,7 +255,9 @@
                                     <option value="1">1 - Manetka działa dopiero po ruszeniu</option>
                                 </select>
                             </div>
-
+				
+    <!-- P5 -->
+				
                             <div class="setting-row">
                                 <label>
                                     P5 - Sposób obliczania poziomu naładowania akumulatora
@@ -271,10 +294,13 @@
 
                         </div>
 
-    <!-- C1-C15 -->
+    <!-- Parametry C -->
 			    
                         <h3>Parametry C</h3>
                         <div class="settings-group">
+
+    <!-- C1 -->
+				
                             <div class="setting-row">
                                 <label>
                                     C1 - Typ czujnika PAS
@@ -284,8 +310,10 @@
                                     <option value="0">0 - Czujnik PRAWY</option>
                                     <option value="1">1 - Manetka działa dopiero po ruszeniu</option>
                                 </select>
-
-                            <div class="setting-row">
+				    
+    <!-- C2 -->
+           
+				    <div class="setting-row">
                                 <label>
                                     C2 - Próbkowanie faz silnika
                                     <button class="info-icon" data-info="kt-c2-info">ℹ</button>
@@ -312,7 +340,9 @@
                                     <option value="8">8 - Jak przy wyłączeniu</option>
                                 </select>
                             </div>
-
+				    
+    <!-- C4 -->
+				    
                             <div class="setting-row">
                                 <label>
                                     C4 - Zachowanie manetki i PAS
@@ -320,6 +350,9 @@
                                 </label>
                                 <input type="number" id="kt-c4" class="param-input">
                             </div>
+
+    <!-- C5 -->
+				    
                             <div class="setting-row">
                                 <label>
                                     C5 - Ograniczanie mocy sterownika i zachowanie podczas ruszania
@@ -327,6 +360,9 @@
                                 </label>
                                 <input type="number" id="kt-c5" class="param-input">
                             </div>
+
+    <!-- C6 -->
+				    
                             <div class="setting-row">
                                 <label>
                                     C6 - Jasność podświetlenia ekranu
@@ -347,6 +383,8 @@
                                     <option value="1">1 - Włączony</option>
                                 </select>
                             </div>
+
+    <!-- C8 -->
                             
                             <div class="setting-row">
                                 <label>
@@ -356,13 +394,17 @@
                                 <input type="number" id="kt-c8" class="param-input">
                             </div>
 				    
-                            <div class="setting-row">
+    <!-- C9 -->
+                            
+			    <div class="setting-row">
                                 <label>
                                     C9 - Hasło
                                     <button class="info-icon" data-info="kt-c9-info">ℹ</button>
                                 </label>
                                 <input type="number" id="kt-c9" class="param-input">
                             </div>
+
+    <!-- C10 -->
 				    
                             <div class="setting-row">
                                 <label>
@@ -371,6 +413,8 @@
                                 </label>
                                 <input type="number" id="kt-c10" class="param-input">
                             </div>
+
+    <!-- C11 -->
 				    
                             <div class="setting-row">
                                 <label>
@@ -444,7 +488,7 @@
 				    
                         </div>
 
-    <!-- L1-L3 -->
+    <!-- Parametry L -->
 			    
                         <h3>Parametry L</h3>
                         <div class="settings-group">
@@ -498,6 +542,9 @@
                     <div id="s866-params" style="display: none;">
                         <h3>Parametry P</h3>
                         <div class="settings-group">
+
+    <!-- P1 -->
+				
                             <div class="setting-row">
                                 <label>
                                     P1 - Limit prądu
@@ -505,6 +552,9 @@
                                 </label>
                                 <input type="number" id="s866-p1" class="param-input">
                             </div>
+
+    <!-- P2 -->
+				
                             <div class="setting-row">
                                 <label>
                                     P2 - Jednostka pomiaru
@@ -512,6 +562,9 @@
                                 </label>
                                 <input type="number" id="s866-p2" class="param-input">
                             </div>
+
+    <!-- P3 -->
+				
                             <div class="setting-row">
                                 <label>
                                     P3 - Napięcie nominalne
