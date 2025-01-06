@@ -50,7 +50,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "4.1.25";
+const char* VERSION = "6.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
