@@ -1472,6 +1472,49 @@ function saveBluetoothConfig() {
     });
 }
 
+function initializeCollapsibleSections() {
+    document.querySelectorAll('.collapsible').forEach(section => {
+        const header = section.querySelector('.card-header');
+        const content = section.querySelector('.card-content');
+        const button = section.querySelector('.collapse-btn');
+        const infoIcon = section.querySelector('.info-icon');
+        
+        // Ustaw początkowy stan (zwinięty)
+        content.style.display = 'none';
+        
+        header.addEventListener('click', (e) => {
+            // Ignoruj kliknięcia w przycisk info
+            if (e.target === infoIcon || e.target.closest('.info-icon')) {
+                return;
+            }
+            
+            // Przełącz widoczność zawartości
+            const isCollapsed = content.style.display === 'none';
+            content.style.display = isCollapsed ? 'block' : 'none';
+            button.classList.toggle('rotated', isCollapsed);
+            
+            // Zapisz stan w localStorage
+            const sectionId = section.classList[1];
+            localStorage.setItem(`section_${sectionId}`, isCollapsed ? 'expanded' : 'collapsed');
+        });
+        
+        // Zachowaj istniejącą funkcjonalność przycisku info
+        infoIcon.addEventListener('click', (e) => {
+            e.stopPropagation(); // Zapobiega zwijaniu/rozwijaniu sekcji
+            const infoId = e.target.dataset.info;
+            showModal(infoContent[infoId].title, infoContent[infoId].description);
+        });
+        
+        // Przywróć poprzedni stan z localStorage
+        const sectionId = section.classList[1];
+        const savedState = localStorage.getItem(`section_${sectionId}`);
+        if (savedState === 'expanded') {
+            content.style.display = 'block';
+            button.classList.add('rotated');
+        }
+    });
+}
+
 /*
 WAŻNE KOMUNIKATY:
 ⚠️ - Ważne ostrzeżenia
