@@ -657,7 +657,11 @@ function toggleControllerParams() {
 
 // Dodaj wywołanie przy załadowaniu strony
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicjalne wywołanie przy załadowaniu strony
     toggleControllerParams();
+    
+    // Dodaj nasłuchiwanie zmiany typu sterownika
+    document.getElementById('controller-type').addEventListener('change', toggleControllerParams);
 });
 
 // Funkcja pobierająca konfigurację sterownika
@@ -687,6 +691,7 @@ async function fetchControllerConfig() {
             }
             // Wypełnij parametry dla S866
             else if (data.controller.type === 's866') {
+                document.getElementById('controller-type').value = 's866';
                 for (let i = 1; i <= 20; i++) {
                     const input = document.getElementById(`s866-p${i}`);
                     if (input) {
@@ -725,11 +730,13 @@ async function saveControllerConfig() {
                 const value = document.getElementById(`kt-l${i}`).value;
                 if (value !== '') data[`l${i}`] = parseInt(value);
             }
-        } else {
-            // Parametry S866
+        } else if (controllerType === 's866') {
+            // Zbierz wszystkie parametry S866 (P1-P20)
             for (let i = 1; i <= 20; i++) {
                 const value = document.getElementById(`s866-p${i}`).value;
-                if (value !== '') data[`p${i}`] = parseInt(value);
+                if (value !== '') {
+                    data.p[i] = parseInt(value);
+                }
             }
         }
 
@@ -744,6 +751,7 @@ async function saveControllerConfig() {
         const result = await response.json();
         if (result.status === 'ok') {
             alert('Zapisano ustawienia sterownika');
+            await fetchControllerConfig(); // Odśwież widok
             fetchControllerConfig();
         } else {
             throw new Error('Błąd odpowiedzi serwera');
