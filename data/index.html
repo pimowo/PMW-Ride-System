@@ -225,19 +225,19 @@
                                     P1 - Ilość magnesów w silniku
                                     <button class="info-icon" data-info="kt-p1-info">ℹ</button>
                                 </label>
-                                    <select id="kt-p3" name="kt-p3" class="param-input">
-                                    </select>
-                              </div>
+                                <select id="kt-p3" name="kt-p3" class="param-input">
+                                </select>
+                            </div>
                           
-                              <script>
-                                  const select = document.getElementById('kt-p3');
-                                  for (let i = 1; i <= 128; i++) {
-                                      const option = document.createElement('option');
-                                      option.value = i;
-                                      option.textContent = i;
-                                      select.appendChild(option);
-                                  }
-                              </script>
+                            <script>
+                                const select = document.getElementById('kt-p3');
+                                for (let i = 1; i <= 128; i++) {
+                                    const option = document.createElement('option');
+                                    option.value = i;
+                                    option.textContent = i;
+                                    select.appendChild(option);
+                                }
+                            </script>
 				
     <!-- P2 -->
                             
@@ -634,8 +634,9 @@
                                     <option value="1">1: Po awarii czujników halla sterownik się wyłączy i zasygnalizuje błąd</option>
                                 </select>
                             </div>
-                            
-                        </div>
+                        
+			</div>   
+                        <button class="btn-save" onclick="saveControllerConfig()">Zapisz</button>
                     </div>
 
     <!-- Parametry S866 -->
@@ -848,11 +849,9 @@
                             </div>
 
                         </div>
+                        <button class="btn-save" onclick="saveControllerConfig()">Zapisz</button>
                     </div>
-
-                    <button class="btn-save" onclick="saveControllerConfig()">Zapisz</button>
                 </div>
-            </div>
 
     <!-- sekcja ustawień ogólnych -->
 		    
