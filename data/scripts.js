@@ -153,6 +153,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         // Inicjalizacja zegara
         clockInterval = initializeClock();
+
+        // Dodajemy inicjalizację sekcji zwijanych
+        initializeCollapsibleSections();
         
         // Poczekaj na załadowanie DOM
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -769,27 +772,62 @@ const infoContent = {
 
     'rtc-info': {
         title: '⏰ Konfiguracja zegara',
-        description: `Ustawia czas systemowy RTC (Real Time Clock).
+        description: `Panel konfiguracji zegara czasu rzeczywistego (RTC).
 
-    Aby zsynchronizować czas:
-    1. Sprawdź czy czas na twoim urządzeniu jest prawidłowy
-    2. Kliknij przycisk "Ustaw aktualny czas"
-    3. System pobierze czas z twojego urządzenia
-    
+    ⌚ Funkcje:
+      - Synchronizacja czasu systemowego
+      - Podtrzymanie bateryjne
+      - Format 24-godzinny
+      - Kalendarz z datą
+
+    🔄 Synchronizacja:
+      1. Sprawdź czas na swoim urządzeniu
+      2. Kliknij "Ustaw aktualny czas"
+      3. System automatycznie:
+          • Pobierze czas z twojego urządzenia
+          • Zaktualizuje zegar systemowy
+          • Potwierdzi synchronizację
+
+    💡 WSKAZÓWKI:
+      - Synchronizuj czas po wymianie baterii
+      - Sprawdzaj dokładność co kilka miesięcy
+      - Używaj dokładnego źródła czasu
+
     ⚠️ WAŻNE: 
-    Zegar jest podtrzymywany bateryjnie i działa 
-    nawet po odłączeniu zasilania głównego.`
+      - Zegar działa nawet po odłączeniu głównego zasilania
+      - Bateria podtrzymująca wystarcza na około 2-3 lata
+      - Wymień baterię gdy zauważysz rozbieżności w czasie`
     },
 
     // Sekcja świateł //
 
     'light-config-info': {
         title: '💡 Konfiguracja świateł',
-        description: `Ustawienia dotyczące świateł rowerowych. 
+        description: `Panel konfiguracji systemu oświetlenia.
 
-    Możesz skonfigurować różne tryby świateł:
-      - dla jazdy dziennej 
-      - dla jazdy nocnej`
+    🌞 Tryb dzienny:
+      - Światła do jazdy dziennej
+      - Zwiększona widoczność
+
+    🌙 Tryb nocny:
+      - Pełne oświetlenie drogi
+      - Dostosowanie do warunków
+
+    ⚙️ Opcje konfiguracji:
+      - Przód: światła dzienne/zwykłe
+      - Tył: światło pozycyjne
+      - Tryb pulsacyjny (mruganie)
+      - Częstotliwość mrugania
+
+    💡 WSKAZÓWKI:
+      - Używaj świateł nawet w dzień
+      - Dostosuj jasność do warunków
+      - Regularnie sprawdzaj działanie
+
+    ⚠️ WAŻNE:
+      - Sprawdź lokalne przepisy
+      - Utrzymuj światła w czystości
+      - Wymień uszkodzone elementy`
     },
 
     'day-lights-info': {
@@ -840,6 +878,24 @@ const infoContent = {
 
     // Sekcja wyświetlacza //
 
+    'display-config-info': {
+        title: '📱 Konfiguracja wyświetlacza',
+        description: `Panel konfiguracji wyświetlacza LCD.
+
+    Dostępne opcje:
+    🔆 Jasność:
+      - Tryb automatyczny: automatyczne dostosowanie jasności
+      - Jasność dzienna: poziom w trybie dziennym (0-100%)
+      - Jasność nocna: poziom w trybie nocnym (0-100%)
+    
+    💡 WSKAZÓWKI:
+      - W nocy zalecana jasność 30-50%
+      - W dzień zalecana jasność 70-100%
+    
+    ⚠️ UWAGA: 
+    Zbyt niska jasność może utrudnić odczyt w silnym świetle słonecznym`
+    },
+
     'brightness-info': {
         title: '🔆 Podświetlenie wyświetlacza',
         description: `Ustaw jasność podświetlenia wyświetlacza w zakresie od 0% do 100%. 
@@ -879,6 +935,31 @@ const infoContent = {
     },
 
     // Sekcja sterownika //
+
+    'controller-config-info': {
+        title: '🎮 Konfiguracja sterownika',
+        description: `Panel konfiguracji sterownika silnika.
+
+    Obsługiwane sterowniki:
+    🔷 KT-LCD:
+      - Parametry P1-P5: podstawowa konfiguracja
+      - Parametry C1-C15: zaawansowane ustawienia
+      - Parametry L1-L3: specjalne funkcje
+    
+    🔶 S866:
+      - Parametry P1-P20: pełna konfiguracja
+    
+    ⚠️ WAŻNE:
+      - Nieprawidłowa konfiguracja może wpłynąć na:
+        • Działanie silnika
+        • Zużycie energii
+        • Żywotność komponentów
+      - W razie wątpliwości użyj ustawień domyślnych
+    
+    💡 WSKAZÓWKA:
+    Każdy parametr ma szczegółowy opis dostępny
+    pod ikoną informacji (ℹ️)`
+    },
 
     'display-type-info': {
         title: '🔍 Wybór typu wyświetlacza',
@@ -1360,9 +1441,60 @@ const infoContent = {
     3: Protokół Standby alternatywny`
     },
 
+    // Sekcja ustawień ogólnych //
+
+    'general-settings-info': {
+        title: '⚙️ Ustawienia ogólne',
+        description: `Podstawowa konfiguracja systemu.
+
+    🚲 Parametry roweru:
+      - Rozmiar koła: wpływa na pomiar prędkości
+      - Limit prędkości: zgodnie z przepisami
+      - Jednostki: km/h lub mph
+    
+    ⏰ Automatyczne wyłączanie:
+      - Czas do uśpienia: 0-60 minut
+      - 0 = funkcja wyłączona
+        
+    💾 Opcje konfiguracji:
+      - Reset do ustawień fabrycznych
+      - Kopia zapasowa konfiguracji
+    
+    ⚠️ UWAGA:
+    Reset ustawień usuwa wszystkie
+    spersonalizowane konfiguracje!`
+    },
+
     'wheel-size-info': {
         title: 'Rozmiar koła',
         description: `Wybierz rozmiar koła swojego roweru. Jest to ważne dla prawidłowego obliczania prędkości i dystansu.`
+    },
+
+    // Sekcja Bluetooth
+    'bluetooth-config-info': {
+        title: '📶 Konfiguracja Bluetooth',
+        description: `Panel konfiguracji połączeń bezprzewodowych.
+
+    🔋 BMS (Battery Management System):
+      - Monitoring stanu baterii
+      - Pomiar temperatury ogniw
+      - Kontrola napięcia
+      - Statystyki ładowania
+    
+    🌡️ TPMS (Tire Pressure Monitoring):
+      - Ciśnienie w oponach
+      - Temperatura opon
+      - Stan baterii czujników
+    
+    📱 Opcje połączenia:
+      - Auto-łączenie ze znanymi urządzeniami
+      - Skanowanie nowych czujników
+      - Parowanie urządzeń
+    
+    💡 WSKAZÓWKI:
+      - Utrzymuj czujniki w zasięgu 2-3m
+      - Sprawdzaj stan baterii czujników
+      - Regularnie aktualizuj oprogramowanie`
     },
 
     'bms-info': {
@@ -1474,35 +1606,24 @@ function saveBluetoothConfig() {
 
 function initializeCollapsibleSections() {
     document.querySelectorAll('.collapsible').forEach(section => {
-        const header = section.querySelector('.card-header');
         const content = section.querySelector('.card-content');
-        const button = section.querySelector('.collapse-btn');
-        const infoIcon = section.querySelector('.info-icon');
+        const collapseBtn = section.querySelector('.collapse-btn');
         
         // Ustaw początkowy stan (zwinięty)
         content.style.display = 'none';
         
-        header.addEventListener('click', (e) => {
-            // Ignoruj kliknięcia w przycisk info
-            if (e.target === infoIcon || e.target.closest('.info-icon')) {
-                return;
-            }
+        // Nasłuchuj tylko kliknięć w przycisk trybika
+        collapseBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Zatrzymaj propagację zdarzenia
             
             // Przełącz widoczność zawartości
             const isCollapsed = content.style.display === 'none';
             content.style.display = isCollapsed ? 'block' : 'none';
-            button.classList.toggle('rotated', isCollapsed);
+            collapseBtn.classList.toggle('rotated', isCollapsed);
             
             // Zapisz stan w localStorage
             const sectionId = section.classList[1];
             localStorage.setItem(`section_${sectionId}`, isCollapsed ? 'expanded' : 'collapsed');
-        });
-        
-        // Zachowaj istniejącą funkcjonalność przycisku info
-        infoIcon.addEventListener('click', (e) => {
-            e.stopPropagation(); // Zapobiega zwijaniu/rozwijaniu sekcji
-            const infoId = e.target.dataset.info;
-            showModal(infoContent[infoId].title, infoContent[infoId].description);
         });
         
         // Przywróć poprzedni stan z localStorage
@@ -1510,7 +1631,7 @@ function initializeCollapsibleSections() {
         const savedState = localStorage.getItem(`section_${sectionId}`);
         if (savedState === 'expanded') {
             content.style.display = 'block';
-            button.classList.add('rotated');
+            collapseBtn.classList.add('rotated');
         }
     });
 }
