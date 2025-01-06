@@ -114,6 +114,14 @@ struct GeneralSettings {
     GeneralSettings() : wheelSize(26) {} // Domyślnie 26 cali
 };
 
+// Struktura przechowująca ustawienia Bluetooth
+struct BluetoothConfig {
+    bool bmsEnabled;
+    bool tpmsEnabled;
+    
+    BluetoothConfig() : bmsEnabled(false), tpmsEnabled(false) {}
+};
+
 // Globalne instancje ustawień
 ControllerSettings controllerSettings;
 TimeSettings timeSettings;
@@ -121,6 +129,7 @@ LightSettings lightSettings;
 BacklightSettings backlightSettings;
 WiFiSettings wifiSettings;
 GeneralSettings generalSettings;
+BluetoothConfig bluetoothConfig;
 
 // --- Definicje pinów ---
 // Przyciski
@@ -666,6 +675,46 @@ void saveGeneralSettingsToFile() {
         #endif
     }
 
+    file.close();
+}
+
+
+// Funkcja zapisująca ustawienia Bluetooth do pliku
+void saveBluetoothConfigToFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+
+    serializeJson(doc, file);
+    file.close();
+}
+
+// Funkcja wczytująca ustawienia Bluetooth z pliku
+void loadBluetoothConfigFromFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    
+    if (!error) {
+        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+    }
+    
     file.close();
 }
 
@@ -2000,6 +2049,37 @@ void setupWebServer() {
         }
     });
 
+    // Dodaj w setupWebServer():
+server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
+    StaticJsonDocument<64> doc;
+    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+    
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+});
+
+server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (request->hasParam("body", true)) {
+        String json = request->getParam("body", true)->value();
+        StaticJsonDocument<64> doc;
+        DeserializationError error = deserializeJson(doc, json);
+
+        if (!error) {
+            bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+            bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+            
+            saveBluetoothConfigToFile();
+            request->send(200, "application/json", "{\"success\":true}");
+        } else {
+            request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+        }
+    } else {
+        request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
+    }
+});
+    
     // Endpoint do pobierania aktualnych ustawień ogólnych
     server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
         StaticJsonDocument<64> doc;
@@ -2349,6 +2429,7 @@ void setup() {
         loadBacklightSettingsFromFile();
         loadSettings();
         loadGeneralSettingsFromFile();
+        loadBluetoothConfigFromFile();
     }
 
     setLights();  // Zastosuj wczytane ustawienia    
