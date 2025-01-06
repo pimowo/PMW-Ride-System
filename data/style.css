@@ -377,3 +377,32 @@ footer a:hover {
 .settings-group {
     margin: 10px 0;
 }
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+}
+
+.card-header h2 {
+    flex-grow: 1;
+    text-align: center;
+    margin: 0 10px;
+}
+
+.info-icon, .collapse-btn {
+    background: none;
+    border: none;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 5px;
+}
+
+.info-icon:hover, .collapse-btn:hover {
+    opacity: 0.8;
+}
+
+.collapse-btn.rotated {
+    transform: rotate(180deg);
+}
