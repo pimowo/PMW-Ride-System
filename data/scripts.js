@@ -1356,15 +1356,19 @@ const infoContent = {
     3: Protokół Standby alternatywny`
     },
 
+    'wheel-size-info': {
+        title: 'Rozmiar koła',
+        description: `Wybierz rozmiar koła swojego roweru. Jest to ważne dla prawidłowego obliczania prędkości i dystansu.`
+    },
+
     'bms-info': {
         title: 'System zarządzania baterią (BMS)',
         description: `BMS (Battery Management System) to system monitorujący stan baterii. Po włączeniu tej opcji, urządzenie będzie odbierać dane o stanie baterii przez Bluetooth, takie jak:
              
-    • Napięcie baterii
-    • Prąd ładowania/rozładowania
-    • Temperatura ogniw
-    • Stan naładowania (SOC)
-    • Stan zdrowia baterii (SOH)`
+    • Pojemność (Ah)
+    • Energia (Wh)
+    • Temperatura ogniw (°C)
+    • Stan naładowania (SOC)`
     },
 
     // Opis dla TPMS
@@ -1372,9 +1376,9 @@ const infoContent = {
         title: 'System monitorowania ciśnienia w oponach (TPMS)',
         description: `TPMS (Tire Pressure Monitoring System) to system monitorujący ciśnienie w oponach. Po włączeniu tej opcji, urządzenie będzie odbierać dane z czujników przez Bluetooth, takie jak:
                 
-    • Ciśnienie w oponach
-    • Temperatura opon
-    • Stan baterii czujników`
+    • Ciśnienie w oponach (bar)
+    • Temperatura opon (°C)
+    • Stan baterii czujników (V)`
     }
 };
 
@@ -1394,6 +1398,29 @@ async function fetchSystemVersion() {
         console.error('Błąd podczas pobierania wersji systemu:', error);
         document.getElementById('system-version').textContent = 'N/A';
     }
+}
+
+function saveGeneralSettings() {
+    const wheelSize = document.getElementById('wheel-size').value;
+    
+    fetch('/save-general-settings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            wheelSize: wheelSize
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Ustawienia ogólne zapisane pomyślnie');
+        }
+    })
+    .catch(error => {
+        console.error('Błąd podczas zapisywania ustawień ogólnych:', error);
+    });
 }
 
 function saveBluetoothConfig() {
