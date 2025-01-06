@@ -1460,18 +1460,16 @@ void activateConfigMode() {
     #endif
 }
 
-void deactivateConfigMode() {
-    if (!configModeActive) return;
-
-    server.end();
-    WiFi.softAPdisconnect(true);
-    WiFi.mode(WIFI_OFF);
-    LittleFS.end();
-    
-    configModeActive = false;
-    
-    display.clearBuffer();
-    display.sendBuffer();
+// Funkcja wyłączająca tryb konfiguracji
+void deactivateConfigMode() {    
+    if (!configModeActive) return;  // Jeśli tryb konfiguracji nie jest aktywny, przerwij
+    server.end();                   // Zatrzymaj serwer HTTP
+    WiFi.softAPdisconnect(true);    // Wyłącz punkt dostępowy WiFi
+    WiFi.mode(WIFI_OFF);            // Wyłącz moduł WiFi
+    LittleFS.end();                 // Odmontuj system plików
+    configModeActive = false;       // Ustaw flagę trybu konfiguracji na nieaktywny
+    display.clearBuffer();          // Wyczyść bufor wyświetlacza
+    display.sendBuffer();           // Wyślij pusty bufor do wyświetlacza (wygaszenie)
 }
 
 // Funkcja pomocnicza sprawdzająca czy ekran ma pod-ekrany
