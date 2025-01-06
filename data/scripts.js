@@ -646,24 +646,17 @@ function toggleControllerParams() {
     const ktLcdParams = document.getElementById('kt-lcd-params');
     const s866Params = document.getElementById('s866-lcd-params');
 
-    console.log('Wybrany typ:', controllerType);
-    console.log('Element KT-LCD:', ktLcdParams);
-    console.log('Element S866:', s866Params);
-
     if (controllerType === 'kt-lcd') {
         ktLcdParams.style.display = 'block';
         s866Params.style.display = 'none';
-        console.log('Przełączam na KT-LCD');
     } else if (controllerType === 's866') {
         ktLcdParams.style.display = 'none';
         s866Params.style.display = 'block';
-        console.log('Przełączam na S866');
     }
 }
 
-// Wywołanie przy załadowaniu strony
+// Dodaj wywołanie przy załadowaniu strony
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Strona załadowana');
     toggleControllerParams();
 });
 
@@ -695,7 +688,10 @@ async function fetchControllerConfig() {
             // Wypełnij parametry dla S866
             else if (data.controller.type === 's866') {
                 for (let i = 1; i <= 20; i++) {
-                    document.getElementById(`s866-p${i}`).value = data.controller[`p${i}`] || '';
+                    const input = document.getElementById(`s866-p${i}`);
+                    if (input) {
+                        input.value = data.controller[`p${i}`] || '';
+                    }
                 }
             }
         }
