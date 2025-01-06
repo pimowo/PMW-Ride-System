@@ -1423,6 +1423,25 @@ function saveGeneralSettings() {
     });
 }
 
+async function loadBluetoothConfig() {
+    try {
+        const response = await fetch('/get-bluetooth-config');
+        const data = await response.json();
+        if (data) {
+            document.getElementById('bms-enabled').value = data.bmsEnabled.toString();
+            document.getElementById('tpms-enabled').value = data.tpmsEnabled.toString();
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji Bluetooth:', error);
+    }
+}
+
+window.onload = function() {
+    loadGeneralSettings();
+    loadBluetoothConfig();
+    // ... (pozostałe istniejące wywołania)
+};
+
 function saveBluetoothConfig() {
     const bmsEnabled = document.getElementById('bms-enabled').value;
     const tpmsEnabled = document.getElementById('tpms-enabled').value;
