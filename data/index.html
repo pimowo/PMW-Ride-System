@@ -854,6 +854,35 @@
                 </div>
             </div>
 
+    <!-- sekcja ustawień ogólnych -->
+		    
+	    <div class="card general-settings">
+	        <h2>Ustawienia ogólne</h2>
+
+    <!-- Rozmiar koła -->
+		    
+		<div class="setting-row">
+		    <label>
+		        Wielkość koła
+		        <button class="info-icon" data-info="wheel-size-info">ℹ</button>
+		    </label>
+		    <div class="select-wrapper">
+		        <select id="wheel-size">
+		            <option value="12">12"</option>
+		            <option value="18">18"</option>
+		            <option value="20">20"</option>
+		            <option value="24">24"</option>
+		            <option value="26">26"</option>
+		            <option value="28">28"</option>
+		            <option value="29">29"</option>
+		            <option value="700C">700C</option>
+		        </select>
+		    </div>
+		</div>		
+		    
+		<button class="btn-save" onclick="saveGeneralSettings()">Zapisz</button>
+	    </div>
+
     <!-- sekcja konfiguracji Bluetooth -->
 
                 <div class="card bluetooth-config">
