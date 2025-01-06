@@ -106,12 +106,21 @@ struct ControllerSettings {
     int s866Params[20];  // P1-P20
 };
 
+// Struktura przechowująca ustawienia ogólne
+struct GeneralSettings {
+    uint8_t wheelSize;  // Wielkość koła w calach (lub 0 dla 700C)
+    
+    // Konstruktor z wartościami domyślnymi
+    GeneralSettings() : wheelSize(26) {} // Domyślnie 26 cali
+};
+
 // Globalne instancje ustawień
 ControllerSettings controllerSettings;
 TimeSettings timeSettings;
 LightSettings lightSettings;
 BacklightSettings backlightSettings;
 WiFiSettings wifiSettings;
+GeneralSettings generalSettings;
 
 // --- Definicje pinów ---
 // Przyciski
@@ -636,6 +645,54 @@ void loadBacklightSettingsFromFile() {
     Serial.print("Night Brightness: "); Serial.println(backlightSettings.nightBrightness);
     Serial.print("Auto Mode: "); Serial.println(backlightSettings.autoMode);
     #endif
+}
+
+// Zapisywanie ustawień ogólnych do pliku
+void saveGeneralSettingsToFile() {
+    File file = LittleFS.open("/general_config.json", "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku ustawień ogólnych do zapisu");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    doc["wheelSize"] = generalSettings.wheelSize;
+
+    if (serializeJson(doc, file) == 0) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu ustawień ogólnych");
+        #endif
+    }
+
+    file.close();
+}
+
+// Wczytywanie ustawień ogólnych z pliku
+void loadGeneralSettingsFromFile() {
+    File file = LittleFS.open("/general_config.json", "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie znaleziono pliku ustawień ogólnych, używam domyślnych");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    DeserializationError error = deserializeJson(doc, file);
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON ustawień ogólnych");
+        #endif
+        file.close();
+        return;
+    }
+
+    generalSettings.wheelSize = doc["wheelSize"] | 26; // Domyślnie 26 cali jeśli nie znaleziono
+
+    file.close();
 }
 
 // Wczytywanie ustawień z EEPROM
@@ -1915,6 +1972,48 @@ void setupWebServer() {
         }
     );
 
+    // Endpoint do zapisywania ustawień ogólnych
+    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("body", true)) {
+            String json = request->getParam("body", true)->value();
+            StaticJsonDocument<64> doc;
+            DeserializationError error = deserializeJson(doc, json);
+
+            if (!error) {
+                // Konwersja wartości "700C" na 0 lub liczby na odpowiednie wartości
+                if (doc.containsKey("wheelSize")) {
+                    String wheelSizeStr = doc["wheelSize"].as<String>();
+                    if (wheelSizeStr == "700C") {
+                        generalSettings.wheelSize = 0; // 0 oznacza 700C
+                    } else {
+                        generalSettings.wheelSize = doc["wheelSize"].as<uint8_t>();
+                    }
+                }
+
+                saveGeneralSettingsToFile();
+                request->send(200, "application/json", "{\"success\":true}");
+            } else {
+                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+            }
+        } else {
+            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
+        }
+    });
+
+    // Endpoint do pobierania aktualnych ustawień ogólnych
+    server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<64> doc;
+        if (generalSettings.wheelSize == 0) {
+            doc["wheelSize"] = "700C";
+        } else {
+            doc["wheelSize"] = generalSettings.wheelSize;
+        }
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+    
     server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
             String jsonString = request->getParam("data", true)->value();
@@ -2249,6 +2348,7 @@ void setup() {
         loadLightSettings();  // Wczytaj ustawienia świateł
         loadBacklightSettingsFromFile();
         loadSettings();
+        loadGeneralSettingsFromFile();
     }
 
     setLights();  // Zastosuj wczytane ustawienia    
