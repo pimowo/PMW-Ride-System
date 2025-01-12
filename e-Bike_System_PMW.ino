@@ -918,7 +918,7 @@ void drawAssistLevel() {
     }
     display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
     display.drawStr(30, 34, modeText2);  // wyświetl STOP przy hamowaniu
-    drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
+    //drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
 
     //display.sendBuffer();
 }
@@ -1197,9 +1197,46 @@ void drawMainDisplay() {
 }
 
 // --- Funkcja wyświetlania animacji powitania ---
+// void showWelcomeMessage() {
+//     display.clearBuffer();
+//     display.setFont(czcionka_srednia);
+
+//     // Tekst "Witaj!" na środku
+//     String welcomeText = "Witaj!";
+//     int welcomeWidth = display.getStrWidth(welcomeText.c_str());
+//     int welcomeX = (128 - welcomeWidth) / 2;
+
+//     // Tekst przewijany
+//     String scrollText = "e-Bike System PMW  ";
+//     int messageWidth = display.getStrWidth(scrollText.c_str());
+//     int x = 128; // Start poza prawą krawędzią
+
+//     unsigned long lastUpdate = millis();
+//     while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
+//         unsigned long currentMillis = millis();
+//         if (currentMillis - lastUpdate >= 2) { // Aktualizuj co 5ms dla płynności
+//             display.clearBuffer();
+            
+//             // Statyczny tekst "Witaj!"
+//             display.drawStr(welcomeX, 30, welcomeText.c_str());
+            
+//             // Przewijany tekst "e-Bike System"
+//             display.drawStr(x, 50, scrollText.c_str());
+//             display.sendBuffer();
+            
+//             // Prędkość przewijania
+//             //x--; // jeden px na krok
+//             x -= 2; // try px na krok
+//             lastUpdate = currentMillis;
+//         }
+//     }
+
+//     welcomeAnimationDone = true;
+// }
+
 void showWelcomeMessage() {
     display.clearBuffer();
-    display.setFont(czcionka_srednia);
+    display.setFont(czcionka_srednia); // Ustaw domyślną czcionkę na początku
 
     // Tekst "Witaj!" na środku
     String welcomeText = "Witaj!";
@@ -1211,22 +1248,34 @@ void showWelcomeMessage() {
     int messageWidth = display.getStrWidth(scrollText.c_str());
     int x = 128; // Start poza prawą krawędzią
 
+    // Przygotuj tekst wersji
+    String versionText = "System ver. ";
+    versionText += VERSION;
+
     unsigned long lastUpdate = millis();
     while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
         unsigned long currentMillis = millis();
-        if (currentMillis - lastUpdate >= 2) { // Aktualizuj co 5ms dla płynności
+        if (currentMillis - lastUpdate >= 2) {
             display.clearBuffer();
             
-            // Statyczny tekst "Witaj!"
-            display.drawStr(welcomeX, 30, welcomeText.c_str());
+            // Statyczny tekst "Witaj!" dużą czcionką
+            display.setFont(czcionka_duza);
+            display.drawStr(welcomeX, 20, welcomeText.c_str());
             
-            // Przewijany tekst "e-Bike System"
-            display.drawStr(x, 50, scrollText.c_str());
+            // Przewijany tekst średnią czcionką
+            display.setFont(czcionka_srednia);
+            display.drawStr(x, 43, scrollText.c_str());
+
+            // Tekst wersji małą czcionką
+            display.setFont(czcionka_mala);
+            int versionWidth = display.getStrWidth(versionText.c_str());
+            int versionX = (128 - versionWidth) / 2;
+            display.drawStr(versionX, 60, versionText.c_str());
+            
             display.sendBuffer();
             
-            // Prędkość przewijania
             //x--; // jeden px na krok
-            x -= 2; // try px na krok
+            x -= 2; // dwa px na krok
             lastUpdate = currentMillis;
         }
     }
@@ -1488,9 +1537,11 @@ void deactivateConfigMode() {
     WiFi.softAPdisconnect(true);    // Wyłącz punkt dostępowy WiFi
     WiFi.mode(WIFI_OFF);            // Wyłącz moduł WiFi
     LittleFS.end();                 // Odmontuj system plików
-    configModeActive = false;       // Ustaw flagę trybu konfiguracji na nieaktywny
-    display.clearBuffer();          // Wyczyść bufor wyświetlacza
-    display.sendBuffer();           // Wyślij pusty bufor do wyświetlacza (wygaszenie)
+    
+    configModeActive = false;
+    
+    display.clearBuffer();
+    display.sendBuffer();
 }
 
 // Funkcja pomocnicza sprawdzająca czy ekran ma pod-ekrany
