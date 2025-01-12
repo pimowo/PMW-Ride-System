@@ -142,10 +142,9 @@ BluetoothConfig bluetoothConfig;
 #define RealPin 19     // tylne światło
 // Ładowarka USB
 #define UsbPin 32  // ładowarka USB
-// Czujnik temperatury powietrza
-#define ONE_WIRE_BUS 15  // temperatutra powietrza (DS18B20)
-#define ONE_WIRE_BUS 2  // Temperatura sterownika (DS18B20)
-//#define ONE_WIRE_BUS 15  // Temperatura silnika (NTC10K)
+// Czujniki temperatury
+#define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
+#define TEMP_CONTROLLER_PIN 2  // temperatura sterownika (DS18B20)
 
 // Zmienne do obsługi mrugania światła
 unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
@@ -317,8 +316,10 @@ bool usbEnabled = false;  // Stan wyjścia USB
 // --- Obiekty ---
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
 RTC_DS3231 rtc;
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
+OneWire oneWireAir(TEMP_AIR_PIN);
+OneWire oneWireController(TEMP_CONTROLLER_PIN);
+DallasTemperature sensorsAir(&oneWireAir);
+DallasTemperature sensorsController(&oneWireController);
 Settings bikeSettings;
 Settings storedSettings;
 
@@ -363,6 +364,8 @@ class TimeoutHandler {
       }
 };
 
+// 
+
 class TemperatureSensor {
     private:
         static constexpr float INVALID_TEMP = -999.0f;
@@ -370,11 +373,17 @@ class TemperatureSensor {
         static constexpr float MAX_VALID_TEMP = 100.0f;
         bool conversionRequested = false;
         unsigned long lastRequestTime = 0;
+        DallasTemperature* airSensor;
+        DallasTemperature* controllerSensor;
 
     public:
+        TemperatureSensor(DallasTemperature* air, DallasTemperature* controller) 
+            : airSensor(air), controllerSensor(controller) {}
+
         void requestTemperature() {
             if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
-                sensors.requestTemperatures();
+                airSensor->requestTemperatures();
+                controllerSensor->requestTemperatures();
                 conversionRequested = true;
                 lastRequestTime = millis();
             }
@@ -384,15 +393,25 @@ class TemperatureSensor {
             return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
         }
 
-        float readTemperature() {
+        float readAirTemperature() {
             if (!conversionRequested) return INVALID_TEMP;
 
             if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
                 return INVALID_TEMP;  // Konwersja jeszcze trwa
             }
 
-            float temp = sensors.getTempCByIndex(0);
-            conversionRequested = false;
+            float temp = airSensor->getTempCByIndex(0);
+            return isValidTemperature(temp) ? temp : INVALID_TEMP;
+        }
+
+        float readControllerTemperature() {
+            if (!conversionRequested) return INVALID_TEMP;
+
+            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
+                return INVALID_TEMP;  // Konwersja jeszcze trwa
+            }
+
+            float temp = controllerSensor->getTempCByIndex(0);
             return isValidTemperature(temp) ? temp : INVALID_TEMP;
         }
 };
@@ -1621,46 +1640,50 @@ void applyBacklightSettings() {
 }
 
 // Funkcje czujnika temperatury
-void initializeDS18B20() {
-    sensors.begin();
-}
+// void initializeDS18B20() {
+//     sensors.begin();
+// }
 
-void requestGroundTemperature() {
-    sensors.requestTemperatures();
-    ds18b20RequestTime = millis();
-}
+// void requestGroundTemperature() {
+//     sensors.requestTemperatures();
+//     ds18b20RequestTime = millis();
+// }
 
-bool isGroundTemperatureReady() {
-    return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
-}
+// bool isGroundTemperatureReady() {
+//     return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
+// }
 
 bool isValidTemperature(float temp) {
     return (temp >= -50.0 && temp <= 100.0);
 }
 
-float readGroundTemperature() {
-    if (isGroundTemperatureReady()) {
-        float temperature = sensors.getTempCByIndex(0);
-        if (isValidTemperature(temperature)) {
-            return temperature;
-        } else {
-            return -999.0;
-        }
-    }
-    return -999.0;
-}
+// float readGroundTemperature() {
+//     if (isGroundTemperatureReady()) {
+//         float temperature = sensors.getTempCByIndex(0);
+//         if (isValidTemperature(temperature)) {
+//             return temperature;
+//         } else {
+//             return -999.0;
+//         }
+//     }
+//     return -999.0;
+// }
 
 void handleTemperature() {
     unsigned long currentMillis = millis();
 
     if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
-        sensors.requestTemperatures();
+        // Żądanie konwersji z obu czujników
+        sensorsAir.requestTemperatures();
+        sensorsController.requestTemperatures();
         conversionRequested = true;
         lastTempRequest = currentMillis;
     }
 
     if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
-        currentTemp = sensors.getTempCByIndex(0);
+        // Odczyt z obu czujników
+        currentTemp = sensorsAir.getTempCByIndex(0);
+        temp_controller = sensorsController.getTempCByIndex(0);
         conversionRequested = false;
     }
 }
@@ -2372,10 +2395,16 @@ void setup() {
     Wire.begin();
 
     // Inicjalizacja DS18B20
-    initializeDS18B20();
-    sensors.setWaitForConversion(false);  // Tryb nieblokujący
-    sensors.setResolution(12);            // Najwyższa rozdzielczość
-    tempSensor.requestTemperature();      // Pierwsze żądanie pomiaru
+    sensorsAir.begin();
+    sensorsController.begin();
+    sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
+    sensorsController.setWaitForConversion(false);// Tryb nieblokujący
+    sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
+    sensorsController.setResolution(12);         // Najwyższa rozdzielczość
+    
+    // Pierwsze żądanie pomiaru
+    sensorsAir.requestTemperatures();
+    sensorsController.requestTemperatures();
 
     // Inicjalizacja RTC
     if (!rtc.begin()) {
@@ -2563,7 +2592,6 @@ void loop() {
         if (currentTime - lastUpdate >= updateInterval) {
             speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
             cadence_rpm = random(60, 90);
-            temp_controller = 25.0 + random(15);
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
             distance_km += 0.1;
