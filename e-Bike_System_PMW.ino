@@ -1,33 +1,3 @@
-/*
-01＿info Throttle Abnormality
-03＿info Motor Hall Signal Abnormality
-04＿info Torque sensor Signal Abnormality
-05＿info Axis speed sensor Abnormality(only applied to torque sensor )
-06＿info Motor or controller has short circuit Abnormality
-
-01_info - Problem z Manetką
-    W skrócie: Manetka nie działa prawidłowo
-    Możliwe przyczyny: uszkodzenie manetki, złe połączenie, problemy z przewodami
-
-03_info - Problem z Czujnikami w Silniku
-    W skrócie: Silnik nie otrzymuje prawidłowych sygnałów od swoich wewnętrznych czujników
-    Możliwe przyczyny: uszkodzenie czujników, problemy z okablowaniem silnika
-
-04_info - Problem z Czujnikiem Siły Nacisku
-    W skrócie: System nie wykrywa prawidłowo siły pedałowania
-    Możliwe przyczyny: uszkodzenie czujnika, problemy z kalibracją
-
-05_info - Problem z Czujnikiem Prędkości
-    W skrócie: System ma problem z pomiarem prędkości
-    Uwaga: Ten błąd pojawia się tylko w systemach z czujnikiem siły nacisku
-    Możliwe przyczyny: uszkodzony czujnik, złe ustawienie magnesów
-
-06_info - Wykryto Zwarcie
-    W skrócie: Poważny problem elektryczny w silniku lub kontrolerze
-    Możliwe przyczyny: uszkodzenie przewodów, zalanie wodą, wewnętrzne uszkodzenie
-    UWAGA: Ten błąd wymaga natychmiastowej kontroli, aby uniknąć poważniejszych uszkodzeń!
-*/
-
 // --- Biblioteki ---
 #include <Wire.h>
 #include <U8g2lib.h>
@@ -50,7 +20,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "6.1.25";
+const char* VERSION = "3.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -106,30 +76,12 @@ struct ControllerSettings {
     int s866Params[20];  // P1-P20
 };
 
-// Struktura przechowująca ustawienia ogólne
-struct GeneralSettings {
-    uint8_t wheelSize;  // Wielkość koła w calach (lub 0 dla 700C)
-    
-    // Konstruktor z wartościami domyślnymi
-    GeneralSettings() : wheelSize(26) {} // Domyślnie 26 cali
-};
-
-// Struktura przechowująca ustawienia Bluetooth
-struct BluetoothConfig {
-    bool bmsEnabled;
-    bool tpmsEnabled;
-    
-    BluetoothConfig() : bmsEnabled(false), tpmsEnabled(false) {}
-};
-
 // Globalne instancje ustawień
 ControllerSettings controllerSettings;
 TimeSettings timeSettings;
 LightSettings lightSettings;
 BacklightSettings backlightSettings;
 WiFiSettings wifiSettings;
-GeneralSettings generalSettings;
-BluetoothConfig bluetoothConfig;
 
 // --- Definicje pinów ---
 // Przyciski
@@ -142,9 +94,8 @@ BluetoothConfig bluetoothConfig;
 #define RealPin 19     // tylne światło
 // Ładowarka USB
 #define UsbPin 32  // ładowarka USB
-// Czujniki temperatury
-#define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
-#define TEMP_CONTROLLER_PIN 2  // temperatura sterownika (DS18B20)
+// Czujnik temperatury powietrza
+#define ONE_WIRE_BUS 15  // Pin do którego podłączony jest DS18B20
 
 // Zmienne do obsługi mrugania światła
 unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
@@ -161,8 +112,7 @@ void toggleLegalMode();            // Zdefiniuj tę funkcję
 void showWelcomeMessage();         // Zdefiniuj tę funkcję
 
 // Dodaj stałe jeśli ich nie ma
-//#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
-
+#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
 // --- Stałe czasowe ---
 const unsigned long DEBOUNCE_DELAY = 25;
 const unsigned long BUTTON_DELAY = 200;
@@ -316,10 +266,8 @@ bool usbEnabled = false;  // Stan wyjścia USB
 // --- Obiekty ---
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
 RTC_DS3231 rtc;
-OneWire oneWireAir(TEMP_AIR_PIN);
-OneWire oneWireController(TEMP_CONTROLLER_PIN);
-DallasTemperature sensorsAir(&oneWireAir);
-DallasTemperature sensorsController(&oneWireController);
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
 Settings bikeSettings;
 Settings storedSettings;
 
@@ -364,7 +312,39 @@ class TimeoutHandler {
       }
 };
 
-// 
+// class TemperatureSensor {
+//     private:
+//         static constexpr float INVALID_TEMP = -999.0f;
+//         static constexpr float MIN_VALID_TEMP = -50.0f;
+//         static constexpr float MAX_VALID_TEMP = 100.0f;
+//         bool conversionRequested = false;
+//         unsigned long lastRequestTime = 0;
+
+//     public:
+//         void requestTemperature() {
+//             if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
+//                 sensors.requestTemperatures();
+//                 conversionRequested = true;
+//                 lastRequestTime = millis();
+//             }
+//         }
+
+//         bool isValidTemperature(float temp) {
+//             return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
+//         }
+
+//         float readTemperature() {
+//             if (!conversionRequested) return INVALID_TEMP;
+
+//             if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
+//                 return INVALID_TEMP;  // Konwersja jeszcze trwa
+//             }
+
+//             float temp = sensors.getTempCByIndex(0);
+//             conversionRequested = false;
+//             return isValidTemperature(temp) ? temp : INVALID_TEMP;
+//         }
+// };
 
 class TemperatureSensor {
     private:
@@ -373,12 +353,31 @@ class TemperatureSensor {
         static constexpr float MAX_VALID_TEMP = 100.0f;
         bool conversionRequested = false;
         unsigned long lastRequestTime = 0;
-        DallasTemperature* airSensor;
-        DallasTemperature* controllerSensor;
+        DallasTemperature* airSensor = nullptr;
+        DallasTemperature* controllerSensor = nullptr;
+        OneWire oneWireAir;
+        OneWire oneWireController;
+        DallasTemperature sensorsAir;
+        DallasTemperature sensorsController;
 
     public:
-        TemperatureSensor(DallasTemperature* air, DallasTemperature* controller) 
-            : airSensor(air), controllerSensor(controller) {}
+        TemperatureSensor() : 
+            oneWireAir(TEMP_AIR_PIN),
+            oneWireController(TEMP_CONTROLLER_PIN),
+            sensorsAir(&oneWireAir),
+            sensorsController(&oneWireController) {
+            airSensor = &sensorsAir;
+            controllerSensor = &sensorsController;
+        }
+
+        void begin() {
+            airSensor->begin();
+            controllerSensor->begin();
+            airSensor->setWaitForConversion(false);
+            controllerSensor->setWaitForConversion(false);
+            airSensor->setResolution(12);
+            controllerSensor->setResolution(12);
+        }
 
         void requestTemperature() {
             if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
@@ -602,6 +601,7 @@ void connectToBms() {
 void setDisplayBrightness(uint8_t brightness) {
     displayBrightness = brightness;
     display.setContrast(displayBrightness);
+    // Opcjonalnie: zapisz wartość do EEPROM aby zapamiętać ustawienie
 }
 
 // Funkcja zapisująca ustawienia do pliku
@@ -677,94 +677,7 @@ void loadBacklightSettingsFromFile() {
     #endif
 }
 
-// Zapisywanie ustawień ogólnych do pliku
-void saveGeneralSettingsToFile() {
-    File file = LittleFS.open("/general_config.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku ustawień ogólnych do zapisu");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    doc["wheelSize"] = generalSettings.wheelSize;
-
-    if (serializeJson(doc, file) == 0) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas zapisu ustawień ogólnych");
-        #endif
-    }
-
-    file.close();
-}
-
-
-// Funkcja zapisująca ustawienia Bluetooth do pliku
-void saveBluetoothConfigToFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-
-    serializeJson(doc, file);
-    file.close();
-}
-
-// Funkcja wczytująca ustawienia Bluetooth z pliku
-void loadBluetoothConfigFromFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    
-    if (!error) {
-        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-    }
-    
-    file.close();
-}
-
-// Wczytywanie ustawień ogólnych z pliku
-void loadGeneralSettingsFromFile() {
-    File file = LittleFS.open("/general_config.json", "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie znaleziono pliku ustawień ogólnych, używam domyślnych");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    DeserializationError error = deserializeJson(doc, file);
-
-    if (error) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas parsowania JSON ustawień ogólnych");
-        #endif
-        file.close();
-        return;
-    }
-
-    generalSettings.wheelSize = doc["wheelSize"] | 26; // Domyślnie 26 cali jeśli nie znaleziono
-
-    file.close();
-}
-
+// Funkcje ustawień
 // Wczytywanie ustawień z EEPROM
 void loadSettingsFromEEPROM() {
     // Wczytanie ustawień z EEPROM
@@ -773,6 +686,7 @@ void loadSettingsFromEEPROM() {
     // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
     storedSettings = bikeSettings;
 
+    // Możesz dodać weryfikację wczytanych danych
     if (bikeSettings.wheelCircumference == 0) {
         bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
         bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
@@ -805,7 +719,7 @@ void drawHorizontalLine() {
 
 void drawVerticalLine() {
     display.drawVLine(25, 16, 28);
-    display.drawVLine(64, 16, 28);
+    display.drawVLine(67, 16, 28);
 }
 
 void drawTopBar() {
@@ -849,10 +763,12 @@ void drawLightStatus() {
 
     switch (lightMode) {
         case 1:
-            display.drawStr(30, 45, "Dzien");
+            //display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(30, 44, "Dzien");
             break;
         case 2:
-            display.drawStr(30, 45, "Noc");
+            //display.drawUTF8(22, 36, "Swiatlo");
+            display.drawUTF8(30, 44, "Noc");
             break;
     }
 }
@@ -898,10 +814,9 @@ void drawAssistLevel() {
 
     display.setFont(czcionka_mala);
     const char* modeText;
-    const char* modeText2;
     switch (assistMode) {
         case 0:
-            modeText2 = "STOP";
+            modeText = "STOP";
             break;
         case 1:
             modeText = "PAS";
@@ -916,11 +831,7 @@ void drawAssistLevel() {
             modeText = "MIX";
             break;
     }
-    display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
-    display.drawStr(30, 34, modeText2);  // wyświetl STOP przy hamowaniu
-    drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
-
-    //display.sendBuffer();
+    display.drawStr(30, 24, modeText);
 }
 
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
@@ -1444,7 +1355,7 @@ void activateConfigMode() {
 
     // 2. Włączenie WiFi w trybie AP
     WiFi.mode(WIFI_AP);
-    WiFi.softAP("e-Bike System PMW", "#mamrower");
+    WiFi.softAP("e-Bike System", "#mamrower");
     #ifdef DEBUG
     Serial.println("Tryb AP aktywny");
     #endif
@@ -1481,16 +1392,18 @@ void activateConfigMode() {
     #endif
 }
 
-// Funkcja wyłączająca tryb konfiguracji
-void deactivateConfigMode() {    
-    if (!configModeActive) return;  // Jeśli tryb konfiguracji nie jest aktywny, przerwij
-    server.end();                   // Zatrzymaj serwer HTTP
-    WiFi.softAPdisconnect(true);    // Wyłącz punkt dostępowy WiFi
-    WiFi.mode(WIFI_OFF);            // Wyłącz moduł WiFi
-    LittleFS.end();                 // Odmontuj system plików
-    configModeActive = false;       // Ustaw flagę trybu konfiguracji na nieaktywny
-    display.clearBuffer();          // Wyczyść bufor wyświetlacza
-    display.sendBuffer();           // Wyślij pusty bufor do wyświetlacza (wygaszenie)
+void deactivateConfigMode() {
+    if (!configModeActive) return;
+
+    server.end();
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_OFF);
+    LittleFS.end();
+    
+    configModeActive = false;
+    
+    display.clearBuffer();
+    display.sendBuffer();
 }
 
 // Funkcja pomocnicza sprawdzająca czy ekran ma pod-ekrany
@@ -1640,50 +1553,47 @@ void applyBacklightSettings() {
 }
 
 // Funkcje czujnika temperatury
-// void initializeDS18B20() {
-//     sensors.begin();
-// }
+void initializeDS18B20() {
+    sensors.begin();
+}
 
-// void requestGroundTemperature() {
-//     sensors.requestTemperatures();
-//     ds18b20RequestTime = millis();
-// }
+void requestGroundTemperature() {
+    sensors.requestTemperatures();
+    ds18b20RequestTime = millis();
+}
 
-// bool isGroundTemperatureReady() {
-//     return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
-// }
+bool isGroundTemperatureReady() {
+    return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
+}
 
 bool isValidTemperature(float temp) {
     return (temp >= -50.0 && temp <= 100.0);
 }
 
-// float readGroundTemperature() {
-//     if (isGroundTemperatureReady()) {
-//         float temperature = sensors.getTempCByIndex(0);
-//         if (isValidTemperature(temperature)) {
-//             return temperature;
-//         } else {
-//             return -999.0;
-//         }
-//     }
-//     return -999.0;
-// }
+float readGroundTemperature() {
+    if (isGroundTemperatureReady()) {
+        float temperature = sensors.getTempCByIndex(0);
+        if (isValidTemperature(temperature)) {
+            return temperature;
+        } else {
+            return -999.0;
+        }
+    }
+    return -999.0;
+}
 
 void handleTemperature() {
     unsigned long currentMillis = millis();
 
     if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
-        // Żądanie konwersji z obu czujników
-        sensorsAir.requestTemperatures();
-        sensorsController.requestTemperatures();
+        tempSensor.requestTemperature();
         conversionRequested = true;
         lastTempRequest = currentMillis;
     }
 
     if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
-        // Odczyt z obu czujników
-        currentTemp = sensorsAir.getTempCByIndex(0);
-        temp_controller = sensorsController.getTempCByIndex(0);
+        currentTemp = tempSensor.readAirTemperature();
+        temp_controller = tempSensor.readControllerTemperature();
         conversionRequested = false;
     }
 }
@@ -2044,79 +1954,6 @@ void setupWebServer() {
         }
     );
 
-    // Endpoint do zapisywania ustawień ogólnych
-    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("body", true)) {
-            String json = request->getParam("body", true)->value();
-            StaticJsonDocument<64> doc;
-            DeserializationError error = deserializeJson(doc, json);
-
-            if (!error) {
-                // Konwersja wartości "700C" na 0 lub liczby na odpowiednie wartości
-                if (doc.containsKey("wheelSize")) {
-                    String wheelSizeStr = doc["wheelSize"].as<String>();
-                    if (wheelSizeStr == "700C") {
-                        generalSettings.wheelSize = 0; // 0 oznacza 700C
-                    } else {
-                        generalSettings.wheelSize = doc["wheelSize"].as<uint8_t>();
-                    }
-                }
-
-                saveGeneralSettingsToFile();
-                request->send(200, "application/json", "{\"success\":true}");
-            } else {
-                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
-            }
-        } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
-        }
-    });
-
-    // Dodaj w setupWebServer():
-server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-    
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
-});
-
-server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("body", true)) {
-        String json = request->getParam("body", true)->value();
-        StaticJsonDocument<64> doc;
-        DeserializationError error = deserializeJson(doc, json);
-
-        if (!error) {
-            bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-            bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-            
-            saveBluetoothConfigToFile();
-            request->send(200, "application/json", "{\"success\":true}");
-        } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
-        }
-    } else {
-        request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
-    }
-});
-    
-    // Endpoint do pobierania aktualnych ustawień ogólnych
-    server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-        StaticJsonDocument<64> doc;
-        if (generalSettings.wheelSize == 0) {
-            doc["wheelSize"] = "700C";
-        } else {
-            doc["wheelSize"] = generalSettings.wheelSize;
-        }
-        
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-    
     server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
             String jsonString = request->getParam("data", true)->value();
@@ -2395,16 +2232,10 @@ void setup() {
     Wire.begin();
 
     // Inicjalizacja DS18B20
-    sensorsAir.begin();
-    sensorsController.begin();
-    sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
-    sensorsController.setWaitForConversion(false);// Tryb nieblokujący
-    sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
-    sensorsController.setResolution(12);         // Najwyższa rozdzielczość
-    
-    // Pierwsze żądanie pomiaru
-    sensorsAir.requestTemperatures();
-    sensorsController.requestTemperatures();
+    initializeDS18B20();
+    sensors.setWaitForConversion(false);  // Tryb nieblokujący
+    sensors.setResolution(12);            // Najwyższa rozdzielczość
+    tempSensor.requestTemperature();      // Pierwsze żądanie pomiaru
 
     // Inicjalizacja RTC
     if (!rtc.begin()) {
@@ -2457,8 +2288,6 @@ void setup() {
         loadLightSettings();  // Wczytaj ustawienia świateł
         loadBacklightSettingsFromFile();
         loadSettings();
-        loadGeneralSettingsFromFile();
-        loadBluetoothConfigFromFile();
     }
 
     setLights();  // Zastosuj wczytane ustawienia    
@@ -2503,7 +2332,7 @@ void drawCenteredText(const char* text, int y, const uint8_t* font) {
     // Rysuje tekst w obliczonej pozycji
     // x - pozycja pozioma (wycentrowana)
     // y - pozycja pionowa (określona przez parametr)
-    display.drawStr(x, y, text);
+    display.drawUTF8(x, y, text);
 }
 
 void loop() {
@@ -2592,6 +2421,7 @@ void loop() {
         if (currentTime - lastUpdate >= updateInterval) {
             speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
             cadence_rpm = random(60, 90);
+            temp_controller = 25.0 + random(15);
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
             distance_km += 0.1;
