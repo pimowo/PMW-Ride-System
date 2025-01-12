@@ -143,7 +143,9 @@ BluetoothConfig bluetoothConfig;
 // Ładowarka USB
 #define UsbPin 32  // ładowarka USB
 // Czujnik temperatury powietrza
-#define ONE_WIRE_BUS 15  // Pin do którego podłączony jest DS18B20
+#define ONE_WIRE_BUS 15  // temperatutra powietrza (DS18B20)
+#define ONE_WIRE_BUS 2  // Temperatura sterownika (DS18B20)
+//#define ONE_WIRE_BUS 15  // Temperatura silnika (NTC10K)
 
 // Zmienne do obsługi mrugania światła
 unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
