@@ -50,7 +50,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "6.1.25";
+const char* VERSION = "12.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -144,7 +144,7 @@ BluetoothConfig bluetoothConfig;
 #define UsbPin 32  // ładowarka USB
 // Czujniki temperatury
 #define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
-#define TEMP_CONTROLLER_PIN 2  // temperatura sterownika (DS18B20)
+#define TEMP_CONTROLLER_PIN 4  // temperatura sterownika (DS18B20)
 
 // Zmienne do obsługi mrugania światła
 unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
@@ -416,7 +416,7 @@ class TemperatureSensor {
         }
 };
 
-TemperatureSensor tempSensor;
+//TemperatureSensor tempSensor;
 
 // --- Deklaracje funkcji ---
 void handleSettings(AsyncWebServerRequest *request);
@@ -2443,6 +2443,12 @@ void setup() {
     display.begin();
     display.setFontDirection(0);
     display.clearBuffer();
+    display.sendBuffer();
+
+    setLights();  // Zastosuj wczytane ustawienia    
+    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
+
+    display.sendBuffer();
 
     // Inicjalizacja LittleFS i wczytanie ustawień
     if (!LittleFS.begin(true)) {
@@ -2460,11 +2466,6 @@ void setup() {
         loadGeneralSettingsFromFile();
         loadBluetoothConfigFromFile();
     }
-
-    setLights();  // Zastosuj wczytane ustawienia    
-    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
-
-    display.sendBuffer();
 
     // Jeśli wybudzenie przez przycisk SET
     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
@@ -2515,18 +2516,18 @@ void loop() {
     unsigned long currentTime = millis();
 
     // Obsługa mrugania światła tylnego
-    if ((lightMode == 1 && lightSettings.dayBlink && 
-        (lightSettings.dayLights == LightSettings::REAR || lightSettings.dayLights == LightSettings::BOTH)) || 
-        (lightMode == 2 && lightSettings.nightBlink && 
-        (lightSettings.nightLights == LightSettings::REAR || lightSettings.nightLights == LightSettings::BOTH))) {
+    // if ((lightMode == 1 && lightSettings.dayBlink && 
+    //     (lightSettings.dayLights == LightSettings::REAR || lightSettings.dayLights == LightSettings::BOTH)) || 
+    //     (lightMode == 2 && lightSettings.nightBlink && 
+    //     (lightSettings.nightLights == LightSettings::REAR || lightSettings.nightLights == LightSettings::BOTH))) {
         
-        unsigned long currentMillis = millis();
-        if (currentMillis - lastBlinkTime >= lightSettings.blinkFrequency) {
-            lastBlinkTime = currentMillis;
-            blinkState = !blinkState;
-            digitalWrite(RealPin, blinkState);
-        }
-    }
+    //     unsigned long currentMillis = millis();
+    //     if (currentMillis - lastBlinkTime >= lightSettings.blinkFrequency) {
+    //         lastBlinkTime = currentMillis;
+    //         blinkState = !blinkState;
+    //         digitalWrite(RealPin, blinkState);
+    //     }
+    // }
 
     if (configModeActive) {      
         display.clearBuffer();
