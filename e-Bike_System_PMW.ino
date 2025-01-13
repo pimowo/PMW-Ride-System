@@ -50,7 +50,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "12.1.25";
+const char* VERSION = "13.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -121,6 +121,27 @@ struct BluetoothConfig {
     
     BluetoothConfig() : bmsEnabled(false), tpmsEnabled(false) {}
 };
+
+// Deklaracje dla BMS
+struct BmsData {
+    float voltage;           // Napięcie całkowite [V]
+    float current;          // Prąd [A]
+    float remainingCapacity; // Pozostała pojemność [Ah]
+    float totalCapacity;    // Całkowita pojemność [Ah]
+    uint8_t soc;           // Stan naładowania [%]
+    uint8_t cycles;        // Liczba cykli
+    float cellVoltages[16]; // Napięcia cel [V]
+    float temperatures[4];  // Temperatury [°C]
+    bool charging;         // Status ładowania
+    bool discharging;      // Status rozładowania
+};
+
+BmsData bmsData;
+
+// Komendy BMS
+const uint8_t BMS_BASIC_INFO[] = {0xDD, 0xA5, 0x03, 0x00, 0xFF, 0xFD, 0x77};
+const uint8_t BMS_CELL_INFO[] = {0xDD, 0xA5, 0x04, 0x00, 0xFF, 0xFC, 0x77};
+const uint8_t BMS_TEMP_INFO[] = {0xDD, 0xA5, 0x08, 0x00, 0xFF, 0xF8, 0x77};
 
 // Globalne instancje ustawień
 ControllerSettings controllerSettings;
@@ -440,8 +461,87 @@ void toggleLegalMode() {
 }
 
 // Funkcje BLE
-void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  // Twoja funkcja obsługi powiadomień
+// Callback dla powiadomień BLE
+void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
+                        uint8_t* pData, size_t length, bool isNotify) {
+    if (length < 2) return;  // Sprawdzenie minimalnej długości pakietu
+
+    switch (pData[1]) {  // Sprawdź typ pakietu
+        case 0x03:  // Basic info
+            if (length >= 34) {
+                // Napięcie całkowite (0.1V)
+                bmsData.voltage = (float)((pData[4] << 8) | pData[5]) / 10.0;
+                
+                // Prąd (0.1A, wartość ze znakiem)
+                int16_t current = (pData[6] << 8) | pData[7];
+                bmsData.current = (float)current / 10.0;
+                
+                // Pozostała pojemność (0.1Ah)
+                bmsData.remainingCapacity = (float)((pData[8] << 8) | pData[9]) / 10.0;
+                
+                // SOC (%)
+                bmsData.soc = pData[23];
+                
+                // Status ładowania/rozładowania
+                uint8_t status = pData[22];
+                bmsData.charging = (status & 0x01);
+                bmsData.discharging = (status & 0x02);
+                
+                #ifdef DEBUG
+                Serial.printf("Voltage: %.1fV, Current: %.1fA, SOC: %d%%\n", 
+                            bmsData.voltage, bmsData.current, bmsData.soc);
+                #endif
+            }
+            break;
+
+        case 0x04:  // Cell info
+            if (length >= 34) {  // Sprawdź czy mamy kompletny pakiet
+                for (int i = 0; i < 16; i++) {
+                    bmsData.cellVoltages[i] = (float)((pData[4 + i*2] << 8) | pData[5 + i*2]) / 1000.0;
+                }
+                #ifdef DEBUG
+                Serial.println("Cell voltages updated");
+                #endif
+            }
+            break;
+
+        case 0x08:  // Temperature info
+            if (length >= 12) {
+                for (int i = 0; i < 4; i++) {
+                    // Konwersja z K na °C
+                    int16_t temp = ((pData[4 + i*2] << 8) | pData[5 + i*2]) - 2731;
+                    bmsData.temperatures[i] = (float)temp / 10.0;
+                }
+                #ifdef DEBUG
+                Serial.println("Temperatures updated");
+                #endif
+            }
+            break;
+    }
+}
+
+// Funkcja wysyłająca zapytanie do BMS
+void requestBmsData(const uint8_t* command, size_t length) {
+    if (bleClient && bleClient->isConnected() && bleCharacteristicTx) {
+        bleCharacteristicTx->writeValue(command, length);
+    }
+}
+
+// Funkcja aktualizująca dane BMS
+void updateBmsData() {
+    static unsigned long lastBmsUpdate = 0;
+    const unsigned long BMS_UPDATE_INTERVAL = 1000; // Aktualizuj co 1 sekundę
+
+    if (millis() - lastBmsUpdate >= BMS_UPDATE_INTERVAL) {
+        if (bleClient && bleClient->isConnected()) {
+            requestBmsData(BMS_BASIC_INFO, sizeof(BMS_BASIC_INFO));
+            delay(100);  // Krótkie opóźnienie między zapytaniami
+            requestBmsData(BMS_CELL_INFO, sizeof(BMS_CELL_INFO));
+            delay(100);
+            requestBmsData(BMS_TEMP_INFO, sizeof(BMS_TEMP_INFO));
+            lastBmsUpdate = millis();
+        }
+    }
 }
 
 // Funkcja zapisująca ustawienia świateł do pliku
@@ -2640,6 +2740,7 @@ void loop() {
         drawLightStatus();
         display.sendBuffer();
         handleTemperature();
+        updateBmsData();
 
         if (currentTime - lastUpdate >= updateInterval) {
             speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
