@@ -2034,6 +2034,10 @@ void setupWebServer() {
 
     // Licznik całkowity 
     server.on("/api/odometer", HTTP_GET, [](AsyncWebServerRequest *request) {
+        #ifdef DEBUG
+        Serial.print("Odczyt licznika: ");
+        Serial.println(odometer.getRawTotal());
+        #endif
         request->send(200, "text/plain", String(odometer.getRawTotal()));
     });
 
@@ -2041,8 +2045,17 @@ void setupWebServer() {
         if (request->hasParam("value", true)) {
             float newValue = request->getParam("value", true)->value().toFloat();
             bool success = odometer.setInitialValue(newValue);
-            request->send(success ? 200 : 400, "text/plain", success ? "OK" : "Invalid value");
+            #ifdef DEBUG
+            Serial.print("Ustawienie licznika na ");
+            Serial.print(newValue);
+            Serial.println(success ? ": OK" : ": Błąd");
+            #endif
+            request->send(success ? 200 : 400, "text/plain", 
+                        success ? "OK" : "Invalid value");
         } else {
+            #ifdef DEBUG
+            Serial.println("Błąd: brak parametru value");
+            #endif
             request->send(400, "text/plain", "Missing value");
         }
     });
@@ -2771,9 +2784,9 @@ void loop() {
             cadence_rpm = random(60, 90);
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
-            // Aktualizacja dystansu
-            distance_km += 0.1;
+            // Aktualizacja dystansu            
             odometer.update(distance_km);
+            distance_km += 0.1;
             power_w = 100 + random(300);
             power_avg_w = power_w * 0.8;
             power_max_w = power_w * 1.2;
