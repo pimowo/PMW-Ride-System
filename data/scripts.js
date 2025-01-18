@@ -1721,8 +1721,59 @@ function initializeCollapsibleSections() {
     });
 }
 
-// Dodaj na końcu pliku scripts.js
+// Zastąp istniejącą funkcję saveGeneralSettings tą nową wersją
+async function saveGeneralSettings() {
+    try {
+        const wheelSize = document.getElementById('wheel-size').value;
+        const odometer = document.getElementById('total-odometer').value;
+        
+        // Najpierw zapisz ustawienia ogólne
+        const generalResponse = await fetch('/save-general-settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                wheelSize: wheelSize
+            })
+        });
 
+        if (!generalResponse.ok) {
+            throw new Error('Błąd podczas zapisywania ustawień ogólnych');
+        }
+
+        const generalData = await generalResponse.json();
+        
+        // Następnie zapisz stan licznika
+        const odometerResponse = await fetch('/api/setOdometer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `value=${odometer}`
+        });
+
+        if (!odometerResponse.ok) {
+            throw new Error('Błąd podczas zapisywania stanu licznika');
+        }
+
+        const odometerResult = await odometerResponse.text();
+        
+        if (generalData.success && odometerResult === 'OK') {
+            // Wyświetl potwierdzenie tylko jeśli oba zapisy się powiodły
+            alert('Zapisano ustawienia ogólne');
+            // Odśwież wyświetlane wartości
+            await loadGeneralSettings();
+        } else {
+            throw new Error('Nie udało się zapisać wszystkich ustawień');
+        }
+    } catch (error) {
+        console.error('Błąd:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+// Upewnij się, że ta funkcja jest obecna i prawidłowa
 async function loadGeneralSettings() {
     try {
         // Pobierz rozmiar koła
