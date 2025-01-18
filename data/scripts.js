@@ -35,6 +35,53 @@ function getFormValue(serverValue, isNightMode = false) {
 // Dodaj zmienną do kontroli debounce
 let saveTimeout = null;
 
+// Na początku pliku w sekcji funkcji inicjalizujących
+async function loadOdometerValue() {
+    try {
+        const response = await fetch('/api/odometer');
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const value = await response.text();
+        document.getElementById('total-odometer').value = Math.floor(parseFloat(value));
+    } catch (error) {
+        console.error('Error loading odometer:', error);
+    }
+}
+
+// Dodaj przed saveGeneralSettings()
+async function saveOdometerValue() {
+    const odometerInput = document.getElementById('total-odometer');
+    if (!odometerInput) return;
+
+    const value = odometerInput.value;
+    if (value === '') return;
+
+    try {
+        const response = await fetch('/api/setOdometer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `value=${value}`
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+
+        const result = await response.text();
+        if (result === 'OK') {
+            console.log('Odometer value saved successfully');
+        } else {
+            throw new Error('Failed to save odometer value');
+        }
+    } catch (error) {
+        console.error('Error saving odometer:', error);
+        alert('Error saving odometer value');
+    }
+}
+
 // Funkcja zapisywania konfiguracji z debounce
 async function saveLightConfig() {
     debug('Rozpoczynam zapisywanie konfiguracji świateł');
@@ -159,6 +206,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Poczekaj na załadowanie DOM
         await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Dodaj wczytywanie licznika
+        await loadOdometerValue();
 
         // Inicjalizacja pozostałych modułów
         if (document.querySelector('.light-config')) {
@@ -1543,9 +1593,35 @@ async function fetchSystemVersion() {
     }
 }
 
+//function saveGeneralSettings() {
+//    const wheelSize = document.getElementById('wheel-size').value;
+//    
+//    fetch('/save-general-settings', {
+//        method: 'POST',
+//        headers: {
+//            'Content-Type': 'application/json',
+//        },
+//        body: JSON.stringify({
+//            wheelSize: wheelSize
+//        })
+//    })
+//    .then(response => response.json())
+//    .then(data => {
+//        if (data.success) {
+//            console.log('Ustawienia ogólne zapisane pomyślnie');
+//        }
+//    })
+//    .catch(error => {
+//        console.error('Błąd podczas zapisywania ustawień ogólnych:', error);
+//    });
+//}
+
+// Zmodyfikuj istniejącą funkcję saveGeneralSettings
 function saveGeneralSettings() {
     const wheelSize = document.getElementById('wheel-size').value;
+    const odometer = document.getElementById('total-odometer').value;
     
+    // Najpierw zapisz ustawienia ogólne
     fetch('/save-general-settings', {
         method: 'POST',
         headers: {
@@ -1559,6 +1635,8 @@ function saveGeneralSettings() {
     .then(data => {
         if (data.success) {
             console.log('Ustawienia ogólne zapisane pomyślnie');
+            // Jeśli ustawienia ogólne zostały zapisane, zapisz również licznik
+            return saveOdometerValue();
         }
     })
     .catch(error => {
