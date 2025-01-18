@@ -772,7 +772,7 @@ const infoContent = {
 
     'rtc-info': {
         title: '⏰ Konfiguracja zegara',
-        description: `Panel konfiguracji zegara czasu rzeczywistego (RTC).
+        description: `Panel konfiguracji zegara czasu rzeczywistego (RTC)
 
     ⌚ Funkcje:
       - Synchronizacja czasu systemowego
@@ -1465,6 +1465,13 @@ const infoContent = {
     spersonalizowane konfiguracje!`
     },
 
+    // Licznik całkowity
+    'total-odometer-info': {
+        title: 'Przebieg całkowity',
+        description: `Całkowity przebieg roweru w kilometrach. Można ustawić wartość początkową, np. przy przeniesieniu z innego licznika.`
+    },
+
+    // Rozmiar koła
     'wheel-size-info': {
         title: 'Rozmiar koła',
         description: `Wybierz rozmiar koła swojego roweru. Jest to ważne dla prawidłowego obliczania prędkości i dystansu.`
