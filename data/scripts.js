@@ -1,2798 +1,1674 @@
-/*
-01＿info Throttle Abnormality
-03＿info Motor Hall Signal Abnormality
-04＿info Torque sensor Signal Abnormality
-05＿info Axis speed sensor Abnormality(only applied to torque sensor )
-06＿info Motor or controller has short circuit Abnormality
-
-01_info - Problem z Manetką
-    W skrócie: Manetka nie działa prawidłowo
-    Możliwe przyczyny: uszkodzenie manetki, złe połączenie, problemy z przewodami
-
-03_info - Problem z Czujnikami w Silniku
-    W skrócie: Silnik nie otrzymuje prawidłowych sygnałów od swoich wewnętrznych czujników
-    Możliwe przyczyny: uszkodzenie czujników, problemy z okablowaniem silnika
-
-04_info - Problem z Czujnikiem Siły Nacisku
-    W skrócie: System nie wykrywa prawidłowo siły pedałowania
-    Możliwe przyczyny: uszkodzenie czujnika, problemy z kalibracją
-
-05_info - Problem z Czujnikiem Prędkości
-    W skrócie: System ma problem z pomiarem prędkości
-    Uwaga: Ten błąd pojawia się tylko w systemach z czujnikiem siły nacisku
-    Możliwe przyczyny: uszkodzony czujnik, złe ustawienie magnesów
-
-06_info - Wykryto Zwarcie
-    W skrócie: Poważny problem elektryczny w silniku lub kontrolerze
-    Możliwe przyczyny: uszkodzenie przewodów, zalanie wodą, wewnętrzne uszkodzenie
-    UWAGA: Ten błąd wymaga natychmiastowej kontroli, aby uniknąć poważniejszych uszkodzeń!
-*/
-
-// --- Biblioteki ---
-#include <Wire.h>
-#include <U8g2lib.h>
-#include <RTClib.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <EEPROM.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <LittleFS.h>
-#include <ArduinoJson.h>
-#include <TimeLib.h>
-#include <map>
-
-#include "Odometer.h"
-
-// Dodaj globalną instancję
-OdometerManager odometer;
-
-// Zmień zmienną odometer_km na:
-#define odometer_km odometer.getRawTotal()
-
-#define DEBUG
-
-// --- Wersja systemu ---
-const char* VERSION = "18.1.25";
-
-// Stała z nazwą pliku konfiguracyjnego
-const char* CONFIG_FILE = "/display_config.json";
-const char* LIGHT_CONFIG_FILE = "/light_config.json";
-
-// Utworzenie serwera na porcie 80
-bool configModeActive = false;
-AsyncWebServer server(80);
-AsyncWebSocket ws("/ws");
-AsyncEventSource events("/events");
-
-// Struktury dla ustawień
-struct TimeSettings {
-    bool ntpEnabled;
-    int8_t hours;
-    int8_t minutes;
-    int8_t seconds;
-    int8_t day;
-    int8_t month;
-    int16_t year;
-};
-
-struct LightSettings {
-    enum LightMode {
-        NONE,
-        FRONT,
-        REAR,
-        BOTH
-    };
-    
-    LightMode dayLights;      // Konfiguracja świateł dziennych
-    LightMode nightLights;    // Konfiguracja świateł nocnych
-    bool dayBlink;           // Miganie w trybie dziennym
-    bool nightBlink;         // Miganie w trybie nocnym
-    uint16_t blinkFrequency; // Częstotliwość migania
-};
-
-struct BacklightSettings {
-    int dayBrightness;    // %
-    int nightBrightness;  // %
-    bool autoMode;
-};
-
-struct WiFiSettings {
-    char ssid[32];
-    char password[64];
-};
-
-// Struktura dla parametrów sterownika
-struct ControllerSettings {
-    String type;  // "kt-lcd" lub "s866"
-    int ktParams[23];  // P1-P5, C1-C15, L1-L3
-    int s866Params[20];  // P1-P20
-};
-
-// Struktura przechowująca ustawienia ogólne
-struct GeneralSettings {
-    uint8_t wheelSize;  // Wielkość koła w calach (lub 0 dla 700C)
-    
-    // Konstruktor z wartościami domyślnymi
-    GeneralSettings() : wheelSize(26) {} // Domyślnie 26 cali
-};
-
-// Struktura przechowująca ustawienia Bluetooth
-struct BluetoothConfig {
-    bool bmsEnabled;
-    bool tpmsEnabled;
-    
-    BluetoothConfig() : bmsEnabled(false), tpmsEnabled(false) {}
-};
-
-// Deklaracje dla BMS
-struct BmsData {
-    float voltage;            // Napięcie całkowite [V]
-    float current;            // Prąd [A]
-    float remainingCapacity;  // Pozostała pojemność [Ah]
-    float totalCapacity;      // Całkowita pojemność [Ah]
-    uint8_t soc;              // Stan naładowania [%]
-    uint8_t cycles;           // Liczba cykli
-    float cellVoltages[16];   // Napięcia cel [V]
-    float temperatures[4];    // Temperatury [°C]
-    bool charging;            // Status ładowania
-    bool discharging;         // Status rozładowania
-};
-
-BmsData bmsData;
-
-// Komendy BMS
-const uint8_t BMS_BASIC_INFO[] = {0xDD, 0xA5, 0x03, 0x00, 0xFF, 0xFD, 0x77};
-const uint8_t BMS_CELL_INFO[] = {0xDD, 0xA5, 0x04, 0x00, 0xFF, 0xFC, 0x77};
-const uint8_t BMS_TEMP_INFO[] = {0xDD, 0xA5, 0x08, 0x00, 0xFF, 0xF8, 0x77};
-
-// Globalne instancje ustawień
-ControllerSettings controllerSettings;
-TimeSettings timeSettings;
-LightSettings lightSettings;
-BacklightSettings backlightSettings;
-WiFiSettings wifiSettings;
-GeneralSettings generalSettings;
-BluetoothConfig bluetoothConfig;
-
-// --- Definicje pinów ---
-// Przyciski
-#define BTN_UP 13
-#define BTN_DOWN 14
-#define BTN_SET 12
-// Światła
-#define FrontDayPin 5  // światła dzienne
-#define FrontPin 18    // światła zwykłe
-#define RealPin 19     // tylne światło
-// Ładowarka USB
-#define UsbPin 32  // ładowarka USB
-// Czujniki temperatury
-#define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
-#define TEMP_CONTROLLER_PIN 4  // temperatura sterownika (DS18B20)
-
-// Zmienne do obsługi mrugania światła
-unsigned long lastBlinkTime = 0;  // Czas ostatniego mrugania
-bool blinkState = false;          // Stan mrugania (włączone/wyłączone)
-
-const uint8_t* czcionka_mala = u8g2_font_profont11_mf;  // opis ekranów
-const uint8_t* czcionka_srednia = u8g2_font_pxplusibmvga9_mf; // górna belka
-const uint8_t* czcionka_duza = u8g2_font_fub20_tr;
-
-bool legalMode = false;             // false = normalny tryb, true = tryb legal
-uint8_t displayBrightness = 16;     // Wartość od 0 do 255
-bool welcomeAnimationDone = false;  // Dodaj na początku pliku
-void toggleLegalMode();             // Zdefiniuj tę funkcję
-void showWelcomeMessage();          // Zdefiniuj tę funkcję
-
-// Dodaj stałe jeśli ich nie ma
-//#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
-
-// --- Stałe czasowe ---
-const unsigned long DEBOUNCE_DELAY = 25;
-const unsigned long BUTTON_DELAY = 200;
-const unsigned long LONG_PRESS_TIME = 1000;
-const unsigned long DOUBLE_CLICK_TIME = 300;
-const unsigned long GOODBYE_DELAY = 3000;
-const unsigned long SET_LONG_PRESS = 2000;
-const unsigned long TEMP_REQUEST_INTERVAL = 1000;
-const unsigned long DS18B20_CONVERSION_DELAY_MS = 750;
-
-// --- Struktury i enumy ---
-struct Settings {
-    int wheelCircumference;
-    float batteryCapacity;
-    int daySetting;
-    int nightSetting;
-    bool dayRearBlink;
-    bool nightRearBlink;
-    unsigned long blinkInterval;
-};
-
-enum MainScreen {
-    SPEED_SCREEN,      // Ekran prędkości
-    CADENCE_SCREEN,    // Ekran kadencji
-    TEMP_SCREEN,       // Ekran temperatur
-    RANGE_SCREEN,      // Ekran zasięgu
-    BATTERY_SCREEN,    // Ekran baterii
-    POWER_SCREEN,      // Ekran mocy
-    PRESSURE_SCREEN,   // Ekran ciśnienia
-    USB_SCREEN,        // Ekran sterowania USB
-    MAIN_SCREEN_COUNT  // Liczba głównych ekranów
-};
-
-enum SpeedSubScreen {
-    SPEED_KMH,       // Aktualna prędkość
-    SPEED_AVG_KMH,   // Średnia prędkość
-    SPEED_MAX_KMH,   // Maksymalna prędkość
-    SPEED_SUB_COUNT  
-};
-
-enum CadenceSubScreen {
-    CADENCE_RPM,       // Aktualna kadencja
-    CADENCE_AVG_RPM,   // Średnia kadencja
-    CADENCE_SUB_COUNT  
-};
-
-enum TempSubScreen {
-    TEMP_AIR,
-    TEMP_CONTROLLER,
-    TEMP_MOTOR,
-    TEMP_SUB_COUNT
-};
-
-enum RangeSubScreen {
-    RANGE_KM,
-    DISTANCE_KM,
-    ODOMETER_KM,
-    RANGE_SUB_COUNT
-};
-
-enum BatterySubScreen {
-    BATTERY_VOLTAGE,
-    BATTERY_CURRENT,
-    BATTERY_CAPACITY_WH,
-    BATTERY_CAPACITY_AH,
-    BATTERY_CAPACITY_PERCENT,
-    BATTERY_SUB_COUNT
-};
-
-enum PowerSubScreen {
-    POWER_W,
-    POWER_AVG_W,
-    POWER_MAX_W,
-    POWER_SUB_COUNT
-};
-
-enum PressureSubScreen {
-    PRESSURE_BAR,
-    PRESSURE_VOLTAGE,
-    PRESSURE_TEMP,
-    PRESSURE_SUB_COUNT
-};
-
-// --- Zmienne stanu ekranu ---
-MainScreen currentMainScreen = SPEED_SCREEN;
-int currentSubScreen = 0;
-bool inSubScreen = false;
-bool displayActive = false;
-bool showingWelcome = false;
-
-#define PRESSURE_LEFT_MARGIN 70
-#define PRESSURE_TOP_LINE 62
-#define PRESSURE_BOTTOM_LINE 62
-
-// --- Zmienne pomiarowe ---
-float speed_kmh = 0;
-int cadence_rpm = 0;
-float temp_air = 0;
-float temp_controller = 0;
-float temp_motor = 0;
-float range_km = 0;
-float distance_km = 0;
-float odometer_km = 0;
-float battery_voltage = 0;
-float battery_current = 0;
-float battery_capacity_wh = 0;
-float battery_capacity_ah = 0;
-int battery_capacity_percent = 0;
-int power_w = 0;
-int power_avg_w = 0;
-int power_max_w = 0;
-float speed_avg_kmh = 0;
-float speed_max_kmh = 0;
-int cadence_avg_rpm = 0;
-// Zmienne dla czujników ciśnienia
-float pressure_bar = 0;           // przednie koło
-float pressure_rear_bar = 0;      // tylne koło
-float pressure_voltage = 0;       // napięcie przedniego czujnika
-float pressure_rear_voltage = 0;  // napięcie tylnego czujnika
-float pressure_temp = 0;          // temperatura przedniego czujnika
-float pressure_rear_temp = 0;     // temperatura tylnego czujnika
-
-// --- Zmienne dla czujnika temperatury ---
-#define TEMP_ERROR -999.0
-float currentTemp = DEVICE_DISCONNECTED_C;
-bool temperatureReady = false;
-bool conversionRequested = false;
-unsigned long lastTempRequest = 0;
-unsigned long ds18b20RequestTime;
-
-// --- Zmienne dla przycisków ---
-unsigned long lastClickTime = 0;
-unsigned long lastButtonPress = 0;
-unsigned long lastDebounceTime = 0;
-unsigned long upPressStartTime = 0;
-unsigned long downPressStartTime = 0;
-unsigned long setPressStartTime = 0;
-unsigned long messageStartTime = 0;
-bool firstClick = false;
-bool upLongPressExecuted = false;
-bool downLongPressExecuted = false;
-bool setLongPressExecuted = false;
-
-// --- Zmienne konfiguracyjne ---
-int assistLevel = 3;
-bool assistLevelAsText = false;
-int lightMode = 0;        // 0=off, 1=dzień, 2=noc
-int assistMode = 0;       // 0=PAS, 1=STOP, 2=GAZ, 3=P+G
-bool usbEnabled = false;  // Stan wyjścia USB
-
-// --- Obiekty ---
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
-RTC_DS3231 rtc;
-OneWire oneWireAir(TEMP_AIR_PIN);
-OneWire oneWireController(TEMP_CONTROLLER_PIN);
-DallasTemperature sensorsAir(&oneWireAir);
-DallasTemperature sensorsController(&oneWireController);
-Settings bikeSettings;
-Settings storedSettings;
-
-// --- Obiekty BLE ---
-BLEClient* bleClient;
-BLEAddress bmsMacAddress("a5:c2:37:05:8b:86");
-BLERemoteService* bleService;
-BLERemoteCharacteristic* bleCharacteristicTx;
-BLERemoteCharacteristic* bleCharacteristicRx;
-
-// --- Klasy pomocnicze ---
-class TimeoutHandler {
-    private:
-        uint32_t startTime;
-        uint32_t timeoutPeriod;
-        bool isRunning;
-
-    public:
-        TimeoutHandler(uint32_t timeout_ms = 0)
-            : startTime(0),
-                timeoutPeriod(timeout_ms),
-                isRunning(false) {}
-
-        void start(uint32_t timeout_ms = 0) {
-            if (timeout_ms > 0) timeoutPeriod = timeout_ms;
-            startTime = millis();
-            isRunning = true;
-        }
-
-        bool isExpired() {
-            if (!isRunning) return false;
-            return (millis() - startTime) >= timeoutPeriod;
-        }
-
-        void stop() {
-            isRunning = false;
-        }
-
-        uint32_t getElapsed() {
-            if (!isRunning) return 0;
-            return (millis() - startTime);
-      }
-};
-
-// 
-
-class TemperatureSensor {
-    private:
-        static constexpr float INVALID_TEMP = -999.0f;
-        static constexpr float MIN_VALID_TEMP = -50.0f;
-        static constexpr float MAX_VALID_TEMP = 100.0f;
-        bool conversionRequested = false;
-        unsigned long lastRequestTime = 0;
-        DallasTemperature* airSensor;
-        DallasTemperature* controllerSensor;
-
-    public:
-        TemperatureSensor(DallasTemperature* air, DallasTemperature* controller) 
-            : airSensor(air), controllerSensor(controller) {}
-
-        void requestTemperature() {
-            if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
-                airSensor->requestTemperatures();
-                controllerSensor->requestTemperatures();
-                conversionRequested = true;
-                lastRequestTime = millis();
-            }
-        }
-
-        bool isValidTemperature(float temp) {
-            return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
-        }
-
-        float readAirTemperature() {
-            if (!conversionRequested) return INVALID_TEMP;
-
-            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
-                return INVALID_TEMP;  // Konwersja jeszcze trwa
-            }
-
-            float temp = airSensor->getTempCByIndex(0);
-            return isValidTemperature(temp) ? temp : INVALID_TEMP;
-        }
-
-        float readControllerTemperature() {
-            if (!conversionRequested) return INVALID_TEMP;
-
-            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
-                return INVALID_TEMP;  // Konwersja jeszcze trwa
-            }
-
-            float temp = controllerSensor->getTempCByIndex(0);
-            return isValidTemperature(temp) ? temp : INVALID_TEMP;
-        }
-};
-
-//TemperatureSensor tempSensor;
-
-// --- Deklaracje funkcji ---
-void handleSettings(AsyncWebServerRequest *request);
-void handleSaveClockSettings(AsyncWebServerRequest *request);
-void handleSaveBikeSettings(AsyncWebServerRequest *request);
-
-void toggleLegalMode() {
-    legalMode = !legalMode;
-    
-    display.clearBuffer();
-        
-    drawCenteredText("Tryb legalny", 20, czcionka_srednia);
-    drawCenteredText("zostal", 35, czcionka_srednia);
-    drawCenteredText(legalMode ? "wlaczony" : "wylaczony", 50, czcionka_srednia);
-    
-    display.sendBuffer();
-    delay(1500);
-    
-    display.clearBuffer();
-    display.sendBuffer();
-}
-
-// Funkcje BLE
-// Callback dla powiadomień BLE
-void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
-                        uint8_t* pData, size_t length, bool isNotify) {
-    if (length < 2) return;  // Sprawdzenie minimalnej długości pakietu
-
-    switch (pData[1]) {  // Sprawdź typ pakietu
-        case 0x03:  // Basic info
-            if (length >= 34) {
-                // Napięcie całkowite (0.1V)
-                bmsData.voltage = (float)((pData[4] << 8) | pData[5]) / 10.0;
-                
-                // Prąd (0.1A, wartość ze znakiem)
-                int16_t current = (pData[6] << 8) | pData[7];
-                bmsData.current = (float)current / 10.0;
-                
-                // Pozostała pojemność (0.1Ah)
-                bmsData.remainingCapacity = (float)((pData[8] << 8) | pData[9]) / 10.0;
-                
-                // SOC (%)
-                bmsData.soc = pData[23];
-                
-                // Status ładowania/rozładowania
-                uint8_t status = pData[22];
-                bmsData.charging = (status & 0x01);
-                bmsData.discharging = (status & 0x02);
-                
-                #ifdef DEBUG
-                Serial.printf("Voltage: %.1fV, Current: %.1fA, SOC: %d%%\n", 
-                            bmsData.voltage, bmsData.current, bmsData.soc);
-                #endif
-            }
-            break;
-
-        case 0x04:  // Cell info
-            if (length >= 34) {  // Sprawdź czy mamy kompletny pakiet
-                for (int i = 0; i < 16; i++) {
-                    bmsData.cellVoltages[i] = (float)((pData[4 + i*2] << 8) | pData[5 + i*2]) / 1000.0;
-                }
-                #ifdef DEBUG
-                Serial.println("Cell voltages updated");
-                #endif
-            }
-            break;
-
-        case 0x08:  // Temperature info
-            if (length >= 12) {
-                for (int i = 0; i < 4; i++) {
-                    // Konwersja z K na °C
-                    int16_t temp = ((pData[4 + i*2] << 8) | pData[5 + i*2]) - 2731;
-                    bmsData.temperatures[i] = (float)temp / 10.0;
-                }
-                #ifdef DEBUG
-                Serial.println("Temperatures updated");
-                #endif
-            }
-            break;
+// Funkcja konwersji wartości formularza na wartości API
+function getLightMode(value) {
+    debug('Konwersja wartości formularza:', value);
+    switch(value) {
+        case 'front-day':
+        case 'front-normal':
+            return "FRONT";
+        case 'rear':
+            return "REAR";
+        case 'front-day-rear':
+        case 'front-normal-rear':
+            return "BOTH";
+        case 'off':
+        default:
+            return "NONE";
     }
 }
 
-// Funkcja wysyłająca zapytanie do BMS
-void requestBmsData(const uint8_t* command, size_t length) {
-    if (bleClient && bleClient->isConnected() && bleCharacteristicTx) {
-//        bleCharacteristicTx->writeValue(command, length);
+// Funkcja konwersji wartości z API na wartości formularza
+function getFormValue(serverValue, isNightMode = false) {
+    debug('Konwersja wartości z serwera:', serverValue);
+    switch(serverValue) {
+        case 'FRONT':
+            return isNightMode ? 'front-normal' : 'front-day';
+        case 'REAR':
+            return 'rear';
+        case 'BOTH':
+            return isNightMode ? 'front-normal-rear' : 'front-day-rear';
+        case 'NONE':
+        default:
+            return 'off';
     }
 }
 
-// Funkcja aktualizująca dane BMS
-void updateBmsData() {
-    static unsigned long lastBmsUpdate = 0;
-    const unsigned long BMS_UPDATE_INTERVAL = 1000; // Aktualizuj co 1 sekundę
+// Dodaj zmienną do kontroli debounce
+let saveTimeout = null;
 
-    if (millis() - lastBmsUpdate >= BMS_UPDATE_INTERVAL) {
-        if (bleClient && bleClient->isConnected()) {
-            requestBmsData(BMS_BASIC_INFO, sizeof(BMS_BASIC_INFO));
-            delay(100);  // Krótkie opóźnienie między zapytaniami
-            requestBmsData(BMS_CELL_INFO, sizeof(BMS_CELL_INFO));
-            delay(100);
-            requestBmsData(BMS_TEMP_INFO, sizeof(BMS_TEMP_INFO));
-            lastBmsUpdate = millis();
-        }
-    }
-}
-
-// Funkcja zapisująca ustawienia świateł do pliku
-void saveLightSettings() {
-    #ifdef DEBUG
-    Serial.println("Zapisywanie ustawień świateł");
-    #endif
-
-    // Przygotuj dokument JSON
-    StaticJsonDocument<256> doc;
+// Funkcja zapisywania konfiguracji z debounce
+async function saveLightConfig() {
+    debug('Rozpoczynam zapisywanie konfiguracji świateł');
     
-    // Zapisz ustawienia
-    doc["dayLights"] = lightSettings.dayLights;
-    doc["nightLights"] = lightSettings.nightLights;
-    doc["dayBlink"] = lightSettings.dayBlink;
-    doc["nightBlink"] = lightSettings.nightBlink;
-    doc["blinkFrequency"] = lightSettings.blinkFrequency;
-
-    // Otwórz plik do zapisu
-    File file = LittleFS.open("/lights.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Błąd otwarcia pliku do zapisu");
-        #endif
-        return;
+    // Anuluj poprzedni timeout jeśli istnieje
+    if (saveTimeout) {
+        clearTimeout(saveTimeout);
     }
 
-    // Zapisz JSON do pliku
-    if (serializeJson(doc, file) == 0) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas zapisu do pliku");
-        #endif
-    }
+    // Ustaw nowy timeout
+    saveTimeout = setTimeout(async () => {
+        try {
+            const elements = {
+                dayLights: document.getElementById('day-lights'),
+                nightLights: document.getElementById('night-lights'),
+                dayBlink: document.getElementById('day-blink'),
+                nightBlink: document.getElementById('night-blink'),
+                blinkFrequency: document.getElementById('blink-frequency')
+            };
 
-    file.close();
+            const lightConfig = {
+                dayLights: getLightMode(elements.dayLights.value),
+                nightLights: getLightMode(elements.nightLights.value),
+                dayBlink: elements.dayBlink.checked,
+                nightBlink: elements.nightBlink.checked,
+                blinkFrequency: parseInt(elements.blinkFrequency.value)
+            };
 
-    #ifdef DEBUG
-    Serial.println("Ustawienia świateł zapisane");
-    Serial.print("dayLights: "); Serial.println(lightSettings.dayLights);
-    Serial.print("nightLights: "); Serial.println(lightSettings.nightLights);
-    #endif
+            debug('Przygotowane dane:', lightConfig);
 
-    // Od razu zastosuj nowe ustawienia
-    setLights();
-}
+            const formData = new URLSearchParams();
+            formData.append('data', JSON.stringify(lightConfig));
 
-// Funkcja wczytująca ustawienia świateł z pliku
-void loadLightSettings() {
-    #ifdef DEBUG
-    Serial.println("Wczytywanie ustawień świateł");
-    #endif
+            const response = await fetch('/api/lights/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            });
 
-    if (LittleFS.exists("/lights.json")) {
-        File file = LittleFS.open("/lights.json", "r");
-        if (file) {
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, file);
-            file.close();
-
-            if (!error) {
-                const char* dayLightsStr = doc["dayLights"] | "FRONT";
-                const char* nightLightsStr = doc["nightLights"] | "BOTH";
-
-                // Konwersja stringów na enum
-                if (strcmp(dayLightsStr, "FRONT") == 0) 
-                    lightSettings.dayLights = LightSettings::FRONT;
-                else if (strcmp(dayLightsStr, "REAR") == 0) 
-                    lightSettings.dayLights = LightSettings::REAR;
-                else if (strcmp(dayLightsStr, "BOTH") == 0) 
-                    lightSettings.dayLights = LightSettings::BOTH;
-                else 
-                    lightSettings.dayLights = LightSettings::NONE;
-
-                if (strcmp(nightLightsStr, "FRONT") == 0) 
-                    lightSettings.nightLights = LightSettings::FRONT;
-                else if (strcmp(nightLightsStr, "REAR") == 0) 
-                    lightSettings.nightLights = LightSettings::REAR;
-                else if (strcmp(nightLightsStr, "BOTH") == 0) 
-                    lightSettings.nightLights = LightSettings::BOTH;
-                else 
-                    lightSettings.nightLights = LightSettings::NONE;
-
-                lightSettings.dayBlink = doc["dayBlink"] | false;
-                lightSettings.nightBlink = doc["nightBlink"] | false;
-                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
-            }
-        }
-    } else {
-        // Ustawienia domyślne
-        lightSettings.dayLights = LightSettings::FRONT;
-        lightSettings.nightLights = LightSettings::BOTH;
-        lightSettings.dayBlink = false;
-        lightSettings.nightBlink = false;
-        lightSettings.blinkFrequency = 500;
-    }
-}
-
-// --- Połączenie z BMS ---
-void connectToBms() {
-    if (!bleClient->isConnected()) {
-        #ifdef DEBUG
-        Serial.println("Próba połączenia z BMS...");
-        #endif
-
-        if (bleClient->connect(bmsMacAddress)) {
-            #ifdef DEBUG
-            Serial.println("Połączono z BMS");
-            #endif
-
-            bleService = bleClient->getService("0000ff00-0000-1000-8000-00805f9b34fb");
-            if (bleService == nullptr) {
-                #ifdef DEBUG
-                Serial.println("Nie znaleziono usługi BMS");
-                #endif
-                bleClient->disconnect();
-                return;
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            bleCharacteristicTx = bleService->getCharacteristic("0000ff02-0000-1000-8000-00805f9b34fb");
-            if (bleCharacteristicTx == nullptr) {
-                #ifdef DEBUG
-                Serial.println("Nie znaleziono charakterystyki Tx");
-                #endif
-                bleClient->disconnect();
-                return;
-            }
-
-            bleCharacteristicRx = bleService->getCharacteristic("0000ff01-0000-1000-8000-00805f9b34fb");
-            if (bleCharacteristicRx == nullptr) {
-                #ifdef DEBUG
-                Serial.println("Nie znaleziono charakterystyki Rx");
-                #endif
-                bleClient->disconnect();
-                return;
-            }
-
-            // Rejestracja funkcji obsługi powiadomień BLE
-            if (bleCharacteristicRx->canNotify()) {
-                bleCharacteristicRx->registerForNotify(notificationCallback);
-                #ifdef DEBUG
-                Serial.println("Zarejestrowano powiadomienia dla Rx");
-                #endif
+            const result = await response.json();
+            if (result.status === 'ok') {
+                alert('Zapisano ustawienia świateł'); // Dodajemy to
+                await loadLightConfig(); // Odświeżamy konfigurację
             } else {
-                #ifdef DEBUG
-                Serial.println("Charakterystyka Rx nie obsługuje powiadomień");
-                #endif
-                bleClient->disconnect();
-                return;
+                throw new Error(result.message || 'Nieznany błąd');
             }
-        } else {
-          #ifdef DEBUG
-          Serial.println("Nie udało się połączyć z BMS");
-          #endif
+        } catch (error) {
+            console.error('Błąd podczas zapisywania:', error);
+            alert('Błąd podczas zapisywania ustawień: ' + error.message);
         }
-    }
+    }, 500); // Czekaj 500ms przed zapisem
 }
 
-void setDisplayBrightness(uint8_t brightness) {
-    displayBrightness = brightness;
-    display.setContrast(displayBrightness);
-}
+// Dodaj debounce dla loadLightConfig
+let loadTimeout = null;
 
-// Funkcja zapisująca ustawienia do pliku
-void saveBacklightSettingsToFile() {
-    File file = LittleFS.open(CONFIG_FILE, "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku do zapisu");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<200> doc;
-    doc["dayBrightness"] = backlightSettings.dayBrightness;
-    doc["nightBrightness"] = backlightSettings.nightBrightness;
-    doc["autoMode"] = backlightSettings.autoMode;
-
-    // Zapisz JSON do pliku
-    if (serializeJson(doc, file)) {
-        #ifdef DEBUG
-        Serial.println("Zapisano ustawienia do pliku");
-        #endif
-    } else {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas zapisu do pliku");
-        #endif
-    }
+// Funkcja wczytywania konfiguracji z debounce
+async function loadLightConfig() {
+    debug('Rozpoczynam wczytywanie konfiguracji świateł...');
     
-    file.close();
-}
-
-// Funkcja odczytująca ustawienia z pliku
-void loadBacklightSettingsFromFile() {
-    File file = LittleFS.open(CONFIG_FILE, "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Brak pliku konfiguracyjnego, używam ustawień domyślnych");
-        #endif
-        // Ustaw wartości domyślne
-        backlightSettings.dayBrightness = 100;
-        backlightSettings.nightBrightness = 50;
-        backlightSettings.autoMode = false;
-        // Zapisz domyślne ustawienia do pliku
-        saveBacklightSettingsToFile();
-        return;
+    // Anuluj poprzedni timeout jeśli istnieje
+    if (loadTimeout) {
+        clearTimeout(loadTimeout);
     }
 
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    file.close();
-
-    if (error) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas parsowania JSON, używam ustawień domyślnych");
-        #endif
-        // Ustaw wartości domyślne
-        backlightSettings.dayBrightness = 100;
-        backlightSettings.nightBrightness = 50;
-        backlightSettings.autoMode = false;
-        return;
-    }
-
-    // Wczytaj ustawienia
-    backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
-    backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
-    backlightSettings.autoMode = doc["autoMode"] | false;
-
-    #ifdef DEBUG
-    Serial.println("Wczytano ustawienia z pliku:");
-    Serial.print("Day Brightness: "); Serial.println(backlightSettings.dayBrightness);
-    Serial.print("Night Brightness: "); Serial.println(backlightSettings.nightBrightness);
-    Serial.print("Auto Mode: "); Serial.println(backlightSettings.autoMode);
-    #endif
-}
-
-// Zapisywanie ustawień ogólnych do pliku
-void saveGeneralSettingsToFile() {
-    File file = LittleFS.open("/general_config.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku ustawień ogólnych do zapisu");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    doc["wheelSize"] = generalSettings.wheelSize;
-
-    if (serializeJson(doc, file) == 0) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas zapisu ustawień ogólnych");
-        #endif
-    }
-
-    file.close();
-}
-
-
-// Funkcja zapisująca ustawienia Bluetooth do pliku
-void saveBluetoothConfigToFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-
-    serializeJson(doc, file);
-    file.close();
-}
-
-// Funkcja wczytująca ustawienia Bluetooth z pliku
-void loadBluetoothConfigFromFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    
-    if (!error) {
-        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-    }
-    
-    file.close();
-}
-
-// Wczytywanie ustawień ogólnych z pliku
-void loadGeneralSettingsFromFile() {
-    File file = LittleFS.open("/general_config.json", "r");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie znaleziono pliku ustawień ogólnych, używam domyślnych");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    DeserializationError error = deserializeJson(doc, file);
-
-    if (error) {
-        #ifdef DEBUG
-        Serial.println("Błąd podczas parsowania JSON ustawień ogólnych");
-        #endif
-        file.close();
-        return;
-    }
-
-    generalSettings.wheelSize = doc["wheelSize"] | 26; // Domyślnie 26 cali jeśli nie znaleziono
-
-    file.close();
-}
-
-// Wczytywanie ustawień z EEPROM
-void loadSettingsFromEEPROM() {
-    // Wczytanie ustawień z EEPROM
-    EEPROM.get(0, bikeSettings);
-
-    // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
-    storedSettings = bikeSettings;
-
-    if (bikeSettings.wheelCircumference == 0) {
-        bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
-        bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
-        bikeSettings.daySetting = 0;
-        bikeSettings.nightSetting = 0;
-        bikeSettings.dayRearBlink = false;
-        bikeSettings.nightRearBlink = false;
-        bikeSettings.blinkInterval = 500;
-    }
-}
-
-// --- Funkcja zapisująca ustawienia do EEPROM ---
-void saveSettingsToEEPROM() {
-    // Porównaj aktualne ustawienia z poprzednio wczytanymi
-    if (memcmp(&storedSettings, &bikeSettings, sizeof(bikeSettings)) != 0) {
-        // Jeśli ustawienia się zmieniły, zapisz je do EEPROM
-        EEPROM.put(0, bikeSettings);
-        EEPROM.commit();
-
-        // Zaktualizuj storedSettings po zapisie
-        storedSettings = bikeSettings;
-    }
-}
-
-// Funkcje wyświetlacza
-void drawHorizontalLine() {
-    display.drawHLine(4, 12, 122);
-    display.drawHLine(4, 48, 122);
-}
-
-void drawVerticalLine() {
-    display.drawVLine(25, 16, 28);
-    display.drawVLine(64, 16, 28);
-}
-
-void drawTopBar() {
-    static bool colonVisible = true;
-    static unsigned long lastColonToggle = 0;
-    const unsigned long COLON_TOGGLE_INTERVAL = 500;  // Miganie co 500ms (pół sekundy)
-
-    display.setFont(czcionka_srednia);
-
-    // Pobierz aktualny czas z RTC
-    DateTime now = rtc.now();
-
-    // Czas z migającym dwukropkiem
-    char timeStr[6];
-    if (colonVisible) {
-        sprintf(timeStr, "%02d:%02d", now.hour(), now.minute());
-    } else {
-        sprintf(timeStr, "%02d %02d", now.hour(), now.minute());
-    }
-    display.drawStr(0, 10, timeStr);
-
-    // Przełącz stan dwukropka co COLON_TOGGLE_INTERVAL
-    if (millis() - lastColonToggle >= COLON_TOGGLE_INTERVAL) {
-        colonVisible = !colonVisible;
-        lastColonToggle = millis();
-    }
-
-    // Bateria
-    char battStr[5];
-    sprintf(battStr, "%d%%", battery_capacity_percent);
-    display.drawStr(58, 10, battStr);
-
-    // Napięcie
-    char voltStr[6];
-    sprintf(voltStr, "%.0fV", battery_voltage);
-    display.drawStr(100, 10, voltStr);
-}
-
-void drawLightStatus() {
-    display.setFont(czcionka_mala);
-
-    switch (lightMode) {
-        case 1:
-            display.drawStr(30, 45, "Dzien");
-            break;
-        case 2:
-            display.drawStr(30, 45, "Noc");
-            break;
-    }
-}
-
-void drawAssistLevel() {
-    display.setFont(czcionka_duza);
-
-    if (assistLevelAsText) {
-         display.drawStr(2, 40, "T");
-    } else {
-        // Wyświetlanie poziomu asysty
-        if (legalMode) {
-            // Wymiary cyfry i tła
-            const int digit_height = 20;  // wysokość czcionki
-            const int padding = 3;        // margines wewnętrzny
-            const int total_width = 16 + (padding * 2);  // szerokość cyfry + marginesy
-            const int total_height = digit_height + (padding * 2);  // wysokość + marginesy
-            
-            int x = 2;
-            int y = 40;
-            
-            // Pozycja tła (box)
-            int box_x = x - padding;
-            int box_y = y - digit_height - padding;  // przesunięcie w górę o wysokość + padding
-            
-            // Rysuj białe tło
-            display.setDrawColor(1);
-            display.drawBox(box_x, box_y, total_width, total_height);
-            
-            // Wyświetl tekst w negatywie
-            display.setDrawColor(0);
-            char levelStr[2];
-            sprintf(levelStr, "%d", assistLevel);
-            display.drawStr(x, y, levelStr);
-            display.setDrawColor(1);
-        } else {
-            // Normalny tryb
-            char levelStr[2];
-            sprintf(levelStr, "%d", assistLevel);
-            display.drawStr(2, 40, levelStr);
-        }
-    }    
-
-    display.setFont(czcionka_mala);
-    const char* modeText;
-    const char* modeText2;
-    switch (assistMode) {
-        case 0:
-            modeText2 = "STOP";
-            break;
-        case 1:
-            modeText = "PAS";
-            break;
-        case 2:           
-            modeText = "TENS";
-            break;
-        case 3:
-            modeText = "GAZ";
-            break;
-        case 4:
-            modeText = "MIX";
-            break;
-    }
-    display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
-    display.drawStr(30, 34, modeText2);  // wyświetl STOP przy hamowaniu
-    //drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
-
-    //display.sendBuffer();
-}
-
-void drawValueAndUnit(const char* valueStr, const char* unitStr) {
-    // Najpierw oblicz szerokość jednostki małą czcionką
-    display.setFont(czcionka_mala);
-    int unitWidth = display.getStrWidth(unitStr);
-    
-    // Następnie oblicz szerokość wartości średnią czcionką
-    display.setFont(czcionka_srednia);
-    int valueWidth = display.getStrWidth(valueStr);
-    
-    // Całkowita szerokość = wartość + jednostka
-    int totalWidth = valueWidth + unitWidth;
-    
-    // Pozycja początkowa dla wartości (od prawej strony)
-    int xPosValue = 128 - totalWidth;
-    
-    // Pozycja początkowa dla jednostki
-    int xPosUnit = xPosValue + valueWidth;
-    
-    // Rysowanie wartości średnią czcionką
-    display.setFont(czcionka_srednia);
-    display.drawStr(xPosValue, 62, valueStr);
-    
-    // Rysowanie jednostki małą czcionką
-    display.setFont(czcionka_mala);
-    display.drawStr(xPosUnit, 62, unitStr);
-}
-
-void drawMainDisplay() {
-    display.setFont(czcionka_mala);
-    char valueStr[10];
-    const char* unitStr;
-    const char* descText;
-
-    if (inSubScreen) {
-
-        switch (currentMainScreen) {
-      
-            case SPEED_SCREEN:
-                switch (currentSubScreen) {
-                    case SPEED_KMH:
-                        sprintf(valueStr, "%4.1f", speed_kmh);
-                        unitStr = "km/h";
-                        descText = ">Predkosc";
-                        break;
-                    case SPEED_AVG_KMH:
-                        sprintf(valueStr, "%4.1f", speed_avg_kmh);
-                        unitStr = "km/h";
-                        descText = ">Pred. AVG";
-                        break;
-                    case SPEED_MAX_KMH:
-                        sprintf(valueStr, "%4.1f", speed_max_kmh);
-                        unitStr = "km/h";
-                        descText = ">Pred. MAX";
-                        break;
-                }
-                break;
-
-            case CADENCE_SCREEN:
-                switch (currentSubScreen) {
-                    case CADENCE_RPM:
-                        sprintf(valueStr, "%4d", cadence_rpm);
-                        unitStr = "RPM";
-                        descText = ">Kadencja";
-                        break;
-                    case CADENCE_AVG_RPM:
-                        sprintf(valueStr, "%4d", cadence_avg_rpm);
-                        unitStr = "RPM";
-                        descText = ">Kadencja AVG";
-                        break;
-                }
-                break;
-
-            case TEMP_SCREEN:
-                switch (currentSubScreen) {
-                    case TEMP_AIR:
-                        if (currentTemp != TEMP_ERROR && currentTemp != DEVICE_DISCONNECTED_C) {
-                            sprintf(valueStr, "%4.1f", currentTemp);
-                        } else {
-                            strcpy(valueStr, "---");
-                        }
-                        unitStr = "C";
-                        descText = ">Powietrze";
-                        break;
-                    case TEMP_CONTROLLER:
-                        sprintf(valueStr, "%4.1f", temp_controller);
-                        unitStr = "C";
-                        descText = ">Sterownik";
-                        break;
-                    case TEMP_MOTOR:
-                        sprintf(valueStr, "%4.1f", temp_motor);
-                        unitStr = "C";
-                        descText = ">Silnik";
-                        break;
-                }
-                break;
-
-            case RANGE_SCREEN:
-                switch (currentSubScreen) {
-                    case RANGE_KM:
-                        sprintf(valueStr, "%4.1f", range_km);
-                        unitStr = "km";
-                        descText = ">Zasieg";
-                        break;
-                    case DISTANCE_KM:
-                        sprintf(valueStr, "%4.1f", distance_km);
-                        unitStr = "km";
-                        descText = ">Dystans";
-                        break;
-                    case ODOMETER_KM:
-                        sprintf(valueStr, "%4.0f", odometer_km);
-                        unitStr = "km";
-                        descText = ">Przebieg";
-                        break;
-                }
-                break;
-
-            case BATTERY_SCREEN:
-                switch (currentSubScreen) {
-                    case BATTERY_VOLTAGE:
-                        sprintf(valueStr, "%4.1f", battery_voltage);
-                        unitStr = "V";
-                        descText = ">Napiecie";
-                        break;
-                    case BATTERY_CURRENT:
-                        sprintf(valueStr, "%4.1f", battery_current);
-                        unitStr = "A";
-                        descText = ">Natezenie";
-                        break;
-                    case BATTERY_CAPACITY_WH:
-                        sprintf(valueStr, "%4.0f", battery_capacity_wh);
-                        unitStr = "Wh";
-                        descText = ">Energia";
-                        break;
-                    case BATTERY_CAPACITY_AH:
-                        sprintf(valueStr, "%4.1f", battery_capacity_wh);
-                        unitStr = "Ah";
-                        descText = ">Pojemnosc";
-                        break;
-                    case BATTERY_CAPACITY_PERCENT:
-                        sprintf(valueStr, "%3d", battery_capacity_percent);
-                        unitStr = "%";
-                        descText = ">Bateria";
-                        break;
-                }
-                break;
-
-            case POWER_SCREEN:
-                switch (currentSubScreen) {
-                    case POWER_W:
-                        sprintf(valueStr, "%4d", power_w);
-                        unitStr = "W";
-                        descText = ">Moc";
-                        break;
-                    case POWER_AVG_W:
-                        sprintf(valueStr, "%4d", power_avg_w);
-                        unitStr = "W";
-                        descText = ">Moc AVG";
-                        break;
-                    case POWER_MAX_W:
-                        sprintf(valueStr, "%4d", power_max_w);
-                        unitStr = "W";
-                        descText = ">Moc MAX";
-                        break;
-                }
-                break;
-
-            case PRESSURE_SCREEN:
-                char combinedStr[16];
-                switch (currentSubScreen) {
-                    case PRESSURE_BAR:
-                        sprintf(combinedStr, "%.2f|%.2f", pressure_bar, pressure_rear_bar);
-                        strcpy(valueStr, combinedStr);
-                        unitStr = "bar";
-                        descText = ">Cis";
-                        break;
-                    case PRESSURE_VOLTAGE:
-                        sprintf(combinedStr, "%.2f|%.2f", pressure_voltage, pressure_rear_voltage);
-                        strcpy(valueStr, combinedStr);
-                        unitStr = "V";
-                        descText = ">Bat";
-                        break;
-                    case PRESSURE_TEMP:
-                        sprintf(combinedStr, "%.1f|%.1f", pressure_temp, pressure_rear_temp);
-                        strcpy(valueStr, combinedStr);
-                        unitStr = "C";
-                        descText = ">Temp";
-                        break;
-                }
-                break;
-        }
-
-    } else {
-        // Wyświetlanie głównych ekranów
-        switch (currentMainScreen) {
-
-            case SPEED_SCREEN:
-                sprintf(valueStr, "%4.1f", speed_kmh);
-                unitStr = "km/h";
-                descText = " Predkosc";
-                break;
-          
-            case CADENCE_SCREEN:
-                sprintf(valueStr, "%4d", cadence_rpm);
-                unitStr = "RPM";
-                descText = " Kadencja";
-                break;
-
-            case TEMP_SCREEN:
-                if (currentTemp != TEMP_ERROR && currentTemp != DEVICE_DISCONNECTED_C) {
-                    sprintf(valueStr, "%4.1f", currentTemp);
-                } else {
-                    strcpy(valueStr, "---");
-                }
-                unitStr = "C";
-                descText = " Temperatura";
-                break;
-
-            case RANGE_SCREEN:
-                sprintf(valueStr, "%4.1f", range_km);
-                unitStr = "km";
-                descText = " Zasieg";
-                break;
-
-            case BATTERY_SCREEN:
-                sprintf(valueStr, "%3d", battery_capacity_percent);
-                unitStr = "%";
-                descText = " Bateria";
-                break;
-
-            case POWER_SCREEN:
-                sprintf(valueStr, "%4d", power_w);
-                unitStr = "W";
-                descText = " Moc";
-                break;
-
-            case PRESSURE_SCREEN:
-                sprintf(valueStr, "%.1f/%.1f", pressure_bar, pressure_rear_bar);
-                unitStr = "bar";
-                descText = " Kola";
-                break;
-
-            case USB_SCREEN:
-                display.setFont(czcionka_srednia);
-                display.drawStr(48, 61, usbEnabled ? "Wlaczone" : "Wylaczone");
-                descText = " USB";
-                break;
-        }
-    }
-   
-    char speedStr[10]; // Bufor na sformatowaną prędkość
-    if (speed_kmh < 10.0) {
-        sprintf(speedStr, "  %2.1f", speed_kmh);  // Dodaj spację przed liczbą
-    } else {
-        sprintf(speedStr, "%2.1f", speed_kmh);   // Bez spacji
-    }
-
-    // Wyświetl prędkość dużą czcionką
-    display.setFont(czcionka_duza);
-    display.drawStr(72, 35, speedStr);
-
-    // Wyświetl jednostkę małą czcionką pod prędkością
-    display.setFont(czcionka_mala);
-    display.drawStr(105, 45, "km/h");
-
-    // Wyświetl wartości tylko jeśli nie jesteśmy na ekranie USB
-    if (currentMainScreen != USB_SCREEN) {
-        drawValueAndUnit(valueStr, unitStr);
-    }
-
-    display.setFont(czcionka_mala);
-    display.drawStr(0, 62, descText);
-}
-
-// --- Funkcja wyświetlania animacji powitania ---
-// void showWelcomeMessage() {
-//     display.clearBuffer();
-//     display.setFont(czcionka_srednia);
-
-//     // Tekst "Witaj!" na środku
-//     String welcomeText = "Witaj!";
-//     int welcomeWidth = display.getStrWidth(welcomeText.c_str());
-//     int welcomeX = (128 - welcomeWidth) / 2;
-
-//     // Tekst przewijany
-//     String scrollText = "e-Bike System PMW  ";
-//     int messageWidth = display.getStrWidth(scrollText.c_str());
-//     int x = 128; // Start poza prawą krawędzią
-
-//     unsigned long lastUpdate = millis();
-//     while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
-//         unsigned long currentMillis = millis();
-//         if (currentMillis - lastUpdate >= 2) { // Aktualizuj co 5ms dla płynności
-//             display.clearBuffer();
-            
-//             // Statyczny tekst "Witaj!"
-//             display.drawStr(welcomeX, 30, welcomeText.c_str());
-            
-//             // Przewijany tekst "e-Bike System"
-//             display.drawStr(x, 50, scrollText.c_str());
-//             display.sendBuffer();
-            
-//             // Prędkość przewijania
-//             //x--; // jeden px na krok
-//             x -= 2; // try px na krok
-//             lastUpdate = currentMillis;
-//         }
-//     }
-
-//     welcomeAnimationDone = true;
-// }
-
-void showWelcomeMessage() {
-    display.clearBuffer();
-    display.setFont(czcionka_srednia); // Ustaw domyślną czcionkę na początku
-
-    // Tekst "Witaj!" na środku
-    String welcomeText = "Witaj!";
-    int welcomeWidth = display.getStrWidth(welcomeText.c_str());
-    int welcomeX = (128 - welcomeWidth) / 2;
-
-    // Tekst przewijany
-    String scrollText = "e-Bike System PMW  ";
-    int messageWidth = display.getStrWidth(scrollText.c_str());
-    int x = 128; // Start poza prawą krawędzią
-
-    // Przygotuj tekst wersji
-    String versionText = "System ver. ";
-    versionText += VERSION;
-
-    unsigned long lastUpdate = millis();
-    while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
-        unsigned long currentMillis = millis();
-        if (currentMillis - lastUpdate >= 2) {
-            display.clearBuffer();
-            
-            // Statyczny tekst "Witaj!" dużą czcionką
-            display.setFont(czcionka_duza);
-            display.drawStr(welcomeX, 20, welcomeText.c_str());
-            
-            // Przewijany tekst średnią czcionką
-            display.setFont(czcionka_srednia);
-            display.drawStr(x, 43, scrollText.c_str());
-
-            // Tekst wersji małą czcionką
-            display.setFont(czcionka_mala);
-            int versionWidth = display.getStrWidth(versionText.c_str());
-            int versionX = (128 - versionWidth) / 2;
-            display.drawStr(versionX, 60, versionText.c_str());
-            
-            display.sendBuffer();
-            
-            //x--; // jeden px na krok
-            x -= 2; // dwa px na krok
-            lastUpdate = currentMillis;
-        }
-    }
-
-    welcomeAnimationDone = true;
-}
-
-void handleButtons() {
-    if (configModeActive) {
-        return; // W trybie konfiguracji nie obsługuj normalnych funkcji przycisków
-    }
-
-    unsigned long currentTime = millis();
-    bool setState = digitalRead(BTN_SET);
-    bool upState = digitalRead(BTN_UP);
-    bool downState = digitalRead(BTN_DOWN);
-
-    static unsigned long lastButtonCheck = 0;
-    static unsigned long bothPressStart = 0;
-    static bool upPressed = false;
-    static bool downPressed = false;
-    static unsigned long upPressTime = 0;
-    static unsigned long downPressTime = 0;
-    const unsigned long buttonDebounce = 50;
-    static unsigned long legalModeStart = 0;
-
-    // Obsługa włączania/wyłączania wyświetlacza
-    if (!displayActive) {
-        if (!setState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-            if (!setPressStartTime) {
-                setPressStartTime = currentTime;
-            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
-                if (!welcomeAnimationDone) {
-                    showWelcomeMessage();  // Pokaż animację powitania
-                } 
-                messageStartTime = currentTime;
-                setLongPressExecuted = true;
-                showingWelcome = true;
-                displayActive = true;
-            }
-        } else if (setState && setPressStartTime) {
-            setPressStartTime = 0;
-            setLongPressExecuted = false;
-            lastDebounceTime = currentTime;
-        }
-        return;
-    }
-
-    // Obsługa przycisków gdy wyświetlacz jest aktywny
-    if (!showingWelcome) {
-
-        // Sprawdzanie trybu legal (UP + SET) - przełączanie trybu legalnego
-        if (displayActive && !showingWelcome && !upState && !setState) {
-            if (legalModeStart == 0) {
-                legalModeStart = currentTime;
-            } else if ((currentTime - legalModeStart) > 500) { // 2 sekundy  przytrzymania
-                toggleLegalMode();
-                while (!digitalRead(BTN_UP) || !digitalRead(BTN_SET)) {
-                    delay(10); // Czekaj na puszczenie przycisków
-                }
-                legalModeStart = 0;
-                return;
-            }
-        } else {
-            legalModeStart = 0;
-        }
-
-        // Obsługa przycisku UP (zmiana asysty)
-        if (!upState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-            if (!upPressStartTime) {
-                upPressStartTime = currentTime;
-            } else if (!upLongPressExecuted && (currentTime - upPressStartTime) > LONG_PRESS_TIME) {
-                lightMode = (lightMode + 1) % 3;
+    // Ustaw nowy timeout
+    loadTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            debug('Otrzymane dane:', data);
+
+            if (data.lights) {
+                debug('Aktualizacja formularza, otrzymane dane:', data.lights);
                 
-                #ifdef DEBUG
-                Serial.print("Zmieniono tryb świateł na: ");
-                Serial.println(lightMode);
-                #endif
-                
-                setLights(); // Zastosuj ustawienia zgodnie z trybem
-                upLongPressExecuted = true;
+                const elements = {
+                    dayLights: document.getElementById('day-lights'),
+                    nightLights: document.getElementById('night-lights'),
+                    dayBlink: document.getElementById('day-blink'),
+                    nightBlink: document.getElementById('night-blink'),
+                    blinkFrequency: document.getElementById('blink-frequency')
+                };
+
+                elements.dayLights.value = getFormValue(data.lights.dayLights, false);
+                elements.nightLights.value = getFormValue(data.lights.nightLights, true);
+                elements.dayBlink.checked = Boolean(data.lights.dayBlink);
+                elements.nightBlink.checked = Boolean(data.lights.nightBlink);
+                elements.blinkFrequency.value = data.lights.blinkFrequency || 500;
+
+                debug('Formularz zaktualizowany pomyślnie');
             }
-        } else if (upState && upPressStartTime) {
-            if (!upLongPressExecuted && (currentTime - upPressStartTime) < LONG_PRESS_TIME) {
-                if (assistLevel < 5) assistLevel++;
-            }
-            upPressStartTime = 0;
-            upLongPressExecuted = false;
-            lastDebounceTime = currentTime;
+        } catch (error) {
+            console.error('Błąd podczas wczytywania konfiguracji świateł:', error);
         }
+    }, 250); // Czekaj 250ms przed odświeżeniem
+}
 
-        // Obsługa przycisku DOWN (zmiana asysty)
-        if (!downState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
-            if (!downPressStartTime) {
-                downPressStartTime = currentTime;
-            } else if (!downLongPressExecuted && (currentTime - downPressStartTime) > LONG_PRESS_TIME) {
-                assistLevelAsText = !assistLevelAsText;
-                downLongPressExecuted = true;
-            }
-        } else if (downState && downPressStartTime) {
-            if (!downLongPressExecuted && (currentTime - downPressStartTime) < LONG_PRESS_TIME) {
-                if (assistLevel > 0) assistLevel--;
-            }
-            downPressStartTime = 0;
-            downLongPressExecuted = false;
-            lastDebounceTime = currentTime;
-        }
-
-        // Obsługa przycisku SET
-        static unsigned long lastSetRelease = 0;
-        static bool waitingForSecondClick = false;
-
-        if (!setState) {  // Przycisk wciśnięty
-            if (!setPressStartTime) {
-                setPressStartTime = currentTime;
-            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
-                // Długie przytrzymanie (>3s) - wyłączenie
-                display.clearBuffer();
-                display.setFont(czcionka_srednia);
-                display.drawStr(5, 32, "Do widzenia ;)");
-                display.sendBuffer();
-                messageStartTime = currentTime;
-                setLongPressExecuted = true;
-            }
-        } else if (setPressStartTime) {  // Przycisk puszczony
-            if (!setLongPressExecuted) {
-                unsigned long releaseTime = currentTime;
-
-                if (waitingForSecondClick && (releaseTime - lastSetRelease) < DOUBLE_CLICK_TIME) {
-                    // Podwójne kliknięcie
-                    if (currentMainScreen == USB_SCREEN) {
-                        // Przełącz stan USB
-                        usbEnabled = !usbEnabled;
-                        digitalWrite(UsbPin, usbEnabled ? HIGH : LOW);
-                    } else if (inSubScreen) {
-                        inSubScreen = false;  // Wyjście z pod-ekranów
-                    } else if (hasSubScreens(currentMainScreen)) {
-                        inSubScreen = true;  // Wejście do pod-ekranów
-                        currentSubScreen = 0;
-                    }
-                    waitingForSecondClick = false;
-                } else {
-                    // Pojedyncze kliknięcie
-                    if (!waitingForSecondClick) {
-                        waitingForSecondClick = true;
-                        lastSetRelease = releaseTime;
-                    } else if ((releaseTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
-                        // Przełączanie ekranów/pod-ekranów
-                        if (inSubScreen) {
-                            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
-                        } else {
-                            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
-                        }
-                        waitingForSecondClick = false;
-                    }
-                }
-            }
-            setPressStartTime = 0;
-            setLongPressExecuted = false;
-            lastDebounceTime = currentTime;
-        }
-
-        // Reset flagi oczekiwania na drugie kliknięcie po upływie czasu
-        if (waitingForSecondClick && (currentTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
-          // Wykonaj akcję pojedynczego kliknięcia
-          if (inSubScreen) {
-            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
-          } else {
-            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
-          }
-          waitingForSecondClick = false;
-        }
-    }
-
-    // Obsługa komunikatów powitalnych/pożegnalnych
-    if (messageStartTime > 0 && (currentTime - messageStartTime) >= GOODBYE_DELAY) {
-      if (!showingWelcome) {
-          displayActive = false;
-          goToSleep();
-      }
-      messageStartTime = 0;
-      showingWelcome = false;
+// Funkcja pomocnicza do debugowania
+function debug(...args) {
+    if (typeof console !== 'undefined') {
+        console.log('[DEBUG]', ...args);
     }
 }
 
-void checkConfigMode() {
-    static unsigned long upDownPressTime = 0;
-    static bool bothButtonsPressed = false;
+document.addEventListener('DOMContentLoaded', async function() {
+    debug('Inicjalizacja aplikacji...');
 
-    if (!digitalRead(BTN_UP) && !digitalRead(BTN_DOWN)) {
-        if (!bothButtonsPressed) {
-            bothButtonsPressed = true;
-            upDownPressTime = millis();
-        } else if ((millis() - upDownPressTime > 500) && !configModeActive) {
-            activateConfigMode();
-        }
-    } else {
-        bothButtonsPressed = false;
-    }
-}
-
-void activateConfigMode() {
-    configModeActive = true;
+    let clockInterval;
     
-    // 1. Inicjalizacja LittleFS
-    if (!LittleFS.begin(true)) {
-        #ifdef DEBUG
-        Serial.println("Błąd montowania LittleFS");
-        #endif
-        return;
-    }
-    #ifdef DEBUG
-    Serial.println("LittleFS zainicjalizowany");
-    #endif
+    try {
+        // Inicjalizacja zegara
+        clockInterval = initializeClock();
 
-    // 2. Włączenie WiFi w trybie AP
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP("e-Bike System PMW", "#mamrower");
-    #ifdef DEBUG
-    Serial.println("Tryb AP aktywny");
-    #endif
-
-    // 3. Konfiguracja serwera - najpierw pliki statyczne
-    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
-    
-    // Dodanie obsługi typów MIME
-    server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(LittleFS, "/style.css", "text/css");
-    });
-    
-    server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(LittleFS, "/script.js", "application/javascript");
-    });
-
-    server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
-        StaticJsonDocument<200> doc;
-        doc["version"] = VERSION;
+        // Dodajemy inicjalizację sekcji zwijanych
+        initializeCollapsibleSections();
         
-        String response;
-        serializeJson(doc, response);
-        
-        request->send(200, "application/json", response);
-    });
+        // Poczekaj na załadowanie DOM
+        await new Promise(resolve => setTimeout(resolve, 200));
 
-    // 4. Dodanie endpointów API
-    setupWebServer();
-
-    // 5. Uruchomienie serwera
-    server.begin();
-    #ifdef DEBUG
-    Serial.println("Serwer WWW uruchomiony");
-    #endif
-}
-
-// Funkcja wyłączająca tryb konfiguracji
-void deactivateConfigMode() {    
-    if (!configModeActive) return;  // Jeśli tryb konfiguracji nie jest aktywny, przerwij
-    server.end();                   // Zatrzymaj serwer HTTP
-    WiFi.softAPdisconnect(true);    // Wyłącz punkt dostępowy WiFi
-    WiFi.mode(WIFI_OFF);            // Wyłącz moduł WiFi
-    LittleFS.end();                 // Odmontuj system plików
-    
-    configModeActive = false;
-    
-    display.clearBuffer();
-    display.sendBuffer();
-}
-
-// Funkcja pomocnicza sprawdzająca czy ekran ma pod-ekrany
-bool hasSubScreens(MainScreen screen) {
-    switch (screen) {
-        case SPEED_SCREEN: return SPEED_SUB_COUNT > 1;
-        case CADENCE_SCREEN: return CADENCE_SUB_COUNT > 1;
-        case TEMP_SCREEN: return TEMP_SUB_COUNT > 1;
-        case RANGE_SCREEN: return RANGE_SUB_COUNT > 1;
-        case BATTERY_SCREEN: return BATTERY_SUB_COUNT > 1;
-        case POWER_SCREEN: return POWER_SUB_COUNT > 1;
-        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT > 1;
-        case USB_SCREEN: return false;
-        default: return false;
-    }
-}
-
-// Funkcja pomocnicza zwracająca liczbę pod-ekranów dla danego ekranu
-int getSubScreenCount(MainScreen screen) {
-    switch (screen) {
-        case SPEED_SCREEN: return SPEED_SUB_COUNT;
-        case CADENCE_SCREEN: return CADENCE_SUB_COUNT;
-        case TEMP_SCREEN: return TEMP_SUB_COUNT;
-        case RANGE_SCREEN: return RANGE_SUB_COUNT;
-        case BATTERY_SCREEN: return BATTERY_SUB_COUNT;
-        case POWER_SCREEN: return POWER_SUB_COUNT;
-        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT;
-        default: return 0;
-    }
-}
-
-// Funkcje zarządzania energią
-void goToSleep() {
-  // Wyłącz wszystkie LEDy
-  digitalWrite(FrontDayPin, LOW);
-  digitalWrite(FrontPin, LOW);
-  digitalWrite(RealPin, LOW);
-  digitalWrite(UsbPin, LOW);
-
-  delay(50);
-
-  // Wyłącz OLED
-  display.clearBuffer();
-  display.sendBuffer();
-  display.setPowerSave(1);  // Wprowadź OLED w tryb oszczędzania energii
-
-  // Konfiguracja wybudzania przez przycisk SET
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0);  // GPIO12 (BTN_SET) stan niski
-
-  // Wejście w deep sleep
-  esp_deep_sleep_start();
-}
-
-void setLights() {
-    // Wyłącz wszystkie światła
-    digitalWrite(FrontDayPin, LOW);
-    digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
-
-    // Jeśli światła wyłączone (lightMode == 0), kończymy
-    if (lightMode == 0) {
-        #ifdef DEBUG
-        Serial.println("Światła wyłączone");
-        #endif
-        return;
-    }
-
-    // Zastosuj ustawienia zgodnie z trybem
-    if (lightMode == 1) { // Tryb dzienny
-        switch (lightSettings.dayLights) {
-            case LightSettings::NONE:
-                // Wszystkie światła pozostają wyłączone
-                break;
-            case LightSettings::FRONT:
-                digitalWrite(FrontDayPin, HIGH);
-                break;
-            case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
-                break;
-            case LightSettings::BOTH:
-                digitalWrite(FrontDayPin, HIGH);
-                digitalWrite(RealPin, HIGH);
-                break;
+        // Inicjalizacja pozostałych modułów
+        if (document.querySelector('.light-config')) {
+            await loadLightConfig();
         }
-    } else if (lightMode == 2) { // Tryb nocny
-        switch (lightSettings.nightLights) {
-            case LightSettings::NONE:
-                // Wszystkie światła pozostają wyłączone
-                break;
-            case LightSettings::FRONT:
-                digitalWrite(FrontPin, HIGH);
-                break;
-            case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
-                break;
-            case LightSettings::BOTH:
-                digitalWrite(FrontPin, HIGH);
-                digitalWrite(RealPin, HIGH);
-                break;
-        }
+
+        await Promise.all([
+            fetchDisplayConfig(),
+            fetchControllerConfig(),
+            fetchSystemVersion()
+        ]);
+
+        // Inicjalizacja WebSocket i UI
+        setupWebSocket();
+        setupModal();
+        setupFormListeners();
+
+        debug('Inicjalizacja zakończona pomyślnie');
+    } catch (error) {
+        console.error('Błąd podczas inicjalizacji:', error);
+        // W przypadku błędu, zatrzymaj interval zegara
+        if (clockInterval) clearInterval(clockInterval);
     }
-    
-    // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
-    applyBacklightSettings();
-}
-
-void applyBacklightSettings() {
-    int targetBrightness;
-    
-    if (backlightSettings.autoMode) {
-        // Sprawdź tryb świateł
-        if (lightMode == 0) {
-            // Światła wyłączone - używamy jasności dziennej
-            targetBrightness = backlightSettings.dayBrightness;
-        } else if (lightMode == 1) {
-            // Światła dzienne - używamy jasności dziennej
-            targetBrightness = backlightSettings.dayBrightness;
-        } else if (lightMode == 2) {
-            // Światła nocne - używamy jasności nocnej
-            targetBrightness = backlightSettings.nightBrightness;
-        }
-    } else {
-        // W trybie manualnym używaj podstawowej jasności
-        targetBrightness = backlightSettings.dayBrightness;
-    }
-    
-    // Nieliniowe mapowanie jasności
-    // Używamy funkcji wykładniczej do lepszego rozłożenia jasności
-    // Wzór: (x^2)/100 daje nam wartość od 0 do 100
-    float normalized = (targetBrightness * targetBrightness) / 100.0;
-    
-    // Mapujemy wartość na zakres 16-255
-    // Minimum ustawiamy na 16, bo niektóre wyświetlacze OLED mogą się wyłączać przy niższych wartościach
-    displayBrightness = map(normalized, 0, 100, 16, 255);
-    
-    // Zastosuj jasność do wyświetlacza
-    display.setContrast(displayBrightness);
-    
-    #ifdef DEBUG
-    Serial.print("Target brightness: ");
-    Serial.print(targetBrightness);
-    Serial.print("%, Normalized: ");
-    Serial.print(normalized);
-    Serial.print("%, Display brightness: ");
-    Serial.println(displayBrightness);
-    #endif
-}
-
-// Funkcje czujnika temperatury
-// void initializeDS18B20() {
-//     sensors.begin();
-// }
-
-// void requestGroundTemperature() {
-//     sensors.requestTemperatures();
-//     ds18b20RequestTime = millis();
-// }
-
-// bool isGroundTemperatureReady() {
-//     return millis() - ds18b20RequestTime >= DS18B20_CONVERSION_DELAY_MS;
-// }
-
-bool isValidTemperature(float temp) {
-    return (temp >= -50.0 && temp <= 100.0);
-}
-
-// float readGroundTemperature() {
-//     if (isGroundTemperatureReady()) {
-//         float temperature = sensors.getTempCByIndex(0);
-//         if (isValidTemperature(temperature)) {
-//             return temperature;
-//         } else {
-//             return -999.0;
-//         }
-//     }
-//     return -999.0;
-// }
-
-void handleTemperature() {
-    unsigned long currentMillis = millis();
-
-    if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
-        // Żądanie konwersji z obu czujników
-        sensorsAir.requestTemperatures();
-        sensorsController.requestTemperatures();
-        conversionRequested = true;
-        lastTempRequest = currentMillis;
-    }
-
-    if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
-        // Odczyt z obu czujników
-        currentTemp = sensorsAir.getTempCByIndex(0);
-        temp_controller = sensorsController.getTempCByIndex(0);
-        conversionRequested = false;
-    }
-}
-
-// Główne funkcje programu
-
-// Funkcja ładowania ustawień z LittleFS
-void loadSettings() {
-    File configFile = LittleFS.open("/config.json", "r");
-    if (!configFile) {
-        #ifdef DEBUG
-        Serial.println("Failed to open config file");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<1024> doc;
-    DeserializationError error = deserializeJson(doc, configFile);
-
-    if (error) {
-        #ifdef DEBUG
-        Serial.println("Failed to parse config file");
-        #endif
-        return;
-    }
-
-    // Wczytywanie ustawień świateł
-    if (doc.containsKey("light")) {
-        lightSettings.dayLights = static_cast<LightSettings::LightMode>(doc["light"]["dayLights"] | 0);
-        lightSettings.nightLights = static_cast<LightSettings::LightMode>(doc["light"]["nightLights"] | 0);
-        lightSettings.dayBlink = doc["light"]["dayBlink"] | false;
-        lightSettings.nightBlink = doc["light"]["nightBlink"] | false;
-        lightSettings.blinkFrequency = doc["light"]["blinkFrequency"] | 500;
-    }
-
-    // Wczytywanie ustawień podświetlenia
-    if (doc.containsKey("backlight")) {
-        backlightSettings.dayBrightness = doc["backlight"]["dayBrightness"] | 100;
-        backlightSettings.nightBrightness = doc["backlight"]["nightBrightness"] | 50;
-        backlightSettings.autoMode = doc["backlight"]["autoMode"] | false;
-    }
-
-    // Wczytywanie ustawień WiFi
-    if (doc.containsKey("wifi")) {
-        strlcpy(wifiSettings.ssid, doc["wifi"]["ssid"] | "", sizeof(wifiSettings.ssid));
-        strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
-    }
-
-
-    // Wczytywanie ustawień sterownika
-    if (doc.containsKey("controller")) {
-        controllerSettings.type = doc["controller"]["type"] | "kt-lcd";
-        
-        if (controllerSettings.type == "kt-lcd") {
-            for (int i = 1; i <= 5; i++) {
-                controllerSettings.ktParams[i-1] = doc["controller"]["p"][String(i)] | 0;
-            }
-            for (int i = 1; i <= 15; i++) {
-                controllerSettings.ktParams[i+4] = doc["controller"]["c"][String(i)] | 0;
-            }
-            for (int i = 1; i <= 3; i++) {
-                controllerSettings.ktParams[i+19] = doc["controller"]["l"][String(i)] | 0;
-            }
-        } else {
-            for (int i = 1; i <= 20; i++) {
-                controllerSettings.s866Params[i-1] = doc["controller"]["p"][String(i)] | 0;
-            }
-        }
-    }
-
-  configFile.close();
-}
-
-// Funkcja zapisu ustawień do LittleFS
-void saveSettings() {
-    StaticJsonDocument<1024> doc;
-
-    // Zapisywanie ustawień czasu
-    JsonObject timeObj = doc.createNestedObject("time");
-    timeObj["ntpEnabled"] = timeSettings.ntpEnabled;
-    timeObj["hours"] = timeSettings.hours;
-    timeObj["minutes"] = timeSettings.minutes;
-    timeObj["seconds"] = timeSettings.seconds;
-    timeObj["day"] = timeSettings.day;
-    timeObj["month"] = timeSettings.month;
-    timeObj["year"] = timeSettings.year;
-
-    // Zapisywanie ustawień świateł
-    JsonObject lightObj = doc.createNestedObject("light");
-    lightObj["dayLights"] = static_cast<int>(lightSettings.dayLights);
-    lightObj["nightLights"] = static_cast<int>(lightSettings.nightLights);
-    lightObj["dayBlink"] = lightSettings.dayBlink;
-    lightObj["nightBlink"] = lightSettings.nightBlink;
-    lightObj["blinkFrequency"] = lightSettings.blinkFrequency;
-
-    // Zapisywanie ustawień podświetlenia
-    JsonObject backlightObj = doc.createNestedObject("backlight");
-    backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
-    backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
-    backlightObj["autoMode"] = backlightSettings.autoMode;
-
-    // Zapisywanie ustawień WiFi
-    JsonObject wifiObj = doc.createNestedObject("wifi");
-    wifiObj["ssid"] = wifiSettings.ssid;
-    wifiObj["password"] = wifiSettings.password;
-
-    // Zapisywanie ustawień sterownika
-    JsonObject controllerObj = doc.createNestedObject("controller");
-    controllerObj["type"] = controllerSettings.type;
-    
-    JsonObject paramsObj = controllerObj.createNestedObject("params");
-    if (controllerSettings.type == "kt-lcd") {
-      for (int i = 1; i <= 5; i++) {
-        paramsObj["p"][String(i)] = controllerSettings.ktParams[i-1];
-      }
-      for (int i = 1; i <= 15; i++) {
-        paramsObj["c"][String(i)] = controllerSettings.ktParams[i+4];
-      }
-      for (int i = 1; i <= 3; i++) {
-        paramsObj["l"][String(i)] = controllerSettings.ktParams[i+19];
-      }
-    } else {
-      for (int i = 1; i <= 20; i++) {
-        paramsObj["p"][String(i)] = controllerSettings.s866Params[i-1];
-      }
-    }
-
-  File configFile = LittleFS.open("/config.json", "w");
-  if (!configFile) {
-    #ifdef DEBUG
-    Serial.println("Failed to open config file for writing");
-    #endif
-    return;
-  }
-
-  if (serializeJson(doc, configFile) == 0) {
-    #ifdef DEBUG
-    Serial.println("Failed to write config file");
-    #endif
-  }
-
-  configFile.close();
-}
-
-// Funkcja pomocnicza do konwersji parametru na indeks
-int getParamIndex(const String& param) {
-    if (param.startsWith("p")) {
-        return param.substring(1).toInt() - 1;
-    } else if (param.startsWith("c")) {
-        return param.substring(1).toInt() + 4;  // P1-P5 zajmują indeksy 0-4
-    } else if (param.startsWith("l")) {
-        return param.substring(1).toInt() + 19; // P1-P5 i C1-C15 zajmują indeksy 0-19
-    }
-    return -1;
-}
-
-void updateControllerParam(const String& param, int value) {
-    if (controllerSettings.type == "kt-lcd") {
-        int index = getParamIndex(param);
-        if (index >= 0 && index < 23) { // 5 (P) + 15 (C) + 3 (L) = 23 parametry
-            controllerSettings.ktParams[index] = value;
-        }
-    } else if (controllerSettings.type == "s866") {
-        if (param.startsWith("p")) {
-            int index = param.substring(1).toInt() - 1;
-            if (index >= 0 && index < 20) {
-                controllerSettings.s866Params[index] = value;
-            }
-        }
-    }
-    saveSettings();
-}
-
-// Funkcja pomocnicza - dodaj ją przed definicją setupWebServer()
-const char* getLightModeString(LightSettings::LightMode mode) {
-    switch (mode) {
-        case LightSettings::FRONT: return "FRONT";
-        case LightSettings::REAR: return "REAR";
-        case LightSettings::BOTH: return "BOTH";
-        case LightSettings::NONE:
-        default: return "NONE";
-    }
-}
-
-// W funkcji setup(), po inicjalizacji wyświetlacza, dodaj:
-void setupWebServer() {
-    // Serwowanie plików statycznych
-    server.serveStatic("/", LittleFS, "/");
-
-    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
-        StaticJsonDocument<512> doc;
-        JsonObject lightsObj = doc.createNestedObject("lights");
-        
-        lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
-        lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
-        lightsObj["dayBlink"] = lightSettings.dayBlink;
-        lightsObj["nightBlink"] = lightSettings.nightBlink;
-        lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
-        
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-
-    server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-        if (request->hasParam("data", true)) {
-            String jsonString = request->getParam("data", true)->value();
-            DynamicJsonDocument doc(256);
-            DeserializationError error = deserializeJson(doc, jsonString);
-
-            if (!error) {
-                const char* dayLightsStr = doc["dayLights"] | "OFF";
-                const char* nightLightsStr = doc["nightLights"] | "OFF";
-                
-                // Konwersja stringów na enum
-                if (strcmp(dayLightsStr, "OFF") == 0) 
-                    lightSettings.dayLights = LightSettings::NONE;
-                else if (strcmp(dayLightsStr, "FRONT") == 0) 
-                    lightSettings.dayLights = LightSettings::FRONT;
-                else if (strcmp(dayLightsStr, "REAR") == 0) 
-                    lightSettings.dayLights = LightSettings::REAR;
-                else if (strcmp(dayLightsStr, "BOTH") == 0) 
-                    lightSettings.dayLights = LightSettings::BOTH;
-                
-                if (strcmp(nightLightsStr, "OFF") == 0)
-                    lightSettings.nightLights = LightSettings::NONE;
-                else if (strcmp(nightLightsStr, "FRONT") == 0)
-                    lightSettings.nightLights = LightSettings::FRONT;
-                else if (strcmp(nightLightsStr, "REAR") == 0)
-                    lightSettings.nightLights = LightSettings::REAR;
-                else if (strcmp(nightLightsStr, "BOTH") == 0)
-                    lightSettings.nightLights = LightSettings::BOTH;
-                
-                lightSettings.dayBlink = doc["dayBlink"] | false;
-                lightSettings.nightBlink = doc["nightBlink"] | false;
-                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
-                
-                // Zapisz do pliku
-                saveLightSettings();
-                
-                // Od razu zastosuj nowe ustawienia jeśli jakiś tryb jest aktywny
-                if (lightMode > 0) {
-                    setLights();
-                }
-                
-                request->send(200, "application/json", "{\"status\":\"ok\"}");
-            } else {
-                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
-            }
-        }
-    });
-
-    // Endpoint do pobierania czasu (GET)
-    server.on("/api/time", HTTP_GET, [](AsyncWebServerRequest* request) {
-        DateTime now = rtc.now();
-        
-        StaticJsonDocument<200> doc;
-        JsonObject time = doc.createNestedObject("time");
-        time["year"] = now.year();
-        time["month"] = now.month();
-        time["day"] = now.day();
-        time["hours"] = now.hour();
-        time["minutes"] = now.minute();
-        time["seconds"] = now.second();
-        
-        String response;
-        serializeJson(doc, response);
-        
-        #ifdef DEBUG
-        Serial.print("Wysyłam aktualny czas: ");
-        Serial.println(response);
-        #endif
-        
-        request->send(200, "application/json", response);
-    });
-
-    // Endpoint do ustawiania czasu (POST)
-    server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
-        [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
-            StaticJsonDocument<200> doc;
-            DeserializationError error = deserializeJson(doc, (char*)data);
-
-            if (!error) {
-                int year = doc["year"] | 2024;
-                int month = doc["month"] | 1;
-                int day = doc["day"] | 1;
-                int hour = doc["hour"] | 0;
-                int minute = doc["minute"] | 0;
-                int second = doc["second"] | 0;
-
-                // Dodaj walidację
-                if (year >= 2000 && year <= 2099 &&
-                    month >= 1 && month <= 12 &&
-                    day >= 1 && day <= 31 &&
-                    hour >= 0 && hour <= 23 &&
-                    minute >= 0 && minute <= 59 &&
-                    second >= 0 && second <= 59) {
-                    
-                    rtc.adjust(DateTime(year, month, day, hour, minute, second));
-                    
-                    #ifdef DEBUG
-                    Serial.println("Czas został zaktualizowany:");
-                    Serial.print(year); Serial.print("-");
-                    Serial.print(month); Serial.print("-");
-                    Serial.print(day); Serial.print(" ");
-                    Serial.print(hour); Serial.print(":");
-                    Serial.print(minute); Serial.print(":");
-                    Serial.println(second);
-                    #endif
-                    
-                    request->send(200, "application/json", "{\"status\":\"ok\"}");
-                } else {
-                    #ifdef DEBUG
-                    Serial.println("Błędne wartości daty/czasu");
-                    #endif
-                    request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
-                }
-            } else {
-                #ifdef DEBUG
-                Serial.println("Błędny format JSON");
-                #endif
-                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-            }
-    });
-    
-    server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            if (index + len != total) {
-                // Jeśli to nie jest ostatni fragment danych, czekamy na więcej
-                return;
-            }
-
-            // Dodaj null terminator do danych
-            data[len] = '\0';
-            
-            StaticJsonDocument<200> doc;
-            DeserializationError error = deserializeJson(doc, (const char*)data);
-            
-            if (!error) {
-                // Aktualizacja ustawień
-                backlightSettings.dayBrightness = doc["dayBrightness"] | backlightSettings.dayBrightness;
-                backlightSettings.nightBrightness = doc["nightBrightness"] | backlightSettings.nightBrightness;
-                backlightSettings.autoMode = doc["autoMode"] | backlightSettings.autoMode;
-                
-                // Zapisz do pliku
-                saveBacklightSettingsToFile();
-                
-                // Zastosuj nowe ustawienia
-                applyBacklightSettings();
-                
-                // Odpowiedz używając send()
-                String response = "{\"status\":\"ok\"}";
-                request->send(200, "application/json", response);
-            } else {
-                String response = "{\"status\":\"error\",\"message\":\"Invalid JSON\"}";
-                request->send(400, "application/json", response);
-            }
-        }
-    );
-
-    // Endpoint do zapisywania ustawień ogólnych
-    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("body", true)) {
-            String json = request->getParam("body", true)->value();
-            StaticJsonDocument<64> doc;
-            DeserializationError error = deserializeJson(doc, json);
-
-            if (!error) {
-                // Konwersja wartości "700C" na 0 lub liczby na odpowiednie wartości
-                if (doc.containsKey("wheelSize")) {
-                    String wheelSizeStr = doc["wheelSize"].as<String>();
-                    if (wheelSizeStr == "700C") {
-                        generalSettings.wheelSize = 0; // 0 oznacza 700C
-                    } else {
-                        generalSettings.wheelSize = doc["wheelSize"].as<uint8_t>();
-                    }
-                }
-
-                saveGeneralSettingsToFile();
-                request->send(200, "application/json", "{\"success\":true}");
-            } else {
-                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
-            }
-        } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
-        }
-    });
-
-    // Dodaj w setupWebServer():
-server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-    
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
 });
 
-server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("body", true)) {
-        String json = request->getParam("body", true)->value();
-        StaticJsonDocument<64> doc;
-        DeserializationError error = deserializeJson(doc, json);
-
-        if (!error) {
-            bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-            bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-            
-            saveBluetoothConfigToFile();
-            request->send(200, "application/json", "{\"success\":true}");
-        } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
-        }
-    } else {
-        request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
+function checkAPIResponse(response, errorMessage = 'Błąd API') {
+    if (!response.ok) {
+        throw new Error(`${errorMessage}: ${response.status}`);
     }
-});
-    
-    // Endpoint do pobierania aktualnych ustawień ogólnych
-    server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-        StaticJsonDocument<64> doc;
-        if (generalSettings.wheelSize == 0) {
-            doc["wheelSize"] = "700C";
-        } else {
-            doc["wheelSize"] = generalSettings.wheelSize;
-        }
-        
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-    
-    server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
-        if (request->hasParam("data", true)) {
-            String jsonString = request->getParam("data", true)->value();
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, jsonString);
+    return response.json();
+}
 
-            if (!error) {
-                controllerSettings.type = doc["type"].as<String>();
-                
-                if (controllerSettings.type == "kt-lcd") {
-                    for (int i = 1; i <= 5; i++) {
-                        if (doc["p"].containsKey(String(i))) {
-                            controllerSettings.ktParams[i-1] = doc["p"][String(i)].as<int>();
-                        }
-                    }
-                    for (int i = 1; i <= 15; i++) {
-                        if (doc["c"].containsKey(String(i))) {
-                            controllerSettings.ktParams[i+4] = doc["c"][String(i)].as<int>();
-                        }
-                    }
-                    for (int i = 1; i <= 3; i++) {
-                        if (doc["l"].containsKey(String(i))) {
-                            controllerSettings.ktParams[i+19] = doc["l"][String(i)].as<int>();
-                        }
-                    }
-                } else {
-                    for (int i = 1; i <= 20; i++) {
-                        if (doc["p"].containsKey(String(i))) {
-                            controllerSettings.s866Params[i-1] = doc["p"][String(i)].as<int>();
-                        }
-                    }
+function showModal(title, description) {
+    const modal = document.getElementById('info-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    
+    if (modal && modalTitle && modalDescription) {
+        modalTitle.textContent = title;
+        modalDescription.textContent = description;
+        modal.style.display = 'block';
+    }
+}
+
+let ws = null;
+
+function setupWebSocket() {
+    debug('Inicjalizacja WebSocket...');
+    function connect() {
+        ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+        
+        ws.onopen = () => {
+            debug('WebSocket połączony');
+            // Pobierz aktualny stan po połączeniu
+            fetchCurrentState();
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                debug('Otrzymano dane WebSocket:', data);
+                if (data.lights) {
+                    updateLightStatus(data.lights);
+                    updateLightForm(data.lights); // Aktualizuj też formularz
                 }
-                
-                saveSettings();
-                request->send(200, "application/json", "{\"status\":\"ok\"}");
-            } else {
-                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            } catch (error) {
+                console.error('Błąd podczas przetwarzania danych WebSocket:', error);
             }
-        } else {
-            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
-        }
-    });
+        };
 
-    ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-        switch (type) {
-            case WS_EVT_CONNECT:
-                #ifdef DEBUG
-                Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
-                #endif
-                break;
-            case WS_EVT_DISCONNECT:
-                #ifdef DEBUG
-                Serial.printf("WebSocket client #%u disconnected\n", client->id());
-                #endif
-                break;
-        }
-    });
-    server.addHandler(&ws);
+        ws.onclose = () => {
+            debug('WebSocket rozłączony, próba ponownego połączenia za 5s');
+            setTimeout(connect, 5000);
+        };
 
-    // Start serwera
-    server.begin();
-}
-
-// Inicjalizacja domyślnych wartości
-void initializeDefaultSettings() {
-    // Czas
-    timeSettings.ntpEnabled = false;
-    timeSettings.hours = 0;
-    timeSettings.minutes = 0;
-    timeSettings.seconds = 0;
-    timeSettings.day = 1;
-    timeSettings.month = 1;
-    timeSettings.year = 2024;
-
-    // Ustawienia świateł
-    lightSettings.dayLights = LightSettings::FRONT;
-    lightSettings.nightLights = LightSettings::BOTH;
-    lightSettings.dayBlink = false;
-    lightSettings.nightBlink = false;
-    lightSettings.blinkFrequency = 500;
-
-    // Podświetlenie
-    backlightSettings.dayBrightness = 100;
-    backlightSettings.nightBrightness = 50;
-    backlightSettings.autoMode = false;
-
-    // WiFi - początkowo puste
-    memset(wifiSettings.ssid, 0, sizeof(wifiSettings.ssid));
-    memset(wifiSettings.password, 0, sizeof(wifiSettings.password));
-}
-
-// Funkcja synchronizacji czasu przez NTP
-void synchronizeTime() {
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-    #ifdef DEBUG
-    Serial.println("Waiting for NTP time sync...");
-    #endif
-    time_t now = time(nullptr);
-    while (now < 8 * 3600 * 2) {
-        delay(500);
-        #ifdef DEBUG
-        Serial.print(".");
-        #endif
-        now = time(nullptr);
+        ws.onerror = (error) => {
+            console.error('Błąd WebSocket:', error);
+        };
     }
-    Serial.println();
 
-    struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
-    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
-                        timeinfo.tm_mday, timeinfo.tm_hour,
-                        timeinfo.tm_min, timeinfo.tm_sec));
+    connect();
 }
 
-// Funkcja aktualizacji podświetlenia
-void updateBacklight() {
-    if (backlightSettings.autoMode) {
-        // Auto mode - ustaw jasność na podstawie trybu dzień/noc
-        // Zakładam, że masz zmienną określającą tryb dzienny/nocny
-        bool isDayMode = true;  // Tu trzeba dodać właściwą logikę
-        int brightness = isDayMode ? backlightSettings.dayBrightness : backlightSettings.nightBrightness;
-        // Tu dodaj kod ustawiający jasność wyświetlacza
-    } else {
-        // Manual mode - ustaw stałą jasność
-        // Tu dodaj kod ustawiający jasność wyświetlacza
-    }
-}
+async function fetchRTCTime() {
+    try {
+        const timeElement = document.getElementById('rtc-time');
+        const dateElement = document.getElementById('rtc-date');
 
-#include <esp_partition.h>
-
-// Sprawdzenie i formatowanie systemu plików przy starcie
-void initLittleFS() {
-    if (!LittleFS.begin(true)) {
-        #ifdef DEBUG
-        Serial.println("LittleFS Mount Failed");
-        #endif
-        if (!LittleFS.format()) {
-            #ifdef DEBUG
-            Serial.println("LittleFS Format Failed");
-            #endif
+        if (!timeElement || !dateElement) {
+            debug('Elementy czasu nie są gotowe');
             return;
         }
-        if (!LittleFS.begin()) {
-            #ifdef DEBUG
-            Serial.println("LittleFS Mount Failed After Format");
-            #endif
-            return;
-        }
-    }
-    #ifdef DEBUG
-    Serial.println("LittleFS Mounted Successfully");
-    #endif
-}
 
-void listFiles() {
-    #ifdef DEBUG
-    Serial.println("Files in LittleFS:");
-    #endif
-    File root = LittleFS.open("/");
-    if (!root) {
-        #ifdef DEBUG
-        Serial.println("- Failed to open directory");
-        #endif
-        return;
-    }
-    if (!root.isDirectory()) {
-        #ifdef DEBUG
-        Serial.println(" - Not a directory");
-        #endif
-        return;
-    }
-
-    File file = root.openNextFile();
-    while (file) {
-        if (file.isDirectory()) {
-            #ifdef DEBUG
-            Serial.print("  DIR : ");
-            Serial.println(file.name());
-            #endif
-        } else {
-            #ifdef DEBUG
-            Serial.print("  FILE: ");
-            Serial.print(file.name());
-            Serial.print("\tSIZE: ");
-            Serial.println(file.size());
-            #endif
+        const response = await fetch('/api/time');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-        file = root.openNextFile();
+
+        const data = await response.json();
+        if (data && data.time) {
+            const { hours, minutes, seconds, year, month, day } = data.time;
+            
+            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+            
+            timeElement.value = timeStr;
+            dateElement.value = dateStr;
+            
+            debug('Zaktualizowano czas:', { time: timeStr, date: dateStr });
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania czasu RTC:', error);
     }
 }
 
-bool loadConfig() {
-    if(!LittleFS.exists("/config.json")) {
-        #ifdef DEBUG
-        Serial.println("Creating default config file...");
-        #endif
-        // Tworzymy domyślną konfigurację
-        StaticJsonDocument<512> defaultConfig;
-        defaultConfig["version"] = "1.0.0";
-        defaultConfig["timezone"] = "Europe/Warsaw";
-        defaultConfig["lastUpdate"] = "";
-        
-        File configFile = LittleFS.open("/config.json", "w");
-        if(!configFile) {
-            #ifdef DEBUG
-            Serial.println("Failed to create config file");
-            #endif
-            return false;
+// Funkcja inicjalizacji zegara
+function initializeClock() {
+    debug('Inicjalizacja zegara');
+    fetchRTCTime(); // Pierwsze pobranie
+    return setInterval(fetchRTCTime, 1000); // Aktualizacja co sekundę
+}
+
+function checkElements(...ids) {
+    const missing = [];
+    const elements = {};
+
+    for (const id of ids) {
+        const element = document.getElementById(id);
+        if (!element) {
+            missing.push(id);
         }
-        serializeJson(defaultConfig, configFile);
-        configFile.close();
+        elements[id] = element;
     }
+
+    if (missing.length > 0) {
+        throw new Error(`Brak elementów: ${missing.join(', ')}`);
+    }
+
+    return elements;
+}
+
+// Funkcja zapisująca konfigurację RTC
+async function saveRTCConfig() {
+    // Pobierz aktualny czas z przeglądarki
+    const now = new Date();
     
-    // Czytamy konfigurację
-    File configFile = LittleFS.open("/config.json", "r");
-    if(!configFile) {
-        #ifdef DEBUG
-        Serial.println("Failed to open config file");
-        #endif
+    try {
+        const response = await fetch('/api/time', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                year: now.getFullYear(),
+                month: now.getMonth() + 1, // getMonth() zwraca 0-11
+                day: now.getDate(),
+                hour: now.getHours(),
+                minute: now.getMinutes(),
+                second: now.getSeconds()
+            })
+        });
+
+        const data = await response.json();
+        if (data.status === 'ok') {
+            alert('Ustawiono aktualny czas');
+            fetchRTCTime(); // Pobierz zaktualizowany czas
+        } else {
+            alert('Błąd podczas ustawiania czasu');
+        }
+    } catch (error) {
+        console.error('Błąd podczas ustawiania czasu RTC:', error);
+        alert('Błąd podczas ustawiania czasu');
+    }
+}
+
+// Funkcja pobierająca konfigurację świateł
+async function fetchLightConfig() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        if (data.lights) {
+            document.getElementById('day-lights').value = data.lights.dayLights;
+            document.getElementById('night-lights').value = data.lights.nightLights;
+            document.getElementById('day-blink').checked = data.lights.dayBlink;
+            document.getElementById('night-blink').checked = data.lights.nightBlink;
+            document.getElementById('blink-frequency').value = data.lights.blinkFrequency;
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji świateł:', error);
+    }
+}
+
+function setupFormListeners() {
+    const formElements = [
+        'day-lights',
+        'night-lights',
+        'day-blink',
+        'night-blink',
+        'blink-frequency'
+    ];
+
+    formElements.forEach(elementId => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.addEventListener('change', () => {
+                debug(`Zmieniono wartość ${elementId}:`, 
+                    element.type === 'checkbox' ? element.checked : element.value);
+            });
+        }
+    });
+
+    // Dodaj listener do przycisku zapisu
+    const saveButton = document.getElementById('save-lights-btn');
+    if (saveButton) {
+        saveButton.addEventListener('click', saveLightConfig);
+    }
+}
+
+// Funkcja inicjalizacji formularza świateł
+function initializeLightForm() {
+    debug('Inicjalizacja formularza świateł');
+    const form = document.getElementById('lights-form');
+    if (!form) {
+        console.error('Nie znaleziono formularza świateł');
         return false;
     }
-    
-    #ifdef DEBUG
-    Serial.println("Config file loaded successfully");
-    #endif
     return true;
 }
 
-// Synchronizacja RTC z NTP
-void syncRTCWithNTP() {
-    configTime(0, 0, "pool.ntp.org");
-    delay(1000);
-    time_t now;
-    struct tm timeinfo;
-    if (getLocalTime(&timeinfo)) {
-        rtc.adjust(DateTime(
-            timeinfo.tm_year + 1900,
-            timeinfo.tm_mon + 1,
-            timeinfo.tm_mday,
-            timeinfo.tm_hour,
-            timeinfo.tm_min,
-            timeinfo.tm_sec
-        ));
+// Funkcja sprawdzająca elementy formularza
+function getLightFormElements() {
+    const elements = {
+        dayLights: document.getElementById('day-lights'),
+        nightLights: document.getElementById('night-lights'),
+        dayBlink: document.getElementById('day-blink'),
+        nightBlink: document.getElementById('night-blink'),
+        blinkFrequency: document.getElementById('blink-frequency')
+    };
+
+    const missing = Object.entries(elements)
+        .filter(([_, element]) => !element)
+        .map(([name]) => name);
+
+    if (missing.length > 0) {
+        throw new Error(`Brak elementów formularza: ${missing.join(', ')}`);
     }
+
+    return elements;
 }
 
-void handleSettings(AsyncWebServerRequest *request) {
-    String html = "<!DOCTYPE html><html lang='pl'>";
-    // ... (reszta kodu generującego stronę)
-    request->send(200, "text/html", html);
-}
-
-void handleSaveClockSettings(AsyncWebServerRequest *request) {
-    if (request->hasParam("hour")) {
-        int hour = request->getParam("hour")->value().toInt();
-        // ... (reszta kodu obsługi ustawień zegara)
-    }
-    request->redirect("/");
-}
-
-void handleSaveBikeSettings(AsyncWebServerRequest *request) {
-    if (request->hasParam("wheel")) {
-        bikeSettings.wheelCircumference = request->getParam("wheel")->value().toInt();
-        // ... (reszta kodu obsługi ustawień roweru)
-    }
-    request->redirect("/");
-}
-
-void setup() {
-    // Sprawdź przyczynę wybudzenia
-    esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-
-    Serial.begin(115200);
-    
-    // Inicjalizacja I2C
-    Wire.begin();
-
-    // Inicjalizacja DS18B20
-    sensorsAir.begin();
-    sensorsController.begin();
-    sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
-    sensorsController.setWaitForConversion(false);// Tryb nieblokujący
-    sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
-    sensorsController.setResolution(12);         // Najwyższa rozdzielczość
-    
-    // Pierwsze żądanie pomiaru
-    sensorsAir.requestTemperatures();
-    sensorsController.requestTemperatures();
-
-    // Inicjalizacja RTC
-    if (!rtc.begin()) {
-        #ifdef DEBUG
-        Serial.println("Couldn't find RTC");
-        #endif
-        while (1);
-    }
-
-    if (rtc.lostPower()) {
-        #ifdef DEBUG
-        Serial.println("RTC lost power, lets set the time!");
-        #endif
-        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    }
-
-    // Konfiguracja pinów
-    pinMode(BTN_UP, INPUT_PULLUP);
-    pinMode(BTN_DOWN, INPUT_PULLUP);
-    pinMode(BTN_SET, INPUT_PULLUP);
-
-    // Konfiguracja pinów LED
-    pinMode(FrontDayPin, OUTPUT);
-    pinMode(FrontPin, OUTPUT);
-    pinMode(RealPin, OUTPUT);
-    digitalWrite(FrontDayPin, LOW);
-    digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
-    setLights();
-
-    // Ładowarka USB
-    pinMode(UsbPin, OUTPUT);
-    digitalWrite(UsbPin, LOW);
-
-    // Inicjalizacja wyświetlacza
-    display.begin();
-    display.setFontDirection(0);
-    display.clearBuffer();
-    display.sendBuffer();
-
-    setLights();  // Zastosuj wczytane ustawienia    
-    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
-
-    display.sendBuffer();
-
-    // Inicjalizacja LittleFS i wczytanie ustawień
-    if (!LittleFS.begin(true)) {
-        #ifdef DEBUG
-        Serial.println("Błąd montowania LittleFS");
-        #endif
-    } else {
-        #ifdef DEBUG
-        Serial.println("LittleFS zamontowany pomyślnie");
-        #endif
-        // Wczytaj ustawienia z pliku
-        loadLightSettings();  // Wczytaj ustawienia świateł
-        loadBacklightSettingsFromFile();
-        loadSettings();
-        loadGeneralSettingsFromFile();
-        loadBluetoothConfigFromFile();
-    }
-
-    // Jeśli wybudzenie przez przycisk SET
-    if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
-        unsigned long startTime = millis();
-        while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
-            if ((millis() - startTime) > SET_LONG_PRESS) {
-                displayActive = true;
-                showingWelcome = true;
-                messageStartTime = millis();
-                if (!welcomeAnimationDone) {
-                    showWelcomeMessage();  // Pokaż animację powitania
-                }                
-                while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
-                    delay(10);
-                }
-                break;
+async function fetchCurrentState(retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            debug(`Próba pobrania stanu (${i + 1}/${retries})`);
+            const response = await fetch('/api/status');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-            delay(10);
+
+            const data = await response.json();
+            debug('Otrzymane dane statusu:', data);
+
+            if (data.lights) {
+                updateLightStatus(data.lights);
+                updateLightForm(data.lights);
+                return true;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+            console.error(`Błąd podczas próby ${i + 1}:`, error);
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
+    return false;
 }
 
-// Rysuje wycentrowany tekst na wyświetlaczu OLED
-void drawCenteredText(const char* text, int y, const uint8_t* font) {
-    // Ustawia wybraną czcionkę dla tekstu
-    display.setFont(font);
-    
-    // Oblicza szerokość tekstu w pikselach dla wybranej czcionki
-    int textWidth = display.getStrWidth(text);
-    
-    // Oblicza pozycję X dla wycentrowania tekstu
-    // display.getWidth() zwraca szerokość wyświetlacza (zazwyczaj 128 pikseli)
-    // Odejmujemy szerokość tekstu i dzielimy przez 2, aby uzyskać lewy margines
-    int x = (display.getWidth() - textWidth) / 2;
-    
-    // Rysuje tekst w obliczonej pozycji
-    // x - pozycja pozioma (wycentrowana)
-    // y - pozycja pionowa (określona przez parametr)
-    display.drawStr(x, y, text);
-}
-
-void loop() {
-    static unsigned long lastButtonCheck = 0;
-    static unsigned long lastUpdate = 0;
-    const unsigned long buttonInterval = 5;
-    const unsigned long updateInterval = 2000;
-
-    unsigned long currentTime = millis();
-
-    // Obsługa mrugania światła tylnego
-    // if ((lightMode == 1 && lightSettings.dayBlink && 
-    //     (lightSettings.dayLights == LightSettings::REAR || lightSettings.dayLights == LightSettings::BOTH)) || 
-    //     (lightMode == 2 && lightSettings.nightBlink && 
-    //     (lightSettings.nightLights == LightSettings::REAR || lightSettings.nightLights == LightSettings::BOTH))) {
+async function fetchCurrentState() {
+    try {
+        debug('Pobieranie aktualnego stanu...');
+        const response = await fetch('/api/status');
         
-    //     unsigned long currentMillis = millis();
-    //     if (currentMillis - lastBlinkTime >= lightSettings.blinkFrequency) {
-    //         lastBlinkTime = currentMillis;
-    //         blinkState = !blinkState;
-    //         digitalWrite(RealPin, blinkState);
-    //     }
-    // }
-
-    if (configModeActive) {      
-        display.clearBuffer();
-
-        // Wycentruj każdą linię tekstu
-        drawCenteredText("e-Bike System", 12, czcionka_srednia);
-        drawCenteredText("Konfiguracja on-line", 25, czcionka_mala);
-        drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
-        drawCenteredText("haslo: #mamrower", 51, czcionka_mala);
-        drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
-
-        display.sendBuffer();
-
-        // Sprawdź długie przytrzymanie SET do wyjścia
-        static unsigned long setPressStartTime = 0;
-        if (!digitalRead(BTN_SET)) { 
-            if (setPressStartTime == 0) {
-                setPressStartTime = millis();
-            } else if (millis() - setPressStartTime > 50) {
-                deactivateConfigMode();
-                setPressStartTime = 0;
-            }
-        } else {
-            setPressStartTime = 0;
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-        return;
-    }
 
-    // Sprawdzaj czy nie trzeba włączyć trybu konfiguracji
-    checkConfigMode();
+        const data = await response.json();
+        debug('Otrzymane dane statusu:', data);
 
-    if (currentTime - lastButtonCheck >= buttonInterval) {
-        handleButtons();
-        lastButtonCheck = currentTime;
-    }
-
-    static unsigned long lastWebSocketUpdate = 0;
-    if (currentTime - lastWebSocketUpdate >= 1000) { // Aktualizuj co sekundę
-        if (ws.count() > 0) {
-            String json = "{";
-            json += "\"speed\":" + String(speed_kmh) + ",";
-            json += "\"temperature\":" + String(currentTemp) + ",";
-            json += "\"battery\":" + String(battery_capacity_percent) + ",";
-            json += "\"power\":" + String(power_w);
-            json += "}";
-            ws.textAll(json);
+        if (data.lights) {
+            // Aktualizacja interfejsu
+            updateLightStatus(data.lights);
+            // Aktualizacja formularza
+            updateLightForm(data.lights);
         }
-        lastWebSocketUpdate = currentTime;
-    }
-
-    // Aktualizuj wyświetlacz tylko jeśli jest aktywny i nie wyświetla komunikatów
-    if (displayActive && messageStartTime == 0) {
-        display.clearBuffer();
-        drawTopBar();
-        drawHorizontalLine();
-        drawVerticalLine();
-        drawAssistLevel();
-        drawMainDisplay();
-        drawLightStatus();
-        display.sendBuffer();
-        handleTemperature();
-        updateBmsData();
-
-        if (currentTime - lastUpdate >= updateInterval) {
-            speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
-            cadence_rpm = random(60, 90);
-            temp_motor = 30.0 + random(20);
-            range_km = 50.0 - (random(20) / 10.0);
-            distance_km += 0.1;
-            odometer_km += 0.1;
-            power_w = 100 + random(300);
-            power_avg_w = power_w * 0.8;
-            power_max_w = power_w * 1.2;
-            battery_current = random(50, 150) / 10.0;
-            battery_capacity_wh = battery_voltage * battery_capacity_ah;
-            pressure_bar = 2.0 + (random(20) / 10.0);
-            pressure_voltage = 0.5 + (random(20) / 100.0);
-            pressure_temp = 20.0 + (random(100) / 10.0);
-            battery_capacity_wh = 14.5 - (random(20) / 10.0);
-            battery_capacity_percent = (battery_capacity_percent <= 0) ? 100 : battery_capacity_percent - 1;
-            battery_voltage = (battery_voltage <= 42.0) ? 50.0 : battery_voltage - 0.1;
-            assistMode = (assistMode + 1) % 5;
-            lastUpdate = currentTime;
-            pressure_rear_bar = 2.0 + (random(20) / 10.0);
-            pressure_rear_voltage = 0.5 + (random(20) / 100.0);
-            pressure_rear_temp = 20.0 + (random(100) / 10.0);
-            // Aktualizacja średniej prędkości (przykładowa implementacja)
-            static float speed_sum = 0;
-            static int speed_count = 0;
-            speed_sum += speed_kmh;
-            speed_count++;
-            speed_avg_kmh = speed_sum / speed_count;
-            // Aktualizacja maksymalnej prędkości
-            if (speed_kmh > speed_max_kmh) {
-                speed_max_kmh = speed_kmh;
-            }
-
-            // Aktualizacja kadencji
-            cadence_rpm = random(60, 90);
-
-            // Aktualizacja średniej kadencji (przykładowa implementacja)
-            static int cadence_sum = 0;
-            static int cadence_count = 0;
-            cadence_sum += cadence_rpm;
-            cadence_count++;
-            cadence_avg_rpm = cadence_sum / cadence_count;
-        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania stanu:', error);
     }
 }
+
+// Funkcja do aktualizacji formularza na podstawie otrzymanego stanu
+function updateLightForm(lights) {
+    debug('Aktualizacja formularza, otrzymane dane:', lights);
+    
+    try {
+        const elements = {
+            dayLights: document.getElementById('day-lights'),
+            nightLights: document.getElementById('night-lights'),
+            dayBlink: document.getElementById('day-blink'),
+            nightBlink: document.getElementById('night-blink'),
+            blinkFrequency: document.getElementById('blink-frequency')
+        };
+
+        // Konwersja LightMode na wartość selecta
+        function getSelectValue(mode) {
+            switch(mode) {
+                case 'BOTH':
+                    return 'front-day-rear';
+                case 'FRONT':
+                    return 'front-day';
+                case 'REAR':
+                    return 'rear';
+                default:
+                    return 'off';
+            }
+        }
+
+        // Ustaw wartości formularza
+        elements.dayLights.value = getSelectValue(lights.dayLights);
+        elements.nightLights.value = getSelectValue(lights.nightLights);
+        elements.dayBlink.checked = lights.dayBlink;
+        elements.nightBlink.checked = lights.nightBlink;
+        elements.blinkFrequency.value = lights.blinkFrequency || 500;
+
+        debug('Formularz zaktualizowany pomyślnie');
+    } catch (error) {
+        console.error('Błąd podczas aktualizacji formularza:', error);
+    }
+}
+
+function setupModal() {
+    const modal = document.getElementById('info-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalDescription = document.getElementById('modal-description');
+    
+    // Otwieranie modala przez info-icons
+    document.querySelectorAll('.info-icon').forEach(button => {
+        button.addEventListener('click', function() {
+            const infoId = this.dataset.info;
+            const info = infoContent[infoId];
+            
+            if (info) {
+                modalTitle.textContent = info.title;
+                modalDescription.textContent = info.description;               
+                modal.style.display = 'block';
+            } else {
+                console.error('Nie znaleziono opisu dla:', infoId);
+            }
+        });
+    });
+    
+    // Zamykanie modala
+    document.querySelector('.close-modal').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    
+    // Zamykanie po kliknięciu poza modalem
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+}
+
+// Funkcja aktualizacji statusu świateł
+function updateLightStatus(lights) {
+    try {
+        const elements = getLightFormElements();
+        if (!elements) return;
+
+        // Aktualizacja klas CSS dla wskaźników świateł (jeśli są)
+        const indicators = {
+            frontDay: document.querySelector('.light-indicator.front-day'),
+            front: document.querySelector('.light-indicator.front'),
+            rear: document.querySelector('.light-indicator.rear')
+        };
+
+        for (const [key, indicator] of Object.entries(indicators)) {
+            if (indicator) {
+                indicator.classList.toggle('active', Boolean(lights[key]));
+            }
+        }
+
+        debug('Status świateł zaktualizowany');
+    } catch (error) {
+        console.error('Błąd podczas aktualizacji statusu świateł:', error);
+    }
+}
+
+// Funkcja pobierająca konfigurację wyświetlacza
+async function fetchDisplayConfig() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        if (data.backlight) {
+            document.getElementById('day-brightness').value = data.backlight.dayBrightness;
+            document.getElementById('night-brightness').value = data.backlight.nightBrightness;
+            document.getElementById('display-auto').value = data.backlight.autoMode.toString();
+            // Ustawienie jasności normalnej na podstawie jasności dziennej w trybie manualnym
+            document.getElementById('brightness').value = data.backlight.dayBrightness;
+            // Wywołaj funkcję przełączania, aby odpowiednio pokazać/ukryć sekcje
+            toggleAutoBrightness();
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji wyświetlacza:', error);
+    }
+}
+
+// Funkcja zapisująca konfigurację wyświetlacza
+async function saveDisplayConfig() {
+    try {
+        const autoMode = document.getElementById('display-auto').value === 'true';
+        const data = {
+            dayBrightness: parseInt(autoMode ? 
+                document.getElementById('day-brightness').value : 
+                document.getElementById('brightness').value),
+            nightBrightness: parseInt(document.getElementById('night-brightness').value),
+            autoMode: autoMode
+        };
+
+        console.log('Wysyłane dane:', data); // dla debugowania
+
+        const response = await fetch('/api/display/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        console.log('Odpowiedź serwera:', result); // dla debugowania
+
+        if (result.status === 'ok') {
+            alert('Zapisano ustawienia wyświetlacza');
+            await fetchDisplayConfig(); // odśwież wyświetlane ustawienia
+        } else {
+            throw new Error(result.message || 'Błąd odpowiedzi serwera');
+        }
+    } catch (error) {
+        console.error('Błąd podczas zapisywania:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+function toggleAutoBrightness() {
+    const autoMode = document.getElementById('display-auto').value === 'true';
+    const autoBrightnessSection = document.getElementById('auto-brightness-section');
+    const normalBrightness = document.getElementById('brightness').parentElement.parentElement;
+    
+    if (autoMode) {
+        autoBrightnessSection.style.display = 'block';
+        normalBrightness.style.display = 'none';
+        // Ustaw jasność dzienną jako domyślną jasność
+        document.getElementById('day-brightness').value = document.getElementById('brightness').value;
+    } else {
+        autoBrightnessSection.style.display = 'none';
+        normalBrightness.style.display = 'flex';
+        // Ustaw normalną jasność na wartość jasności dziennej
+        document.getElementById('brightness').value = document.getElementById('day-brightness').value;
+    }
+}
+
+// Walidacja dla pól numerycznych wyświetlacza
+document.querySelectorAll('#day-brightness, #night-brightness').forEach(input => {
+    input.addEventListener('input', function() {
+        let value = parseInt(this.value);
+        if (value < 0) this.value = 0;
+        if (value > 100) this.value = 100;
+    });
+});
+
+// Funkcja przełączająca widoczność parametrów w zależności od wybranego sterownika
+function toggleControllerParams() {
+    const controllerType = document.getElementById('controller-type').value;
+    const ktLcdParams = document.getElementById('kt-lcd-params');
+    const s866Params = document.getElementById('s866-lcd-params');
+
+    if (controllerType === 'kt-lcd') {
+        ktLcdParams.style.display = 'block';
+        s866Params.style.display = 'none';
+    } else if (controllerType === 's866') {
+        ktLcdParams.style.display = 'none';
+        s866Params.style.display = 'block';
+    }
+}
+
+// Dodaj wywołanie przy załadowaniu strony
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicjalne wywołanie przy załadowaniu strony
+    toggleControllerParams();
+    
+    // Dodaj nasłuchiwanie zmiany typu sterownika
+    document.getElementById('controller-type').addEventListener('change', toggleControllerParams);
+});
+
+// Funkcja pobierająca konfigurację sterownika
+async function fetchControllerConfig() {
+    try {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        if (data.controller) {
+            // Ustaw typ sterownika
+            document.getElementById('controller-type').value = data.controller.type;
+            toggleControllerParams();
+
+            // Wypełnij parametry dla KT-LCD
+            if (data.controller.type === 'kt-lcd') {
+                // Parametry P
+                for (let i = 1; i <= 5; i++) {
+                    document.getElementById(`kt-p${i}`).value = data.controller[`p${i}`] || '';
+                }
+                // Parametry C
+                for (let i = 1; i <= 15; i++) {
+                    document.getElementById(`kt-c${i}`).value = data.controller[`c${i}`] || '';
+                }
+                // Parametry L
+                for (let i = 1; i <= 3; i++) {
+                    document.getElementById(`kt-l${i}`).value = data.controller[`l${i}`] || '';
+                }
+            }
+            // Wypełnij parametry dla S866
+            else if (data.controller.type === 's866') {
+                document.getElementById('controller-type').value = 's866';
+                for (let i = 1; i <= 20; i++) {
+                    const input = document.getElementById(`s866-p${i}`);
+                    if (input) {
+                        input.value = data.controller[`p${i}`] || '';
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji sterownika:', error);
+    }
+}
+
+// Funkcja zapisująca konfigurację sterownika
+async function saveControllerConfig() {
+    try {
+        const controllerType = document.getElementById('controller-type').value;
+        let data = {
+            type: controllerType,
+        };
+
+        // Zbierz parametry w zależności od typu sterownika
+        if (controllerType === 'kt-lcd') {
+            // Parametry P
+            for (let i = 1; i <= 5; i++) {
+                const value = document.getElementById(`kt-p${i}`).value;
+                if (value !== '') data[`p${i}`] = parseInt(value);
+            }
+            // Parametry C
+            for (let i = 1; i <= 15; i++) {
+                const value = document.getElementById(`kt-c${i}`).value;
+                if (value !== '') data[`c${i}`] = parseInt(value);
+            }
+            // Parametry L
+            for (let i = 1; i <= 3; i++) {
+                const value = document.getElementById(`kt-l${i}`).value;
+                if (value !== '') data[`l${i}`] = parseInt(value);
+            }
+        } else if (controllerType === 's866') {
+            // Zbierz wszystkie parametry S866 (P1-P20)
+            for (let i = 1; i <= 20; i++) {
+                const value = document.getElementById(`s866-p${i}`).value;
+                if (value !== '') {
+                    data.p[i] = parseInt(value);
+                }
+            }
+        }
+
+        const response = await fetch('/api/controller/config', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (result.status === 'ok') {
+            alert('Zapisano ustawienia sterownika');
+            await fetchControllerConfig(); // Odśwież widok
+            fetchControllerConfig();
+        } else {
+            throw new Error('Błąd odpowiedzi serwera');
+        }
+    } catch (error) {
+        console.error('Błąd podczas zapisywania konfiguracji sterownika:', error);
+        alert('Błąd podczas zapisywania ustawień: ' + error.message);
+    }
+}
+
+// Obiekt z informacjami dla każdego parametru
+const infoContent = {
+
+    // Sekcja zegara //
+
+    'rtc-info': {
+        title: '⏰ Konfiguracja zegara',
+        description: `Panel konfiguracji zegara czasu rzeczywistego (RTC)
+
+    ⌚ Funkcje:
+      - Synchronizacja czasu systemowego
+      - Podtrzymanie bateryjne
+      - Format 24-godzinny
+      - Kalendarz z datą
+
+    🔄 Synchronizacja:
+      1. Sprawdź czas na swoim urządzeniu
+      2. Kliknij "Ustaw aktualny czas"
+      3. System automatycznie:
+          • Pobierze czas z twojego urządzenia
+          • Zaktualizuje zegar systemowy
+          • Potwierdzi synchronizację
+
+    💡 WSKAZÓWKI:
+      - Synchronizuj czas po wymianie baterii
+      - Sprawdzaj dokładność co kilka miesięcy
+      - Używaj dokładnego źródła czasu
+
+    ⚠️ WAŻNE: 
+      - Zegar działa nawet po odłączeniu głównego zasilania
+      - Bateria podtrzymująca wystarcza na około 2-3 lata
+      - Wymień baterię gdy zauważysz rozbieżności w czasie`
+    },
+
+    // Sekcja świateł //
+
+    'light-config-info': {
+        title: '💡 Konfiguracja świateł',
+        description: `Panel konfiguracji systemu oświetlenia.
+
+    🌞 Tryb dzienny:
+      - Światła do jazdy dziennej
+      - Zwiększona widoczność
+
+    🌙 Tryb nocny:
+      - Pełne oświetlenie drogi
+      - Dostosowanie do warunków
+
+    ⚙️ Opcje konfiguracji:
+      - Przód: światła dzienne/zwykłe
+      - Tył: światło pozycyjne
+      - Tryb pulsacyjny (mruganie)
+      - Częstotliwość mrugania
+
+    💡 WSKAZÓWKI:
+      - Używaj świateł nawet w dzień
+      - Dostosuj jasność do warunków
+      - Regularnie sprawdzaj działanie
+
+    ⚠️ WAŻNE:
+      - Sprawdź lokalne przepisy
+      - Utrzymuj światła w czystości
+      - Wymień uszkodzone elementy`
+    },
+
+    'day-lights-info': {
+        title: '☀️ Światła dzienne',
+        description: `Wybór konfiguracji świateł dla jazdy w dzień:
+
+      - Wyłączone: wszystkie światła wyłączone 
+      - Przód dzień: przednie światło w trybie dziennym 
+      - Przód zwykłe: przednie światło w trybie normalnym 
+      - Tył: tylko tylne światło 
+      - Przód dzień + tył: przednie światło dzienne i tylne 
+      - Przód zwykłe + tył: przednie światło normalne i tylne`
+    },
+
+    'day-blink-info': {
+        title: 'Mruganie tylnego światła (dzień)',
+        description: `Włącza lub wyłącza funkcję mrugania tylnego światła podczas jazdy w dzień. 
+
+    Mrugające światło może być bardziej widoczne 
+    dla innych uczestników ruchu.`
+    },
+
+    'night-lights-info': {
+        title: '🌙 Światła nocne',
+        description: `Wybór konfiguracji świateł dla jazdy w nocy:
+ 
+      - Wyłączone: wszystkie światła wyłączone 
+      - Przód dzień: przednie światło w trybie dziennym 
+      - Przód zwykłe: przednie światło w trybie normalnym 
+      - Tył: tylko tylne światło 
+      - Przód dzień + tył: przednie światło dzienne i tylne 
+      - Przód zwykłe + tył: przednie światło normalne i tylne`
+    },
+
+    'night-blink-info': {
+        title: 'Mruganie tylnego światła (noc)',
+        description: `Włącza lub wyłącza funkcję mrugania tylnego światła podczas jazdy w nocy. 
+    
+    Należy rozważnie używać tej funkcji, gdyż w niektórych warunkach migające światło może być bardziej dezorientujące niż pomocne.`
+    },
+
+    'blink-frequency-info': {
+        title: '⚡ Częstotliwość mrugania',
+        description: `Określa częstotliwość mrugania tylnego światła w milisekundach. 
+        
+    Mniejsza wartość oznacza szybsze mruganie, a większa - wolniejsze. Zakres: 100-2000ms.`
+    },
+
+    // Sekcja wyświetlacza //
+
+    'display-config-info': {
+        title: '📱 Konfiguracja wyświetlacza',
+        description: `Panel konfiguracji wyświetlacza LCD.
+
+    Dostępne opcje:
+    🔆 Jasność:
+      - Tryb automatyczny: automatyczne dostosowanie jasności
+      - Jasność dzienna: poziom w trybie dziennym (0-100%)
+      - Jasność nocna: poziom w trybie nocnym (0-100%)
+    
+    💡 WSKAZÓWKI:
+      - W nocy zalecana jasność 30-50%
+      - W dzień zalecana jasność 70-100%
+    
+    ⚠️ UWAGA: 
+    Zbyt niska jasność może utrudnić odczyt w silnym świetle słonecznym`
+    },
+
+    'brightness-info': {
+        title: '🔆 Podświetlenie wyświetlacza',
+        description: `Ustaw jasność podświetlenia wyświetlacza w zakresie od 0% do 100%. 
+        
+    Wyższa wartość oznacza jaśniejszy wyświetlacz. Zalecane ustawienie to 50-70% dla optymalnej widoczności.`
+    },
+
+    'auto-mode-info': {
+        title: '🤖 Tryb automatyczny',
+        description: `Automatycznie przełącza jasność wyświetlacza w zależności od ustawionych świateł dzień/noc. W trybie dziennym używa jaśniejszego podświetlenia, a w nocnym - przyciemnionego. Gdy światła nie są włączone to jasność jest ustawiona jak dla dnia`
+    },
+
+    'day-brightness-info': {
+        title: '☀️ Jasność dzienna',
+        description: `Poziom jasności wyświetlacza używany w ciągu dnia (0-100%). Zalecana wyższa wartość dla lepszej widoczności w świetle słonecznym.`
+    },
+
+    'night-brightness-info': {
+        title: '🌙 Jasność nocna',
+        description: `Poziom jasności wyświetlacza używany w nocy (0-100%). Zalecana niższa wartość dla komfortowego użytkowania w ciemności.`
+    },
+
+    'auto-off-time-info': {
+        title: '⏰ Czas automatycznego wyłączenia',
+        description: `Określa czas bezczynności, po którym system automatycznie się wyłączy.
+
+        Zakres: 0-60 minut
+        0: Funkcja wyłączona (system nie wyłączy się automatycznie)
+        1-60: Czas w minutach do automatycznego wyłączenia
+
+        💡 WSKAZÓWKA:
+          - Krótszy czas oszczędza baterię
+          - Dłuższy czas jest wygodniejszy przy dłuższych postojach
+        
+        ⚠️ UWAGA:
+        System zawsze zapisze wszystkie ustawienia przed wyłączeniem`
+    },
+
+    // Sekcja sterownika //
+
+    'controller-config-info': {
+        title: '🎮 Konfiguracja sterownika',
+        description: `Panel konfiguracji sterownika silnika.
+
+    Obsługiwane sterowniki:
+    🔷 KT-LCD:
+      - Parametry P1-P5: podstawowa konfiguracja
+      - Parametry C1-C15: zaawansowane ustawienia
+      - Parametry L1-L3: specjalne funkcje
+    
+    🔶 S866:
+      - Parametry P1-P20: pełna konfiguracja
+    
+    ⚠️ WAŻNE:
+      - Nieprawidłowa konfiguracja może wpłynąć na:
+        • Działanie silnika
+        • Zużycie energii
+        • Żywotność komponentów
+      - W razie wątpliwości użyj ustawień domyślnych
+    
+    💡 WSKAZÓWKA:
+    Każdy parametr ma szczegółowy opis dostępny
+    pod ikoną informacji (ℹ️)`
+    },
+
+    'display-type-info': {
+        title: '🔍 Wybór typu wyświetlacza',
+        description: `Wybierz odpowiedni model wyświetlacza LCD zainstalowanego w Twoim rowerze.
+
+        🟦 KT-LCD:
+        • Standardowy wyświetlacz z serii KT
+        • Obsługuje parametry P1-P5, C1-C15, L1-L3
+        • Kompatybilny z większością kontrolerów KT
+        
+        🟨 S866:
+        • Wyświetlacz z serii Bigstone/S866
+        • Obsługuje parametry P1-P20
+        • Posiada dodatkowe funkcje konfiguracyjne
+        
+        ⚠️ UWAGA: 
+        Wybór niewłaściwego typu wyświetlacza może 
+        spowodować nieprawidłowe działanie systemu.
+        Upewnij się, że wybrany model odpowiada 
+        fizycznie zainstalowanemu wyświetlaczowi.`
+    },
+
+    // Parametry sterownika KT-LCD //
+
+    // Parametry P sterownika //
+
+    'kt-p1-info': {
+        title: '⚙️ P1 - Przełożenie silnika',
+        description: `Obliczane ze wzoru: ilość magnesów X przełożenie
+
+    Dla silników bez przekładni (np. 30H): przełożenie = 1 (P1 = 46)
+    Dla silników z przekładnią (np. XP07): przełożenie > 1 (P1 = 96)
+
+    Parametr wpływa tylko na wyświetlanie prędkości - nieprawidłowa wartość nie wpłynie na jazdę, jedynie na wskazania prędkościomierza`
+    },
+
+    'kt-p2-info': {
+        title: 'P2 - Sposób odczytu prędkości',
+        description: `Wybierz:
+        
+    0: Dla silnika bez przekładni
+      - Prędkość z czujników halla silnika
+      - Biały przewód do pomiaru temperatury
+
+    1: Dla silnika z przekładnią
+      - Prędkość z dodatkowego czujnika halla
+      - Biały przewód do pomiaru prędkości
+
+    2-6: Dla silników z wieloma magnesami pomiarowymi
+      - Prędkość z dodatkowego czujnika halla
+      - Biały przewód do pomiaru prędkości
+      *używane rzadko, ale gdy pokazuje zaniżoną prędkość spróbuj tej opcji`
+    },
+
+    'kt-p3-info': {
+        title: 'P3 - Tryb działania czujnika PAS',
+        description: `Pozwala ustawić jak ma się zachowywać wspomaganie z czujnikiem PAS podczas używania biegów 1-5
+      – 0: Tryb sterowania poprzez prędkość
+      – 1: Tryb sterowania momentem obrotowym`
+    },
+
+    'kt-p4-info': {
+        title: 'P4 - Ruszanie z manetki',
+        description: `Pozwala ustawić sposób ruszania rowerem:
+
+    0: Można ruszyć od zera używając samej manetki
+    1: Manetka działa dopiero po ruszeniu z PAS/nóg`
+    },
+
+    'kt-p5-info': {
+        title: 'P5 - Sposób obliczania poziomu naładowania akumulatora',
+        description: `Pozwala dostosować czułość wskaźnika naładowania akumulatora
+      - niższa wartość: szybsza reakcja na spadki napięcia
+      - wyższa wartość: wolniejsza reakcja, uśrednianie wskazań
+
+    Zalecane zakresy wartości:
+      - 24V: 4-11
+      - 36V: 5-15
+      - 48V: 6-20
+      - 60V: 7-30
+
+    Uwaga: Zbyt wysokie wartości mogą opóźnić ostrzeżenie o niskim poziomie baterii.
+
+    Jeśli wskaźnik pokazuje stale 100%, wykonaj:
+    1. Reset do ustawień fabrycznych
+    2. Ustaw podstawowe parametry
+    3. Wykonaj pełny cykl ładowania-rozładowania`
+    },
+
+    // Parametry C sterownika //
+
+    'kt-c1-info': {
+        title: 'C1 - Czujnik PAS',
+        description: `Konfiguracja czułości czujnika asysty pedałowania (PAS). Wpływa na to, jak szybko system reaguje na pedałowanie.`
+    },
+
+    'kt-c2-info': {
+        title: 'C2 - Typ silnika',
+        description: `Ustawienia charakterystyki silnika i jego podstawowych parametrów pracy.`
+    },
+
+    'kt-c3-info': {
+        title: 'C3 - Tryb wspomagania',
+        description: `Konfiguracja poziomów wspomagania i ich charakterystyki (eco, normal, power).`
+    },
+
+    'kt-c4-info': {
+        title: 'C4 - Manetka i PAS',
+        description: `Określa sposób współdziałania manetki z czujnikiem PAS i priorytety sterowania.`
+    },
+
+    'kt-c5-info': {
+        title: '⚠️ C5 - Regulacja prądu sterownika',
+        description: `Pozwala dostosować maksymalny prąd sterownika do możliwości akumulatora.
+    
+    Wartości:
+    3:  Prąd zmniejszony o 50% (÷2.0)
+    4:  Prąd zmniejszony o 33% (÷1.5) 
+    5:  Prąd zmniejszony o 25% (÷1.33)
+    6:  Prąd zmniejszony o 20% (÷1.25)
+    7:  Prąd zmniejszony o 17% (÷1.20)
+    8:  Prąd zmniejszony o 13% (÷1.15)
+    9:  Prąd zmniejszony o 9%  (÷1.10)
+    10: Pełny prąd sterownika
+
+    Przykład dla sterownika 25A:
+      - C5=3 → max 12.5A
+      - C5=5 → max 18.8A
+      - C5=10 → max 25A
+
+    ⚠️ WAŻNE
+    Używaj niższych wartości gdy:
+      - Masz słaby akumulator z mocnym silnikiem
+      - Chcesz wydłużyć żywotność akumulatora
+      - Występują spadki napięcia podczas przyśpieszania`
+    },
+
+    'kt-c6-info': {
+        title: 'C6 - Jasność wyświetlacza',
+        description: `Ustawienie domyślnej jasności podświetlenia wyświetlacza LCD.`
+    },
+
+    'kt-c7-info': {
+        title: 'C7 - Tempomat',
+        description: `Konfiguracja tempomatu - utrzymywania stałej prędkości.`
+    },
+
+    'kt-c8-info': {
+        title: 'C8 - Silnik',
+        description: `Dodatkowe parametry silnika, w tym temperatura i zabezpieczenia.`
+    },
+
+    'kt-c9-info': {
+        title: 'C9 - Zabezpieczenia',
+        description: `Ustawienia kodów PIN i innych zabezpieczeń systemowych.`
+    },
+
+    'kt-c10-info': {
+        title: 'C10 - Ustawienia fabryczne',
+        description: `Opcje przywracania ustawień fabrycznych i kalibracji systemu.`
+    },
+
+    'kt-c11-info': {
+        title: 'C11 - Komunikacja',
+        description: `Parametry komunikacji między kontrolerem a wyświetlaczem.`
+    },
+
+    'kt-c12-info': {
+        title: '🔋 C12 - Regulacja minimalnego napięcia wyłączenia (LVC)',
+        description: `Pozwala dostosować próg napięcia, przy którym sterownik się wyłącza (Low Voltage Cutoff).
+
+    Wartości względem napięcia domyślnego:
+    0: -2.0V     
+    1: -1.5V     
+    2: -1.0V     
+    3: -0.5V
+    4: domyślne (40V dla 48V, 30V dla 36V, 20V dla 24V)
+    5: +0.5V
+    6: +1.0V
+    7: +1.5V
+
+    Przykład dla sterownika 48V:
+      - Domyślnie (C12=4): wyłączenie przy 40V
+      - C12=0: wyłączenie przy 38V
+      - C12=7: wyłączenie przy 41.5V
+
+    ⚠️ WAŻNE WSKAZÓWKI:
+    1. Obniżenie progu poniżej 42V w sterowniku 48V może spowodować:
+      - Błędne wykrycie systemu jako 36V
+      - Nieprawidłowe wskazania poziomu naładowania (stałe 100%)
+    2. Przy częstym rozładowywaniu akumulatora:
+      - Zalecane ustawienie C12=7
+      - Zapobiega przełączaniu na tryb 36V
+      - Chroni ostatnie % pojemności akumulatora
+
+    ZASTOSOWANIE:
+      - Dostosowanie do charakterystyki BMS
+      - Optymalizacja wykorzystania pojemności akumulatora
+      - Ochrona przed głębokim rozładowaniem`
+    },
+
+    'kt-c13-info': {
+        title: '🔄 C13 - Hamowanie regeneracyjne',
+        description: `Pozwala ustawić siłę hamowania regeneracyjnego i efektywność odzysku energii.
+
+    USTAWIENIA:
+    0: Wyłączone (brak hamowania i odzysku)
+    1: Słabe hamowanie + Najwyższy odzysk energii
+    2: Umiarkowane hamowanie + Średni odzysk
+    3: Średnie hamowanie + Umiarkowany odzysk
+    4: Mocne hamowanie + Niski odzysk
+    5: Najmocniejsze hamowanie + Minimalny odzysk
+
+    ZASADA DZIAŁANIA:
+      - Niższe wartości = lepszy odzysk energii
+      - Wyższe wartości = silniejsze hamowanie
+      - Hamowanie działa na klamki hamulcowe
+      - W niektórych modelach działa też na manetkę
+
+    ⚠️ WAŻNE OSTRZEŻENIA:
+    1. Hamowanie regeneracyjne może powodować obluzowanie osi silnika
+      - ZAWSZE używaj 2 blokad osi
+      - Regularnie sprawdzaj dokręcenie
+    2. Wybór ustawienia:
+      - Priorytet odzysku energii → ustaw C13=1
+      - Priorytet siły hamowania → ustaw C13=5
+      - Kompromis → ustaw C13=2 lub C13=3
+
+    💡 WSKAZÓWKA: Zacznij od niższych wartości i zwiększaj stopniowo, obserwując zachowanie roweru i efektywność odzysku energii.`
+    },
+
+    'kt-c14-info': {
+        title: 'C14 - Poziomy PAS',
+        description: `Konfiguracja poziomów wspomagania i ich charakterystyk.`
+    },
+
+    'kt-c15-info': {
+        title: 'C15 - Prowadzenie',
+        description: `Ustawienia trybu prowadzenia roweru (walk assist).`
+    },
+
+    // Parametry L sterownika //
+    
+    'kt-l1-info': {
+        title: '🔋 L1 - Napięcie minimalne (LVC)',
+        description: `Ustawienie minimalnego napięcia pracy sterownika (Low Voltage Cutoff).
+
+    Dostępne opcje:
+    0: Automatyczny dobór progu przez sterownik
+      - 24V → wyłączenie przy 20V
+      - 36V → wyłączenie przy 30V      
+      - 48V → wyłączenie przy 40V
+      
+    Wymuszenie progu wyłączenia:
+    1: 20V
+    2: 30V
+    3: 40V
+
+    ⚠️ UWAGA: 
+    Ustawienie zbyt niskiego progu może prowadzić do uszkodzenia akumulatora!`
+    },
+
+    'kt-l2-info': {
+        title: '⚡ L2 - Silniki wysokoobrotowe',
+        description: `Parametr dla silników o wysokich obrotach (>5000 RPM).
+
+    Wartości:
+    0: Tryb normalny
+    1: Tryb wysokoobrotowy - wartość P1 jest mnożona ×2
+
+    📝 UWAGA:
+      - Parametr jest powiązany z ustawieniem P1
+      - Używaj tylko dla silników > 5000 RPM`
+    },
+
+    'kt-l3-info': {
+        title: '🔄 L3 - Tryb DUAL',
+        description: `Konfiguracja zachowania dla sterowników z podwójnym kompletem czujników halla.
+
+    Opcje:
+    0: Tryb automatyczny
+      - Automatyczne przełączenie na sprawny komplet czujników
+      - Kontynuacja pracy po awarii jednego kompletu
+
+    1: Tryb bezpieczny
+      - Wyłączenie przy awarii czujników
+      - Sygnalizacja błędu
+
+    ⚠️ WAŻNE: 
+    Dotyczy tylko sterowników z funkcją DUAL (2 komplety czujników halla)`
+    },
+
+    // Parametry sterownika S866 //
+
+    's866-p1-info': {
+        title: 'P1 - Jasność podświetlenia',
+        description: `Regulacja poziomu podświetlenia wyświetlacza.
+
+    Dostępne poziomy:
+    1: Najciemniejszy
+    2: Średni
+    3: Najjaśniejszy`
+    },
+
+    's866-p2-info': {
+        title: 'P2 - Jednostka pomiaru',
+        description: `Wybór jednostki wyświetlania dystansu i prędkości.
+
+    Opcje:
+    0: Kilometry (km)
+    1: Mile`
+    },
+
+    's866-p3-info': {
+        title: 'P3 - Napięcie nominalne',
+        description: `Wybór napięcia nominalnego systemu.
+
+    Dostępne opcje:
+    - 24V
+    - 36V
+    - 48V
+    - 60V`
+    },
+
+    's866-p4-info': {
+        title: 'P4 - Czas automatycznego uśpienia',
+        description: `Czas bezczynności po którym wyświetlacz przejdzie w stan uśpienia.
+
+    Zakres: 0-60 minut
+    0: Funkcja wyłączona (brak auto-uśpienia)
+    1-60: Czas w minutach do przejścia w stan uśpienia`
+    },
+
+    's866-p5-info': {
+        title: 'P5 - Tryb wspomagania PAS',
+        description: `Wybór liczby poziomów wspomagania.
+
+    Opcje:
+    0: Tryb 3-biegowy
+    1: Tryb 5-biegowy`
+    },
+
+    's866-p6-info': {
+        title: 'P6 - Rozmiar koła',
+        description: `Ustawienie średnicy koła dla prawidłowego obliczania prędkości.
+
+    Zakres: 5.0 - 50.0 cali
+    Dokładność: 0.1 cala
+
+    ⚠️ WAŻNE 
+    Ten parametr jest kluczowy dla prawidłowego wyświetlania prędkości.`
+    },
+
+    's866-p7-info': {
+        title: 'P7 - Liczba magnesów czujnika prędkości',
+        description: `Konfiguracja czujnika prędkości.
+
+    Zakres: 1-100 magnesów
+
+    Dla silnika z przekładnią:
+    Wartość = Liczba magnesów × Przełożenie
+
+    Przykład:
+    - 20 magnesów, przełożenie 4.3
+    - Wartość = 20 × 4.3 = 86`
+    },
+
+    's866-p8-info': {
+        title: 'P8 - Limit prędkości',
+        description: `Ustawienie maksymalnej prędkości pojazdu.
+
+    Zakres: 0-100 km/h
+    100: Brak limitu prędkości
+
+    ⚠️ UWAGA: 
+    - Dokładność: ±1 km/h
+    - Limit dotyczy zarówno mocy jak i skrętu
+    - Wartości są zawsze w km/h, nawet przy wyświetlaniu w milach`
+    },
+
+    's866-p9-info': {
+        title: 'P9 - Tryb startu',
+        description: `Wybór sposobu uruchamiania wspomagania.
+
+    0: Start od zera (zero start)
+    1: Start z rozbiegu (non-zero start)`
+    },
+
+    's866-p10-info': {
+        title: 'P10 - Tryb jazdy',
+        description: `Wybór trybu wspomagania.
+
+    0: Wspomaganie PAS (moc zależna od siły pedałowania)
+    1: Tryb elektryczny (sterowanie manetką)
+    2: Tryb hybrydowy (PAS + manetka)`
+    },
+
+    's866-p11-info': {
+        title: 'P11 - Czułość PAS',
+        description: `Regulacja czułości czujnika wspomagania.
+
+    Zakres: 1-24
+    - Niższe wartości = mniejsza czułość
+    - Wyższe wartości = większa czułość`
+    },
+
+    's866-p12-info': {
+        title: 'P12 - Siła startu PAS',
+        description: `Intensywność wspomagania przy rozpoczęciu pedałowania.
+
+    Zakres: 1-5
+    1: Najsłabszy start
+    5: Najmocniejszy start`
+    },
+
+    's866-p13-info': {
+        title: 'P13 - Typ czujnika PAS',
+        description: `Wybór typu czujnika PAS według liczby magnesów.
+
+    Dostępne opcje:
+    - 5 magnesów
+    - 8 magnesów
+    - 12 magnesów`
+    },
+
+    's866-p14-info': {
+        title: 'P14 - Limit prądu kontrolera',
+        description: `Ustawienie maksymalnego prądu kontrolera.
+
+    Zakres: 1-20A`
+    },
+
+    's866-p15-info': {
+        title: 'P15 - Napięcie odcięcia',
+        description: `Próg napięcia przy którym kontroler wyłączy się.`
+    },
+
+    's866-p16-info': {
+        title: 'P16 - Reset licznika ODO',
+        description: `Resetowanie licznika całkowitego przebiegu.
+
+    Aby zresetować:
+    Przytrzymaj przycisk przez 5 sekund`
+    },
+
+    's866-p17-info': {
+        title: 'P17 - Tempomat',
+        description: `Włączenie/wyłączenie funkcji tempomatu.
+
+    0: Tempomat wyłączony
+    1: Tempomat włączony
+
+    ⚠️ Uwaga
+    Działa tylko z protokołem 2`
+    },
+
+    's866-p18-info': {
+        title: 'P18 - Kalibracja prędkości',
+        description: `Współczynnik korekcji wyświetlanej prędkości.
+
+    Zakres: 50% - 150%`
+    },
+
+    's866-p19-info': {
+        title: 'P19 - Bieg zerowy PAS',
+        description: `Konfiguracja biegu zerowego w systemie PAS.
+
+    0: Z biegiem zerowym
+    1: Bez biegu zerowego`
+    },
+
+    's866-p20-info': {
+        title: 'P20 - Protokół komunikacji',
+        description: `Wybór protokołu komunikacji sterownika.
+
+    0: Protokół 2
+    1: Protokół 5S
+    2: Protokół Standby
+    3: Protokół Standby alternatywny`
+    },
+
+    // Sekcja ustawień ogólnych //
+
+    'general-settings-info': {
+        title: '⚙️ Ustawienia ogólne',
+        description: `Podstawowa konfiguracja systemu.
+
+    🚲 Parametry roweru:
+      - Rozmiar koła: wpływa na pomiar prędkości
+      - Limit prędkości: zgodnie z przepisami
+      - Jednostki: km/h lub mph
+    
+    ⏰ Automatyczne wyłączanie:
+      - Czas do uśpienia: 0-60 minut
+      - 0 = funkcja wyłączona
+        
+    💾 Opcje konfiguracji:
+      - Reset do ustawień fabrycznych
+      - Kopia zapasowa konfiguracji
+    
+    ⚠️ UWAGA:
+    Reset ustawień usuwa wszystkie
+    spersonalizowane konfiguracje!`
+    },
+
+    // Licznik całkowity
+    'total-odometer-info': {
+        title: 'Przebieg całkowity',
+        description: `Całkowity przebieg roweru w kilometrach. Można ustawić wartość początkową, np. przy przeniesieniu z innego licznika.`
+    },
+
+    // Rozmiar koła
+    'wheel-size-info': {
+        title: 'Rozmiar koła',
+        description: `Wybierz rozmiar koła swojego roweru. Jest to ważne dla prawidłowego obliczania prędkości i dystansu.`
+    },
+
+    // Sekcja Bluetooth
+    'bluetooth-config-info': {
+        title: '📶 Konfiguracja Bluetooth',
+        description: `Panel konfiguracji połączeń bezprzewodowych.
+
+    🔋 BMS (Battery Management System):
+      - Monitoring stanu baterii
+      - Pomiar temperatury ogniw
+      - Kontrola napięcia
+      - Statystyki ładowania
+    
+    🌡️ TPMS (Tire Pressure Monitoring):
+      - Ciśnienie w oponach
+      - Temperatura opon
+      - Stan baterii czujników
+    
+    📱 Opcje połączenia:
+      - Auto-łączenie ze znanymi urządzeniami
+      - Skanowanie nowych czujników
+      - Parowanie urządzeń
+    
+    💡 WSKAZÓWKI:
+      - Utrzymuj czujniki w zasięgu 2-3m
+      - Sprawdzaj stan baterii czujników
+      - Regularnie aktualizuj oprogramowanie`
+    },
+
+    'bms-info': {
+        title: 'System zarządzania baterią (BMS)',
+        description: `BMS (Battery Management System) to system monitorujący stan baterii. Po włączeniu tej opcji, urządzenie będzie odbierać dane o stanie baterii przez Bluetooth, takie jak:
+             
+    • Pojemność (Ah)
+    • Energia (Wh)
+    • Temperatura ogniw (°C)
+    • Stan naładowania (SOC)`
+    },
+
+    // Opis dla TPMS
+    'tpms-info': {
+        title: 'System monitorowania ciśnienia w oponach (TPMS)',
+        description: `TPMS (Tire Pressure Monitoring System) to system monitorujący ciśnienie w oponach. Po włączeniu tej opcji, urządzenie będzie odbierać dane z czujników przez Bluetooth, takie jak:
+                
+    • Ciśnienie w oponach (bar)
+    • Temperatura opon (°C)
+    • Stan baterii czujników (V)`
+    }
+};
+
+function showRTCInfo() {
+    showModal(infoContent['rtc-info'].title, infoContent['rtc-info'].description);
+}
+
+// Funkcja pobierająca wersję systemu
+async function fetchSystemVersion() {
+    try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+        if (data.version) {
+            document.getElementById('system-version').textContent = data.version;
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania wersji systemu:', error);
+        document.getElementById('system-version').textContent = 'N/A';
+    }
+}
+
+function saveGeneralSettings() {
+    const wheelSize = document.getElementById('wheel-size').value;
+    
+    fetch('/save-general-settings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            wheelSize: wheelSize
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Ustawienia ogólne zapisane pomyślnie');
+        }
+    })
+    .catch(error => {
+        console.error('Błąd podczas zapisywania ustawień ogólnych:', error);
+    });
+}
+
+async function loadBluetoothConfig() {
+    try {
+        const response = await fetch('/get-bluetooth-config');
+        const data = await response.json();
+        if (data) {
+            document.getElementById('bms-enabled').value = data.bmsEnabled.toString();
+            document.getElementById('tpms-enabled').value = data.tpmsEnabled.toString();
+        }
+    } catch (error) {
+        console.error('Błąd podczas pobierania konfiguracji Bluetooth:', error);
+    }
+}
+
+window.onload = function() {
+    loadGeneralSettings();
+    loadBluetoothConfig();
+    // ... (pozostałe istniejące wywołania)
+};
+
+function saveBluetoothConfig() {
+    const bmsEnabled = document.getElementById('bms-enabled').value;
+    const tpmsEnabled = document.getElementById('tpms-enabled').value;
+    
+    // Tutaj dodaj kod do zapisywania konfiguracji
+    fetch('/save-bluetooth-config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            bmsEnabled: bmsEnabled === 'true',
+            tpmsEnabled: tpmsEnabled === 'true'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Konfiguracja Bluetooth zapisana pomyślnie');
+        }
+    })
+    .catch(error => {
+        console.error('Błąd podczas zapisywania konfiguracji Bluetooth:', error);
+    });
+}
+
+function initializeCollapsibleSections() {
+    document.querySelectorAll('.collapsible').forEach(section => {
+        const content = section.querySelector('.card-content');
+        const collapseBtn = section.querySelector('.collapse-btn');
+        
+        // Ustaw początkowy stan (zwinięty)
+        content.style.display = 'none';
+        
+        // Nasłuchuj tylko kliknięć w przycisk trybika
+        collapseBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Zatrzymaj propagację zdarzenia
+            
+            // Przełącz widoczność zawartości
+            const isCollapsed = content.style.display === 'none';
+            content.style.display = isCollapsed ? 'block' : 'none';
+            collapseBtn.classList.toggle('rotated', isCollapsed);
+            
+            // Zapisz stan w localStorage
+            const sectionId = section.classList[1];
+            localStorage.setItem(`section_${sectionId}`, isCollapsed ? 'expanded' : 'collapsed');
+        });
+        
+        // Przywróć poprzedni stan z localStorage
+        const sectionId = section.classList[1];
+        const savedState = localStorage.getItem(`section_${sectionId}`);
+        if (savedState === 'expanded') {
+            content.style.display = 'block';
+            collapseBtn.classList.add('rotated');
+        }
+    });
+}
+
+/*
+WAŻNE KOMUNIKATY:
+⚠️ - Ważne ostrzeżenia
+💡 - Wskazówka
+📝 - Uwaga
+
+PARAMETRY TECHNICZNE:
+⚡ - Ustawienia mocy/elektryczne
+🔋 - Ustawienia baterii
+🔌 - Ustawienia elektryczne
+🌡️ - Parametry temperatury
+📊 - Parametry pomiarowe
+
+USTAWIENIA MECHANICZNE:
+🚲 - Ogólne ustawienia roweru
+⚙️ - Ustawienia mechaniczne
+🔄 - Funkcje regeneracji
+
+INTERFEJS I CZAS:
+📱 - Ustawienia interfejsu
+⏰ - Ustawienia czasowe
+💾 - Opcje zapisu/resetu
+
+BEZPIECZEŃSTWO I WYDAJNOŚĆ:
+🔒 - Ustawienia zabezpieczeń
+📈 - Parametry wydajności
+🛠️ - Ustawienia serwisowe
+🔧 - KONFIGURACJA
+*/
