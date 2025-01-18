@@ -50,7 +50,7 @@
 #define DEBUG
 
 // --- Wersja systemu ---
-const char* VERSION = "13.1.25";
+const char* VERSION = "18.1.25";
 
 // Stała z nazwą pliku konfiguracyjnego
 const char* CONFIG_FILE = "/display_config.json";
@@ -124,16 +124,16 @@ struct BluetoothConfig {
 
 // Deklaracje dla BMS
 struct BmsData {
-    float voltage;           // Napięcie całkowite [V]
-    float current;          // Prąd [A]
-    float remainingCapacity; // Pozostała pojemność [Ah]
-    float totalCapacity;    // Całkowita pojemność [Ah]
-    uint8_t soc;           // Stan naładowania [%]
-    uint8_t cycles;        // Liczba cykli
-    float cellVoltages[16]; // Napięcia cel [V]
-    float temperatures[4];  // Temperatury [°C]
-    bool charging;         // Status ładowania
-    bool discharging;      // Status rozładowania
+    float voltage;            // Napięcie całkowite [V]
+    float current;            // Prąd [A]
+    float remainingCapacity;  // Pozostała pojemność [Ah]
+    float totalCapacity;      // Całkowita pojemność [Ah]
+    uint8_t soc;              // Stan naładowania [%]
+    uint8_t cycles;           // Liczba cykli
+    float cellVoltages[16];   // Napięcia cel [V]
+    float temperatures[4];    // Temperatury [°C]
+    bool charging;            // Status ładowania
+    bool discharging;         // Status rozładowania
 };
 
 BmsData bmsData;
@@ -175,11 +175,11 @@ const uint8_t* czcionka_mala = u8g2_font_profont11_mf;  // opis ekranów
 const uint8_t* czcionka_srednia = u8g2_font_pxplusibmvga9_mf; // górna belka
 const uint8_t* czcionka_duza = u8g2_font_fub20_tr;
 
-bool legalMode = false;  // false = normalny tryb, true = tryb legal
-uint8_t displayBrightness = 16; // Wartość od 0 do 255
+bool legalMode = false;             // false = normalny tryb, true = tryb legal
+uint8_t displayBrightness = 16;     // Wartość od 0 do 255
 bool welcomeAnimationDone = false;  // Dodaj na początku pliku
-void toggleLegalMode();            // Zdefiniuj tę funkcję
-void showWelcomeMessage();         // Zdefiniuj tę funkcję
+void toggleLegalMode();             // Zdefiniuj tę funkcję
+void showWelcomeMessage();          // Zdefiniuj tę funkcję
 
 // Dodaj stałe jeśli ich nie ma
 //#define LEGAL_MODE_TIME 2000      // Czas przytrzymania dla trybu legal
@@ -218,16 +218,16 @@ enum MainScreen {
 };
 
 enum SpeedSubScreen {
-    SPEED_KMH,        // Aktualna prędkość
-    SPEED_AVG_KMH,    // Średnia prędkość
-    SPEED_MAX_KMH,    // Maksymalna prędkość
-    SPEED_SUB_COUNT
+    SPEED_KMH,       // Aktualna prędkość
+    SPEED_AVG_KMH,   // Średnia prędkość
+    SPEED_MAX_KMH,   // Maksymalna prędkość
+    SPEED_SUB_COUNT  
 };
 
 enum CadenceSubScreen {
-    CADENCE_RPM,      // Aktualna kadencja
-    CADENCE_AVG_RPM,  // Średnia kadencja
-    CADENCE_SUB_COUNT
+    CADENCE_RPM,       // Aktualna kadencja
+    CADENCE_AVG_RPM,   // Średnia kadencja
+    CADENCE_SUB_COUNT  
 };
 
 enum TempSubScreen {
