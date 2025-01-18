@@ -391,9 +391,7 @@
 											<option value="3">3: Wspomaganie 3</option>
 											<option value="4">4: Wspomaganie 4</option>
 											<option value="5">5: Wspomaganie 5</option>
-											<option value="6">6: Brak</option>
-											<option value="7">7: Brak</option>
-											<option value="8">8: Jak przy wyłączeniu</option>
+											<option value="8">8: Jak przed wyłączeniem</option>
 										</select>
 									</div>
 							
@@ -613,8 +611,8 @@
 											<button class="info-icon" data-info="kt-l2-info">ℹ</button>
 										</label>
 										<select id="kt-l2" name="kt-l2" class="param-input">
-											<option value="0">0:</option>
-											<option value="1">1:</option>
+											<option value="0">Tryb normalny</option>
+											<option value="1">1: Tryb wysokoobrotowy</option>
 										</select>
 									</div>
 
@@ -835,6 +833,18 @@
 							<button class="collapse-btn">⚙️</button>
 						</div>
 						<div class="card-content">
+
+                                                    <!-- Przebieg całkowity -->
+                                                    <div class="setting-row">
+                                                        <label>
+                                                            Całkowity przebieg
+                                                            <button class="info-icon" data-info="total-odometer-info">ℹ</button>
+                                                        </label>
+                                                        <div class="input-with-unit">
+                                                            <input type="number" id="total-odometer" name="total-odometer" class="param-input" step="1" min="0">
+                                                            <span class="unit">km</span>
+                                                        </div>
+                                                    </div>
 
 							<!-- Rozmiar koła -->		    
 							<div class="setting-row">
