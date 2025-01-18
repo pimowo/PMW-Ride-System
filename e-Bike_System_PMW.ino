@@ -52,9 +52,6 @@
 // Dodaj globalną instancję
 OdometerManager odometer;
 
-// Zmień zmienną odometer_km na:
-#define odometer_km odometer.getRawTotal()
-
 #define DEBUG
 
 // --- Wersja systemu ---
@@ -1140,7 +1137,7 @@ void drawMainDisplay() {
                         descText = ">Dystans";
                         break;
                     case ODOMETER_KM:
-                        sprintf(valueStr, "%4.0f", odometer_km);
+                        sprintf(valueStr, "%4.0f", odometer.getRawTotal());
                         unitStr = "km";
                         descText = ">Przebieg";
                         break;
@@ -2036,17 +2033,17 @@ void setupWebServer() {
     server.serveStatic("/", LittleFS, "/");
 
     // Licznik całkowity 
-    server.on("/api/odometer", HTTP_GET, []() {
-        server.send(200, "text/plain", String(odometer.getRawTotal()));
+    server.on("/api/odometer", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(200, "text/plain", String(odometer.getRawTotal()));
     });
 
-    server.on("/api/setOdometer", HTTP_POST, []() {
-        if (server.hasArg("value")) {
-            float newValue = server.arg("value").toFloat();
+    server.on("/api/setOdometer", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("value", true)) {
+            float newValue = request->getParam("value", true)->value().toFloat();
             bool success = odometer.setInitialValue(newValue);
-            server.send(success ? 200 : 400, "text/plain", success ? "OK" : "Invalid value");
+            request->send(success ? 200 : 400, "text/plain", success ? "OK" : "Invalid value");
         } else {
-            server.send(400, "text/plain", "Missing value");
+            request->send(400, "text/plain", "Missing value");
         }
     });
 
@@ -2774,8 +2771,9 @@ void loop() {
             cadence_rpm = random(60, 90);
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
+            // Aktualizacja dystansu
             distance_km += 0.1;
-            odometer.getDisplayTotal();
+            odometer.update(distance_km);
             power_w = 100 + random(300);
             power_avg_w = power_w * 0.8;
             power_max_w = power_w * 1.2;
