@@ -1721,6 +1721,30 @@ function initializeCollapsibleSections() {
     });
 }
 
+// Dodaj na końcu pliku scripts.js
+
+async function loadGeneralSettings() {
+    try {
+        // Pobierz rozmiar koła
+        const response = await fetch('/get-general-settings');
+        const data = await response.json();
+        
+        if (data) {
+            // Ustaw rozmiar koła
+            document.getElementById('wheel-size').value = data.wheelSize;
+        }
+        
+        // Pobierz stan licznika
+        const odometerResponse = await fetch('/api/odometer');
+        if (odometerResponse.ok) {
+            const odometerValue = await odometerResponse.text();
+            document.getElementById('total-odometer').value = Math.floor(parseFloat(odometerValue));
+        }
+    } catch (error) {
+        console.error('Błąd podczas wczytywania ustawień ogólnych:', error);
+    }
+}
+
 /*
 WAŻNE KOMUNIKATY:
 ⚠️ - Ważne ostrzeżenia
