@@ -47,6 +47,14 @@
 #include <TimeLib.h>
 #include <map>
 
+#include "Odometer.h"
+
+// Dodaj globalną instancję
+OdometerManager odometer;
+
+// Zmień zmienną odometer_km na:
+#define odometer_km odometer.getRawTotal()
+
 #define DEBUG
 
 // --- Wersja systemu ---
@@ -286,7 +294,7 @@ float temp_controller = 0;
 float temp_motor = 0;
 float range_km = 0;
 float distance_km = 0;
-float odometer_km = 0;
+//float odometer_km = 0;
 float battery_voltage = 0;
 float battery_current = 0;
 float battery_capacity_wh = 0;
@@ -523,7 +531,7 @@ void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic,
 // Funkcja wysyłająca zapytanie do BMS
 void requestBmsData(const uint8_t* command, size_t length) {
     if (bleClient && bleClient->isConnected() && bleCharacteristicTx) {
-        bleCharacteristicTx->writeValue(command, length);
+//        bleCharacteristicTx->writeValue(command, length);
     }
 }
 
@@ -1675,24 +1683,27 @@ int getSubScreenCount(MainScreen screen) {
 
 // Funkcje zarządzania energią
 void goToSleep() {
-  // Wyłącz wszystkie LEDy
-  digitalWrite(FrontDayPin, LOW);
-  digitalWrite(FrontPin, LOW);
-  digitalWrite(RealPin, LOW);
-  digitalWrite(UsbPin, LOW);
+    // Wyłącz wszystkie LEDy
+    digitalWrite(FrontDayPin, LOW);
+    digitalWrite(FrontPin, LOW);
+    digitalWrite(RealPin, LOW);
+    digitalWrite(UsbPin, LOW);
 
-  delay(50);
+    delay(50);
 
-  // Wyłącz OLED
-  display.clearBuffer();
-  display.sendBuffer();
-  display.setPowerSave(1);  // Wprowadź OLED w tryb oszczędzania energii
+    // Wyłącz OLED
+    display.clearBuffer();
+    display.sendBuffer();
+    display.setPowerSave(1);  // Wprowadź OLED w tryb oszczędzania energii
 
-  // Konfiguracja wybudzania przez przycisk SET
-  esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0);  // GPIO12 (BTN_SET) stan niski
+    // Zapisz licznik całkowity
+    odometer.shutdown();
 
-  // Wejście w deep sleep
-  esp_deep_sleep_start();
+    // Konfiguracja wybudzania przez przycisk SET
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0);  // GPIO12 (BTN_SET) stan niski
+
+    // Wejście w deep sleep
+    esp_deep_sleep_start();
 }
 
 void setLights() {
@@ -2024,6 +2035,22 @@ void setupWebServer() {
     // Serwowanie plików statycznych
     server.serveStatic("/", LittleFS, "/");
 
+    // Licznik całkowity 
+    server.on("/api/odometer", HTTP_GET, []() {
+        server.send(200, "text/plain", String(odometer.getRawTotal()));
+    });
+
+    server.on("/api/setOdometer", HTTP_POST, []() {
+        if (server.hasArg("value")) {
+            float newValue = server.arg("value").toFloat();
+            bool success = odometer.setInitialValue(newValue);
+            server.send(success ? 200 : 400, "text/plain", success ? "OK" : "Invalid value");
+        } else {
+            server.send(400, "text/plain", "Missing value");
+        }
+    });
+
+    // Światła
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
         StaticJsonDocument<512> doc;
         JsonObject lightsObj = doc.createNestedObject("lights");
@@ -2748,7 +2775,7 @@ void loop() {
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
             distance_km += 0.1;
-            odometer_km += 0.1;
+            odometer.getDisplayTotal();
             power_w = 100 + random(300);
             power_avg_w = power_w * 0.8;
             power_max_w = power_w * 1.2;
@@ -2757,22 +2784,14 @@ void loop() {
             pressure_bar = 2.0 + (random(20) / 10.0);
             pressure_voltage = 0.5 + (random(20) / 100.0);
             pressure_temp = 20.0 + (random(100) / 10.0);
-            speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
-            distance_km += 0.1;
-            odometer_km += 0.1;
-            power_w = 100 + random(300);
             battery_capacity_wh = 14.5 - (random(20) / 10.0);
             battery_capacity_percent = (battery_capacity_percent <= 0) ? 100 : battery_capacity_percent - 1;
             battery_voltage = (battery_voltage <= 42.0) ? 50.0 : battery_voltage - 0.1;
             assistMode = (assistMode + 1) % 5;
             lastUpdate = currentTime;
-            pressure_bar = 2.0 + (random(20) / 10.0);
             pressure_rear_bar = 2.0 + (random(20) / 10.0);
-            pressure_voltage = 0.5 + (random(20) / 100.0);
             pressure_rear_voltage = 0.5 + (random(20) / 100.0);
-            pressure_temp = 20.0 + (random(100) / 10.0);
             pressure_rear_temp = 20.0 + (random(100) / 10.0);
-            speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
             // Aktualizacja średniej prędkości (przykładowa implementacja)
             static float speed_sum = 0;
             static int speed_count = 0;
