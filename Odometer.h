@@ -4,86 +4,86 @@
 #include <Preferences.h>
 
 class OdometerManager {
-private:
-    Preferences preferences;
-    const char* NAMESPACE = "odometer";
-    const char* TOTAL_KEY = "total";
-    const char* BACKUP_KEY = "total_bak";
-    
-    float currentTotal = 0;
-    float lastSavedTotal = 0;
-    unsigned long lastSaveTime = 0;
-    
-    const float MIN_DISTANCE_CHANGE = 0.1;    // 100 metrów
-    const unsigned long MIN_SAVE_TIME = 300000; // 5 minut
-
-public:
-    OdometerManager() {
-        preferences.begin(NAMESPACE, false);
-        initialize();
-    }
-    
-    ~OdometerManager() {
-        preferences.end();
-    }
-
-    void initialize() {
-        float mainValue = preferences.getFloat(TOTAL_KEY, 0);
-        float backupValue = preferences.getFloat(BACKUP_KEY, 0);
+    private:
+        Preferences preferences;
+        const char* NAMESPACE = "odometer";
+        const char* TOTAL_KEY = "total";
+        const char* BACKUP_KEY = "total_bak";
         
-        // Użyj większej wartości (w przypadku awarii podczas zapisu)
-        currentTotal = max(mainValue, backupValue);
-        lastSavedTotal = currentTotal;
-    }
+        float currentTotal = 0;
+        float lastSavedTotal = 0;
+        unsigned long lastSaveTime = 0;
+        
+        const float MIN_DISTANCE_CHANGE = 0.1;    // 100 metrów
+        const unsigned long MIN_SAVE_TIME = 300000; // 5 minut
 
-    uint32_t getDisplayTotal() {
-        return (uint32_t)currentTotal;
-    }
-
-    float getRawTotal() {
-        return currentTotal;
-    }
-
-    void update(float newDistance) {
-        if (newDistance > currentTotal) {
-            currentTotal = newDistance;
+    public:
+        OdometerManager() {
+            preferences.begin(NAMESPACE, false);
+            initialize();
+        }
+        
+        ~OdometerManager() {
+            preferences.end();
+        }
+    
+        void initialize() {
+            float mainValue = preferences.getFloat(TOTAL_KEY, 0);
+            float backupValue = preferences.getFloat(BACKUP_KEY, 0);
             
-            float change = currentTotal - lastSavedTotal;
-            unsigned long currentTime = millis();
-            
-            if (change >= MIN_DISTANCE_CHANGE && 
-                currentTime - lastSaveTime >= MIN_SAVE_TIME) {
-                saveTotal();
+            // Użyj większej wartości (w przypadku awarii podczas zapisu)
+            currentTotal = max(mainValue, backupValue);
+            lastSavedTotal = currentTotal;
+        }
+    
+        uint32_t getDisplayTotal() {
+            return (uint32_t)currentTotal;
+        }
+    
+        float getRawTotal() {
+            return currentTotal;
+        }
+    
+        void update(float newDistance) {
+            if (newDistance > currentTotal) {
+                currentTotal = newDistance;
+                
+                float change = currentTotal - lastSavedTotal;
+                unsigned long currentTime = millis();
+                
+                if (change >= MIN_DISTANCE_CHANGE && 
+                    currentTime - lastSaveTime >= MIN_SAVE_TIME) {
+                    saveTotal();
+                }
             }
         }
-    }
-
-    bool setInitialValue(float initialKm) {
-        if (initialKm < 0) {
-            return false;
+    
+        bool setInitialValue(float initialKm) {
+            if (initialKm < 0) {
+                return false;
+            }
+    
+            currentTotal = initialKm;
+            lastSavedTotal = initialKm;
+            
+            preferences.putFloat(BACKUP_KEY, initialKm);
+            preferences.putFloat(TOTAL_KEY, initialKm);
+            
+            return true;
+        }
+    
+        void shutdown() {
+            saveTotal();
+            preferences.end();
         }
 
-        currentTotal = initialKm;
-        lastSavedTotal = initialKm;
-        
-        preferences.putFloat(BACKUP_KEY, initialKm);
-        preferences.putFloat(TOTAL_KEY, initialKm);
-        
-        return true;
-    }
-
-    void shutdown() {
-        saveTotal();
-        preferences.end();
-    }
-
-private:
-    void saveTotal() {
-        preferences.putFloat(BACKUP_KEY, currentTotal);
-        preferences.putFloat(TOTAL_KEY, currentTotal);
-        lastSavedTotal = currentTotal;
-        lastSaveTime = millis();
-    }
+    private:
+        void saveTotal() {
+            preferences.putFloat(BACKUP_KEY, currentTotal);
+            preferences.putFloat(TOTAL_KEY, currentTotal);
+            lastSavedTotal = currentTotal;
+            lastSaveTime = millis();
+        }
 };
 
 #endif
