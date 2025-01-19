@@ -8,36 +8,36 @@
 * Definicje sprzętowe
 ******************************************/
 // Piny GPIO
-#define FRONT_PIN  0    // PB0 - światło przednie
-#define DAY_PIN    1    // PB1 - światło dzienne
-#define REAR_PIN   2    // PB2 - światło tylne
+#define FRONT_PIN 0  // PB0 - światło przednie
+#define DAY_PIN   1  // PB1 - światło dzienne
+#define REAR_PIN  2  // PB2 - światło tylne
 
 // Adres I2C urządzenia
-#define I2C_ADDRESS    0x20
+#define I2C_ADDRESS 0x20
 
 /******************************************
 * Definicje stanów i komend
 ******************************************/
 // Bity stanu świateł
-#define LIGHT_FRONT    0b00000001  // Bit dla światła przedniego
-#define LIGHT_DAY      0b00000010  // Bit dla światła dziennego
-#define LIGHT_REAR     0b00000100  // Bit dla światła tylnego
+#define LIGHT_FRONT 0b00000001  // Bit dla światła przedniego
+#define LIGHT_DAY   0b00000010  // Bit dla światła dziennego
+#define LIGHT_REAR  0b00000100  // Bit dla światła tylnego
 
 // Komendy I2C
-#define CMD_FRONT_LIGHT 0x01    // Komenda przełączania światła przedniego
-#define CMD_DAY_LIGHT   0x02    // Komenda przełączania światła dziennego
-#define CMD_REAR_LIGHT  0x03    // Komenda przełączania światła tylnego
-#define CMD_SET_EFFECT  0x04    // Komenda ustawiania efektu
+#define CMD_FRONT_LIGHT 0x01  // Komenda przełączania światła przedniego
+#define CMD_DAY_LIGHT   0x02  // Komenda przełączania światła dziennego
+#define CMD_REAR_LIGHT  0x03  // Komenda przełączania światła tylnego
+#define CMD_SET_EFFECT  0x04  // Komenda ustawiania efektu
 
 /******************************************
 * Definicje efektów i ich parametrów
 ******************************************/
 // Stałe czasowe dla efektów (w milisekundach)
-const uint32_t BLINK_INTERVAL = 500;        // Zwykłe miganie
-const uint32_t FAST_BLINK_INTERVAL = 250;   // Szybkie miganie
-const uint32_t SLOW_BLINK_INTERVAL = 1000;  // Wolne miganie
-const uint32_t DOUBLE_BLINK_INTERVAL = 125; // Podwójne miganie
-const uint32_t PULSE_INTERVAL = 50;         // Interwał pulsowania
+const uint32_t BLINK_INTERVAL = 500;         // Zwykłe miganie
+const uint32_t FAST_BLINK_INTERVAL = 250;    // Szybkie miganie
+const uint32_t SLOW_BLINK_INTERVAL = 1000;   // Wolne miganie
+const uint32_t DOUBLE_BLINK_INTERVAL = 125;  // Podwójne miganie
+const uint32_t PULSE_INTERVAL = 50;          // Interwał pulsowania
 
 // Maksymalna liczba kroków dla efektów
 #define MAX_PULSE_STEPS 8
@@ -46,12 +46,12 @@ const uint32_t PULSE_INTERVAL = 50;         // Interwał pulsowania
 
 // Typy efektów dla światła tylnego
 enum RearEffect {
-    EFFECT_NONE = 0,          // Brak efektu
-    EFFECT_BLINK,            // Zwykłe miganie
-    EFFECT_DOUBLE_BLINK,     // Podwójne miganie
-    EFFECT_PULSE,            // Pulsowanie
-    EFFECT_FAST_BLINK,       // Szybkie miganie
-    EFFECT_SLOW_BLINK        // Wolne miganie
+    EFFECT_NONE = 0,      // Brak efektu
+    EFFECT_BLINK,         // Zwykłe miganie
+    EFFECT_DOUBLE_BLINK,  // Podwójne miganie
+    EFFECT_PULSE,         // Pulsowanie
+    EFFECT_FAST_BLINK,    // Szybkie miganie
+    EFFECT_SLOW_BLINK     // Wolne miganie
 };
 
 // Tablica wartości dla efektu pulsowania (zapisana w pamięci programu)
@@ -62,15 +62,15 @@ const uint8_t PROGMEM pulseValues[] = {0, 36, 127, 218, 255, 218, 127, 36};
 ******************************************/
 // Struktura przechowująca stan efektu
 struct EffectState {
-    uint32_t lastTime;    // Czas ostatniej aktualizacji efektu
-    uint8_t step;         // Aktualny krok efektu
-    bool active;          // Czy efekt jest aktywny
+    uint32_t lastTime;  // Czas ostatniej aktualizacji efektu
+    uint8_t step;       // Aktualny krok efektu
+    bool active;        // Czy efekt jest aktywny
 };
 
 // Zmienne globalne
-volatile uint8_t lightState = 0;          // Stan wszystkich świateł
+volatile uint8_t lightState = 0;                  // Stan wszystkich świateł
 volatile RearEffect currentEffect = EFFECT_NONE;  // Aktualny efekt
-EffectState effectState = {0, 0, false};  // Stan efektu
+EffectState effectState = {0, 0, false};          // Stan efektu
 
 // Bufor dla komunikacji I2C
 #define I2C_BUFFER_SIZE 8
@@ -245,9 +245,9 @@ void setup() {
 }
 
 void loop() {
-    wdt_reset();  // Reset licznika watchdoga
+    wdt_reset();             // Reset licznika watchdoga
     TinyWireS_stop_check();  // Sprawdzenie stanu I2C
     
-    processI2CBuffer();  // Przetworzenie otrzymanych komend I2C
-    handleEffects();     // Obsługa efektów świetlnych
+    processI2CBuffer();      // Przetworzenie otrzymanych komend I2C
+    handleEffects();         // Obsługa efektów świetlnych
 }
