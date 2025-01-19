@@ -285,32 +285,31 @@ bool showingWelcome = false;
 #define PRESSURE_BOTTOM_LINE 62
 
 // --- Zmienne pomiarowe ---
-float speed_kmh = 0;
-int cadence_rpm = 0;
-float temp_air = 0;
-float temp_controller = 0;
-float temp_motor = 0;
-float range_km = 0;
-float distance_km = 0;
-//float odometer_km = 0;
-float battery_voltage = 0;
-float battery_current = 0;
-float battery_capacity_wh = 0;
-float battery_capacity_ah = 0;
-int battery_capacity_percent = 0;
-int power_w = 0;
-int power_avg_w = 0;
-int power_max_w = 0;
-float speed_avg_kmh = 0;
-float speed_max_kmh = 0;
-int cadence_avg_rpm = 0;
+float speed_kmh;
+int cadence_rpm;
+float temp_air;
+float temp_controller;
+float temp_motor;
+float range_km;
+float distance_km;
+float battery_voltage;
+float battery_current;
+float battery_capacity_wh;
+float battery_capacity_ah;
+int battery_capacity_percent;
+int power_w;
+int power_avg_w;
+int power_max_w;
+float speed_avg_kmh;
+float speed_max_kmh;
+int cadence_avg_rpm;
 // Zmienne dla czujników ciśnienia
-float pressure_bar = 0;           // przednie koło
-float pressure_rear_bar = 0;      // tylne koło
-float pressure_voltage = 0;       // napięcie przedniego czujnika
-float pressure_rear_voltage = 0;  // napięcie tylnego czujnika
-float pressure_temp = 0;          // temperatura przedniego czujnika
-float pressure_rear_temp = 0;     // temperatura tylnego czujnika
+float pressure_bar;           // przednie koło
+float pressure_rear_bar;      // tylne koło
+float pressure_voltage;       // napięcie przedniego czujnika
+float pressure_rear_voltage;  // napięcie tylnego czujnika
+float pressure_temp;          // temperatura przedniego czujnika
+float pressure_rear_temp;     // temperatura tylnego czujnika
 
 // --- Zmienne dla czujnika temperatury ---
 #define TEMP_ERROR -999.0
