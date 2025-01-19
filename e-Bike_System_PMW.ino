@@ -2233,11 +2233,17 @@ void setupWebServer() {
     );
 
     // Endpoint do zapisywania ustawień ogólnych
-    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-        if (request->hasParam("body", true)) {
-            String json = request->getParam("body", true)->value();
+    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index + len != total) {
+                return; // Nie wszystkie dane zostały otrzymane
+            }
+
+            // Dodaj null terminator do danych
+            data[len] = '\0';
+            
             StaticJsonDocument<64> doc;
-            DeserializationError error = deserializeJson(doc, json);
+            DeserializationError error = deserializeJson(doc, (const char*)data);
 
             if (!error) {
                 // Konwersja wartości "700C" na 0 lub liczby na odpowiednie wartości
@@ -2255,9 +2261,6 @@ void setupWebServer() {
             } else {
                 request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
             }
-        } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
-        }
     });
 
     // Dodaj w setupWebServer():
