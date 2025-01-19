@@ -51,6 +51,7 @@
 
 // Dodaj globalną instancję
 OdometerManager odometer;
+Preferences preferences;
 
 #define DEBUG
 
@@ -851,23 +852,30 @@ void loadGeneralSettingsFromFile() {
         #ifdef DEBUG
         Serial.println("Nie znaleziono pliku ustawień ogólnych, używam domyślnych");
         #endif
+        generalSettings.wheelSize = 26; // Wartość domyślna
+        saveGeneralSettingsToFile(); // Zapisz domyślne ustawienia
         return;
     }
 
     StaticJsonDocument<64> doc;
     DeserializationError error = deserializeJson(doc, file);
+    file.close();
 
     if (error) {
         #ifdef DEBUG
         Serial.println("Błąd podczas parsowania JSON ustawień ogólnych");
         #endif
-        file.close();
+        generalSettings.wheelSize = 26; // Wartość domyślna
+        saveGeneralSettingsToFile(); // Zapisz domyślne ustawienia
         return;
     }
 
     generalSettings.wheelSize = doc["wheelSize"] | 26; // Domyślnie 26 cali jeśli nie znaleziono
 
-    file.close();
+    #ifdef DEBUG
+    Serial.print("Loaded wheel size: ");
+    Serial.println(generalSettings.wheelSize);
+    #endif
 }
 
 // Wczytywanie ustawień z EEPROM
@@ -2254,9 +2262,16 @@ void setupWebServer() {
                     } else {
                         generalSettings.wheelSize = doc["wheelSize"].as<uint8_t>();
                     }
+                    
+                    // Zapisz ustawienia od razu po zmianie
+                    saveGeneralSettingsToFile();
+                    #ifdef DEBUG
+                    Serial.println("General settings saved");
+                    Serial.print("Wheel size: ");
+                    Serial.println(generalSettings.wheelSize);
+                    #endif
                 }
 
-                saveGeneralSettingsToFile();
                 request->send(200, "application/json", "{\"success\":true}");
             } else {
                 request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
@@ -2264,35 +2279,35 @@ void setupWebServer() {
     });
 
     // Dodaj w setupWebServer():
-server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-    
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
-});
-
-server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (request->hasParam("body", true)) {
-        String json = request->getParam("body", true)->value();
+    server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
         StaticJsonDocument<64> doc;
-        DeserializationError error = deserializeJson(doc, json);
+        doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+        doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
 
-        if (!error) {
-            bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-            bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-            
-            saveBluetoothConfigToFile();
-            request->send(200, "application/json", "{\"success\":true}");
+    server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("body", true)) {
+            String json = request->getParam("body", true)->value();
+            StaticJsonDocument<64> doc;
+            DeserializationError error = deserializeJson(doc, json);
+
+            if (!error) {
+                bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+                bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+                
+                saveBluetoothConfigToFile();
+                request->send(200, "application/json", "{\"success\":true}");
+            } else {
+                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+            }
         } else {
-            request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
         }
-    } else {
-        request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
-    }
-});
+    });
     
     // Endpoint do pobierania aktualnych ustawień ogólnych
     server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -2657,6 +2672,16 @@ void setup() {
         loadGeneralSettingsFromFile();
         loadBluetoothConfigFromFile();
     }
+
+    // Inicjalizacja pamięci Preferences dla licznika
+    // if (!preferences.begin("odometer", false)) {
+    //     #ifdef DEBUG
+    //     Serial.println("Failed to initialize Preferences");
+    //     #endif
+    // }
+
+    // Inicjalizacja licznika (powinno być po inicjalizacji Preferences)
+    odometer.initialize();
 
     // Jeśli wybudzenie przez przycisk SET
     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
