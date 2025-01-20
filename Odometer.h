@@ -13,44 +13,84 @@ private:
     float currentTotal = 0;
     float lastSavedTotal = 0;
     unsigned long lastSaveTime = 0;
+    bool isInitialized = false;
     
     const float MIN_DISTANCE_CHANGE = 0.1;    // 100 metrów
     const unsigned long MIN_SAVE_TIME = 300000; // 5 minut
 
-    void saveTotal() {
-        preferences.putFloat(BACKUP_KEY, currentTotal);
-        preferences.putFloat(TOTAL_KEY, currentTotal);
-        lastSavedTotal = currentTotal;
-        lastSaveTime = millis();
+    bool saveTotal() {
+        #ifdef DEBUG
+        Serial.println("Saving total distance...");
+        Serial.printf("Current total: %.2f\n", currentTotal);
+        #endif
+
+        bool backupSuccess = preferences.putFloat(BACKUP_KEY, currentTotal);
+        bool mainSuccess = preferences.putFloat(TOTAL_KEY, currentTotal);
+        
+        #ifdef DEBUG
+        Serial.printf("Backup save: %s\n", backupSuccess ? "OK" : "Failed");
+        Serial.printf("Main save: %s\n", mainSuccess ? "OK" : "Failed");
+        #endif
+
+        if (backupSuccess && mainSuccess) {
+            lastSavedTotal = currentTotal;
+            lastSaveTime = millis();
+            return true;
+        }
+        return false;
     }
 
 public:
     OdometerManager() {
-        preferences.begin(NAMESPACE, false);
-        initialize();
+        #ifdef DEBUG
+        Serial.println("Initializing OdometerManager...");
+        #endif
+
+        isInitialized = preferences.begin(NAMESPACE, false);
+        
+        #ifdef DEBUG
+        Serial.printf("Preferences begin: %s\n", isInitialized ? "OK" : "Failed");
+        #endif
+
+        if (isInitialized) {
+            initialize();
+        }
     }
     
     ~OdometerManager() {
-        preferences.end();
+        if (isInitialized) {
+            preferences.end();
+            isInitialized = false;
+        }
     }
 
     void initialize() {
         float mainValue = preferences.getFloat(TOTAL_KEY, 0);
         float backupValue = preferences.getFloat(BACKUP_KEY, 0);
         
-        // Użyj większej wartości (w przypadku awarii podczas zapisu)
+        #ifdef DEBUG
+        Serial.printf("Read main value: %.2f\n", mainValue);
+        Serial.printf("Read backup value: %.2f\n", backupValue);
+        #endif
+        
         currentTotal = max(mainValue, backupValue);
         lastSavedTotal = currentTotal;
+
+        #ifdef DEBUG
+        Serial.printf("Initialized with total: %.2f\n", currentTotal);
+        #endif
     }
 
-    // Zmiana nazwy z getDisplayTotal na getRawTotal
     float getRawTotal() const {
         return currentTotal;
     }
 
-    //void updateDistance(float newDistance) {
     void updateTotal(float newDistance) {
         if (newDistance > currentTotal) {
+            #ifdef DEBUG
+            Serial.printf("Updating distance from %.2f to %.2f\n", currentTotal, newDistance);
+            #endif
+
             currentTotal = newDistance;
             
             float change = currentTotal - lastSavedTotal;
@@ -58,28 +98,60 @@ public:
             
             if (change >= MIN_DISTANCE_CHANGE && 
                 currentTime - lastSaveTime >= MIN_SAVE_TIME) {
+                #ifdef DEBUG
+                Serial.println("Change threshold reached, saving...");
+                #endif
                 saveTotal();
             }
         }
     }
 
     bool setInitialValue(float initialKm) {
-        if (initialKm < 0) {
+        if (!isInitialized) {
+            #ifdef DEBUG
+            Serial.println("Odometer not initialized!");
+            #endif
             return false;
         }
+
+        if (initialKm < 0) {
+            #ifdef DEBUG
+            Serial.println("Invalid initial value (negative)");
+            #endif
+            return false;
+        }
+
+        #ifdef DEBUG
+        Serial.printf("Setting initial value to %.2f km\n", initialKm);
+        #endif
 
         currentTotal = initialKm;
         lastSavedTotal = initialKm;
         
-        preferences.putFloat(BACKUP_KEY, initialKm);
-        preferences.putFloat(TOTAL_KEY, initialKm);
+        bool backupSuccess = preferences.putFloat(BACKUP_KEY, initialKm);
+        bool mainSuccess = preferences.putFloat(TOTAL_KEY, initialKm);
         
-        return true;
+        #ifdef DEBUG
+        Serial.printf("Backup save: %s\n", backupSuccess ? "OK" : "Failed");
+        Serial.printf("Main save: %s\n", mainSuccess ? "OK" : "Failed");
+        #endif
+        
+        return backupSuccess && mainSuccess;
     }
 
     void shutdown() {
-        saveTotal();
-        preferences.end();
+        if (isInitialized) {
+            #ifdef DEBUG
+            Serial.println("Shutting down OdometerManager...");
+            #endif
+            saveTotal();
+            preferences.end();
+            isInitialized = false;
+        }
+    }
+
+    bool isValid() const {
+        return isInitialized;
     }
 };
 
