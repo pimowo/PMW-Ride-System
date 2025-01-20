@@ -1,0 +1,15 @@
+{
+    "name": "PlatformIO",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/platformio/platformio-core": "latest"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "platformio.platformio-ide"
+            ]
+        }
+    },
+    "postCreateCommand": "pio platform install espressif32"
+}
