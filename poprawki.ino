@@ -840,25 +840,21 @@ void saveGeneralSettingsToFile() {
 }
 
 // zapis konfiguracji Bluetooth
-void loadBluetoothConfigFromFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "r");
+void saveBluetoothConfigToFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "w");
     if (!file) {
         #ifdef DEBUG
-        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
+        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
         #endif
         return;
     }
 
     StaticJsonDocument<64> doc;
-    DeserializationError error = deserializeJson(doc, file);
-    
-    if (!error) {
-        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
-        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
-    }
-    
+    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+
+    serializeJson(doc, file);
     file.close();
-}    
 }
 
 // wczytywanie konfiguracji Bluetooth
@@ -2678,7 +2674,6 @@ void setup() {
     digitalWrite(FrontDayPin, LOW);
     digitalWrite(FrontPin, LOW);
     digitalWrite(RealPin, LOW);
-    setLights();
 
     // Ładowarka USB
     pinMode(UsbPin, OUTPUT);
