@@ -108,9 +108,9 @@ const unsigned long TEMP_REQUEST_INTERVAL = 1000;
 const unsigned long DS18B20_CONVERSION_DELAY_MS = 750;
 
 // Stałe wyświetlacza
-#define PRESSURE_LEFT_MARGIN 70
-#define PRESSURE_TOP_LINE 62
-#define PRESSURE_BOTTOM_LINE 62
+// #define PRESSURE_LEFT_MARGIN 70
+// #define PRESSURE_TOP_LINE 62
+// #define PRESSURE_BOTTOM_LINE 62
 #define TEMP_ERROR -999.0
 
 /********************************************************************
@@ -275,7 +275,7 @@ OdometerManager odometer;
 Preferences preferences;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
-AsyncEventSource events("/events");
+//AsyncEventSource events("/events");
 
 // Zmienne stanu systemu
 bool configModeActive = false;
@@ -320,7 +320,7 @@ float pressure_rear_temp;     // temperatura tylnego czujnika
 
 // Zmienne dla czujnika temperatury
 float currentTemp = DEVICE_DISCONNECTED_C;
-bool temperatureReady = false;
+//bool temperatureReady = false;
 bool conversionRequested = false;
 unsigned long lastTempRequest = 0;
 unsigned long ds18b20RequestTime;
@@ -333,7 +333,7 @@ unsigned long upPressStartTime = 0;
 unsigned long downPressStartTime = 0;
 unsigned long setPressStartTime = 0;
 unsigned long messageStartTime = 0;
-bool firstClick = false;
+//bool firstClick = false;
 bool upLongPressExecuted = false;
 bool downLongPressExecuted = false;
 bool setLongPressExecuted = false;
@@ -2398,27 +2398,21 @@ void setupWebServer() {
     server.begin();
 }
 
-// obsługa ustawień przez WWW
-void handleSettings(AsyncWebServerRequest *request) {
-    String html = "<!DOCTYPE html><html lang='pl'>";
-    request->send(200, "text/html", html);
-}
-
 // zapis ustawień zegara
-void handleSaveClockSettings(AsyncWebServerRequest *request) {
-    if (request->hasParam("hour")) {
-        int hour = request->getParam("hour")->value().toInt();
-    }
-    request->redirect("/");
-}
+// void handleSaveClockSettings(AsyncWebServerRequest *request) {
+//     if (request->hasParam("hour")) {
+//         int hour = request->getParam("hour")->value().toInt();
+//     }
+//     request->redirect("/");
+// }
 
 // zapis ustawień roweru
-void handleSaveBikeSettings(AsyncWebServerRequest *request) {
-    if (request->hasParam("wheel")) {
-        bikeSettings.wheelCircumference = request->getParam("wheel")->value().toInt();
-    }
-    request->redirect("/");
-}
+// void handleSaveBikeSettings(AsyncWebServerRequest *request) {
+//     if (request->hasParam("wheel")) {
+//         bikeSettings.wheelCircumference = request->getParam("wheel")->value().toInt();
+//     }
+//     request->redirect("/");
+// }
 
 // --- Funkcje systemu plików ---
 
@@ -2563,19 +2557,6 @@ void synchronizeTime() {
     rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
                         timeinfo.tm_mday, timeinfo.tm_hour,
                         timeinfo.tm_min, timeinfo.tm_sec));
-}
-
-// aktualizacja podświetlenia
-void updateBacklight() {
-    if (backlightSettings.autoMode) {
-        // Auto mode - ustaw jasność na podstawie trybu dzień/noc
-        bool isDayMode = true;  // Tu trzeba dodać właściwą logikę
-        int brightness = isDayMode ? backlightSettings.dayBrightness : backlightSettings.nightBrightness;
-        // Tu dodaj kod ustawiający jasność wyświetlacza
-    } else {
-        // Manual mode - ustaw stałą jasność
-        // Tu dodaj kod ustawiający jasność wyświetlacza
-    }
 }
 
 /********************************************************************
