@@ -3,35 +3,35 @@
  ********************************************************************/
 
 // --- Podstawowe biblioteki systemowe ---
-#include <Wire.h>              // Biblioteka do komunikacji I2C
-#include <EEPROM.h>           // Biblioteka do obsługi pamięci EEPROM
+#include <Wire.h>               // Biblioteka do komunikacji I2C
+#include <EEPROM.h>             // Biblioteka do obsługi pamięci EEPROM
 
 // --- Biblioteki wyświetlacza ---
-#include <U8g2lib.h>          // Biblioteka do obsługi wyświetlacza OLED
+#include <U8g2lib.h>            // Biblioteka do obsługi wyświetlacza OLED
 
 // --- Biblioteki czasu ---
-#include <RTClib.h>           // Biblioteka do obsługi zegara czasu rzeczywistego (RTC)
-#include <TimeLib.h>          // Biblioteka do obsługi funkcji czasowych
+#include <RTClib.h>             // Biblioteka do obsługi zegara czasu rzeczywistego (RTC)
+#include <TimeLib.h>            // Biblioteka do obsługi funkcji czasowych
 
 // --- Biblioteki czujników temperatury ---
-#include <OneWire.h>          // Biblioteka do komunikacji z czujnikami OneWire
-#include <DallasTemperature.h> // Biblioteka do obsługi czujników temperatury DS18B20
+#include <OneWire.h>            // Biblioteka do komunikacji z czujnikami OneWire
+#include <DallasTemperature.h>  // Biblioteka do obsługi czujników temperatury DS18B20
 
 // --- Biblioteki Bluetooth ---
-#include <BLEDevice.h>        // Główna biblioteka BLE
-#include <BLEServer.h>        // Biblioteka do tworzenia serwera BLE
-#include <BLEUtils.h>         // Narzędzia BLE
-#include <BLE2902.h>          // Deskryptor powiadomień BLE
+#include <BLEDevice.h>          // Główna biblioteka BLE
+#include <BLEServer.h>          // Biblioteka do tworzenia serwera BLE
+#include <BLEUtils.h>           // Narzędzia BLE
+#include <BLE2902.h>            // Deskryptor powiadomień BLE
 
 // --- Biblioteki sieciowe ---
-#include <WiFi.h>             // Biblioteka do obsługi WiFi
-#include <AsyncTCP.h>         // Biblioteka do asynchronicznej komunikacji TCP
-#include <ESPAsyncWebServer.h> // Biblioteka do obsługi serwera WWW
+#include <WiFi.h>               // Biblioteka do obsługi WiFi
+#include <AsyncTCP.h>           // Biblioteka do asynchronicznej komunikacji TCP
+#include <ESPAsyncWebServer.h>  // Biblioteka do obsługi serwera WWW
 
 // --- Biblioteki systemu plików i JSON ---
-#include <LittleFS.h>         // System plików dla ESP32
-#include <ArduinoJson.h>      // Biblioteka do obsługi formatu JSON
-#include <map>                // Biblioteka do obsługi map (kontenerów)
+#include <LittleFS.h>           // System plików dla ESP32
+#include <ArduinoJson.h>        // Biblioteka do obsługi formatu JSON
+#include <map>                  // Biblioteka do obsługi map (kontenerów)
 
 // --- Biblioteki własne ---
 #include "Odometer.h"         // Własna biblioteka do obsługi licznika kilometrów
@@ -101,9 +101,9 @@ struct LightSettings {
     
     LightMode dayLights;      // Konfiguracja świateł dziennych
     LightMode nightLights;    // Konfiguracja świateł nocnych
-    bool dayBlink;           // Miganie w trybie dziennym
-    bool nightBlink;         // Miganie w trybie nocnym
-    uint16_t blinkFrequency; // Częstotliwość migania
+    bool dayBlink;            // Miganie w trybie dziennym
+    bool nightBlink;          // Miganie w trybie nocnym
+    uint16_t blinkFrequency;  // Częstotliwość migania
 };
 
 struct BacklightSettings {
@@ -118,8 +118,8 @@ struct WiFiSettings {
 };
 
 struct ControllerSettings {
-    String type;  // "kt-lcd" lub "s866"
-    int ktParams[23];  // P1-P5, C1-C15, L1-L3
+    String type;         // "kt-lcd" lub "s866"
+    int ktParams[23];    // P1-P5, C1-C15, L1-L3
     int s866Params[20];  // P1-P20
 };
 
@@ -142,12 +142,12 @@ struct BmsData {
     float current;            // Prąd [A]
     float remainingCapacity;  // Pozostała pojemność [Ah]
     float totalCapacity;      // Całkowita pojemność [Ah]
-    uint8_t soc;             // Stan naładowania [%]
-    uint8_t cycles;          // Liczba cykli
-    float cellVoltages[16];  // Napięcia cel [V]
-    float temperatures[4];   // Temperatury [°C]
-    bool charging;           // Status ładowania
-    bool discharging;        // Status rozładowania
+    uint8_t soc;              // Stan naładowania [%]
+    uint8_t cycles;           // Liczba cykli
+    float cellVoltages[16];   // Napięcia cel [V]
+    float temperatures[4];    // Temperatury [°C]
+    bool charging;            // Status ładowania
+    bool discharging;         // Status rozładowania
 };
 
 struct Settings {
@@ -271,7 +271,7 @@ float speed_avg_kmh;
 float speed_max_kmh;
 int cadence_avg_rpm;
 
-// Zmienne dla czujników ciśnienia
+// Zmienne dla czujników ciśnienia kół
 float pressure_bar;           // przednie koło
 float pressure_rear_bar;      // tylne koło
 float pressure_voltage;       // napięcie przedniego czujnika
@@ -449,204 +449,1874 @@ void saveSettingsToEEPROM() {
 
 // rysowanie linii poziomej
 void drawHorizontalLine() {
-    
+    display.drawHLine(4, 12, 122);
+    display.drawHLine(4, 48, 122);
 }
 
 // rysowanie linii pionowej
 void drawVerticalLine() {
-    
+    display.drawVLine(25, 16, 28);
+    display.drawVLine(64, 16, 28);
 }
 
 // rysowanie górnego paska
 void drawTopBar() {
-    
+    static bool colonVisible = true;
+    static unsigned long lastColonToggle = 0;
+    const unsigned long COLON_TOGGLE_INTERVAL = 500;  // Miganie co 500ms (pół sekundy)
+
+    display.setFont(czcionka_srednia);
+
+    // Pobierz aktualny czas z RTC
+    DateTime now = rtc.now();
+
+    // Czas z migającym dwukropkiem
+    char timeStr[6];
+    if (colonVisible) {
+        sprintf(timeStr, "%02d:%02d", now.hour(), now.minute());
+    } else {
+        sprintf(timeStr, "%02d %02d", now.hour(), now.minute());
+    }
+    display.drawStr(0, 10, timeStr);
+
+    // Przełącz stan dwukropka co COLON_TOGGLE_INTERVAL
+    if (millis() - lastColonToggle >= COLON_TOGGLE_INTERVAL) {
+        colonVisible = !colonVisible;
+        lastColonToggle = millis();
+    }
+
+    // Bateria
+    char battStr[5];
+    sprintf(battStr, "%d%%", battery_capacity_percent);
+    display.drawStr(58, 10, battStr);
+
+    // Napięcie
+    char voltStr[6];
+    sprintf(voltStr, "%.0fV", battery_voltage);
+    display.drawStr(100, 10, voltStr);
 }
 
 // wyświetlanie statusu świateł
 void drawLightStatus() {
-    
+    display.setFont(czcionka_mala);
+
+    switch (lightMode) {
+        case 1:
+            display.drawStr(30, 45, "Dzien");
+            break;
+        case 2:
+            display.drawStr(30, 45, "Noc");
+            break;
+    }
 }
 
-// Implementacja wyświetlania poziomu wspomagania
+// wyświetlanie poziomu wspomagania
 void drawAssistLevel() {
-    
+    display.setFont(czcionka_duza);
+
+    if (assistLevelAsText) {
+         display.drawStr(2, 40, "T");
+    } else {
+        // Wyświetlanie poziomu asysty
+        if (legalMode) {
+            // Wymiary cyfry i tła
+            const int digit_height = 20;  // wysokość czcionki
+            const int padding = 3;        // margines wewnętrzny
+            const int total_width = 16 + (padding * 2);  // szerokość cyfry + marginesy
+            const int total_height = digit_height + (padding * 2);  // wysokość + marginesy
+            
+            int x = 2;
+            int y = 40;
+            
+            // Pozycja tła (box)
+            int box_x = x - padding;
+            int box_y = y - digit_height - padding;  // przesunięcie w górę o wysokość + padding
+            
+            // Rysuj białe tło
+            display.setDrawColor(1);
+            display.drawBox(box_x, box_y, total_width, total_height);
+            
+            // Wyświetl tekst w negatywie
+            display.setDrawColor(0);
+            char levelStr[2];
+            sprintf(levelStr, "%d", assistLevel);
+            display.drawStr(x, y, levelStr);
+            display.setDrawColor(1);
+        } else {
+            // Normalny tryb
+            char levelStr[2];
+            sprintf(levelStr, "%d", assistLevel);
+            display.drawStr(2, 40, levelStr);
+        }
+    }    
+
+    display.setFont(czcionka_mala);
+    const char* modeText;
+    const char* modeText2;
+    switch (assistMode) {
+        case 0:
+            modeText2 = "STOP";
+            break;
+        case 1:
+            modeText = "PAS";
+            break;
+        case 2:           
+            modeText = "TENS";
+            break;
+        case 3:
+            modeText = "GAZ";
+            break;
+        case 4:
+            modeText = "MIX";
+            break;
+    }
+    display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
+    display.drawStr(30, 34, modeText2);  // wyświetl STOP przy hamowaniu
 }
 
-// Implementacja wyświetlania wartości i jednostki
+// wyświetlanie wartości i jednostki
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
+    // Najpierw oblicz szerokość jednostki małą czcionką
+    display.setFont(czcionka_mala);
+    int unitWidth = display.getStrWidth(unitStr);
     
+    // Następnie oblicz szerokość wartości średnią czcionką
+    display.setFont(czcionka_srednia);
+    int valueWidth = display.getStrWidth(valueStr);
+    
+    // Całkowita szerokość = wartość + jednostka
+    int totalWidth = valueWidth + unitWidth;
+    
+    // Pozycja początkowa dla wartości (od prawej strony)
+    int xPosValue = 128 - totalWidth;
+    
+    // Pozycja początkowa dla jednostki
+    int xPosUnit = xPosValue + valueWidth;
+    
+    // Rysowanie wartości średnią czcionką
+    display.setFont(czcionka_srednia);
+    display.drawStr(xPosValue, 62, valueStr);
+    
+    // Rysowanie jednostki małą czcionką
+    display.setFont(czcionka_mala);
+    display.drawStr(xPosUnit, 62, unitStr);
 }
 
 // Implementacja głównego ekranu
 void drawMainDisplay() {
-    
+    display.setFont(czcionka_mala);
+    char valueStr[10];
+    const char* unitStr;
+    const char* descText;
+
+    if (inSubScreen) {
+
+        switch (currentMainScreen) {
+      
+            case SPEED_SCREEN:
+                switch (currentSubScreen) {
+                    case SPEED_KMH:
+                        sprintf(valueStr, "%4.1f", speed_kmh);
+                        unitStr = "km/h";
+                        descText = ">Predkosc";
+                        break;
+                    case SPEED_AVG_KMH:
+                        sprintf(valueStr, "%4.1f", speed_avg_kmh);
+                        unitStr = "km/h";
+                        descText = ">Pred. AVG";
+                        break;
+                    case SPEED_MAX_KMH:
+                        sprintf(valueStr, "%4.1f", speed_max_kmh);
+                        unitStr = "km/h";
+                        descText = ">Pred. MAX";
+                        break;
+                }
+                break;
+
+            case CADENCE_SCREEN:
+                switch (currentSubScreen) {
+                    case CADENCE_RPM:
+                        sprintf(valueStr, "%4d", cadence_rpm);
+                        unitStr = "RPM";
+                        descText = ">Kadencja";
+                        break;
+                    case CADENCE_AVG_RPM:
+                        sprintf(valueStr, "%4d", cadence_avg_rpm);
+                        unitStr = "RPM";
+                        descText = ">Kadencja AVG";
+                        break;
+                }
+                break;
+
+            case TEMP_SCREEN:
+                switch (currentSubScreen) {
+                    case TEMP_AIR:
+                        if (currentTemp != TEMP_ERROR && currentTemp != DEVICE_DISCONNECTED_C) {
+                            sprintf(valueStr, "%4.1f", currentTemp);
+                        } else {
+                            strcpy(valueStr, "---");
+                        }
+                        unitStr = "C";
+                        descText = ">Powietrze";
+                        break;
+                    case TEMP_CONTROLLER:
+                        sprintf(valueStr, "%4.1f", temp_controller);
+                        unitStr = "C";
+                        descText = ">Sterownik";
+                        break;
+                    case TEMP_MOTOR:
+                        sprintf(valueStr, "%4.1f", temp_motor);
+                        unitStr = "C";
+                        descText = ">Silnik";
+                        break;
+                }
+                break;
+
+            case RANGE_SCREEN:
+                switch (currentSubScreen) {
+                    case RANGE_KM:
+                        sprintf(valueStr, "%4.1f", range_km);
+                        unitStr = "km";
+                        descText = ">Zasieg";
+                        break;
+                    case DISTANCE_KM:
+                        sprintf(valueStr, "%4.1f", distance_km);
+                        unitStr = "km";
+                        descText = ">Dystans";
+                        break;
+                    case ODOMETER_KM:
+                        sprintf(valueStr, "%4.0f", odometer.getRawTotal());
+                        unitStr = "km";
+                        descText = ">Przebieg";
+                        break;
+                }
+                break;
+
+            case BATTERY_SCREEN:
+                switch (currentSubScreen) {
+                    case BATTERY_VOLTAGE:
+                        sprintf(valueStr, "%4.1f", battery_voltage);
+                        unitStr = "V";
+                        descText = ">Napiecie";
+                        break;
+                    case BATTERY_CURRENT:
+                        sprintf(valueStr, "%4.1f", battery_current);
+                        unitStr = "A";
+                        descText = ">Natezenie";
+                        break;
+                    case BATTERY_CAPACITY_WH:
+                        sprintf(valueStr, "%4.0f", battery_capacity_wh);
+                        unitStr = "Wh";
+                        descText = ">Energia";
+                        break;
+                    case BATTERY_CAPACITY_AH:
+                        sprintf(valueStr, "%4.1f", battery_capacity_wh);
+                        unitStr = "Ah";
+                        descText = ">Pojemnosc";
+                        break;
+                    case BATTERY_CAPACITY_PERCENT:
+                        sprintf(valueStr, "%3d", battery_capacity_percent);
+                        unitStr = "%";
+                        descText = ">Bateria";
+                        break;
+                }
+                break;
+
+            case POWER_SCREEN:
+                switch (currentSubScreen) {
+                    case POWER_W:
+                        sprintf(valueStr, "%4d", power_w);
+                        unitStr = "W";
+                        descText = ">Moc";
+                        break;
+                    case POWER_AVG_W:
+                        sprintf(valueStr, "%4d", power_avg_w);
+                        unitStr = "W";
+                        descText = ">Moc AVG";
+                        break;
+                    case POWER_MAX_W:
+                        sprintf(valueStr, "%4d", power_max_w);
+                        unitStr = "W";
+                        descText = ">Moc MAX";
+                        break;
+                }
+                break;
+
+            case PRESSURE_SCREEN:
+                char combinedStr[16];
+                switch (currentSubScreen) {
+                    case PRESSURE_BAR:
+                        sprintf(combinedStr, "%.2f|%.2f", pressure_bar, pressure_rear_bar);
+                        strcpy(valueStr, combinedStr);
+                        unitStr = "bar";
+                        descText = ">Cis";
+                        break;
+                    case PRESSURE_VOLTAGE:
+                        sprintf(combinedStr, "%.2f|%.2f", pressure_voltage, pressure_rear_voltage);
+                        strcpy(valueStr, combinedStr);
+                        unitStr = "V";
+                        descText = ">Bat";
+                        break;
+                    case PRESSURE_TEMP:
+                        sprintf(combinedStr, "%.1f|%.1f", pressure_temp, pressure_rear_temp);
+                        strcpy(valueStr, combinedStr);
+                        unitStr = "C";
+                        descText = ">Temp";
+                        break;
+                }
+                break;
+        }
+
+    } else {
+        // Wyświetlanie głównych ekranów
+        switch (currentMainScreen) {
+
+            case SPEED_SCREEN:
+                sprintf(valueStr, "%4.1f", speed_kmh);
+                unitStr = "km/h";
+                descText = " Predkosc";
+                break;
+          
+            case CADENCE_SCREEN:
+                sprintf(valueStr, "%4d", cadence_rpm);
+                unitStr = "RPM";
+                descText = " Kadencja";
+                break;
+
+            case TEMP_SCREEN:
+                if (currentTemp != TEMP_ERROR && currentTemp != DEVICE_DISCONNECTED_C) {
+                    sprintf(valueStr, "%4.1f", currentTemp);
+                } else {
+                    strcpy(valueStr, "---");
+                }
+                unitStr = "C";
+                descText = " Temperatura";
+                break;
+
+            case RANGE_SCREEN:
+                sprintf(valueStr, "%4.1f", range_km);
+                unitStr = "km";
+                descText = " Zasieg";
+                break;
+
+            case BATTERY_SCREEN:
+                sprintf(valueStr, "%3d", battery_capacity_percent);
+                unitStr = "%";
+                descText = " Bateria";
+                break;
+
+            case POWER_SCREEN:
+                sprintf(valueStr, "%4d", power_w);
+                unitStr = "W";
+                descText = " Moc";
+                break;
+
+            case PRESSURE_SCREEN:
+                sprintf(valueStr, "%.1f/%.1f", pressure_bar, pressure_rear_bar);
+                unitStr = "bar";
+                descText = " Kola";
+                break;
+
+            case USB_SCREEN:
+                display.setFont(czcionka_srednia);
+                display.drawStr(48, 61, usbEnabled ? "Wlaczone" : "Wylaczone");
+                descText = " USB";
+                break;
+        }
+    }
+   
+    char speedStr[10]; // Bufor na sformatowaną prędkość
+    if (speed_kmh < 10.0) {
+        sprintf(speedStr, "  %2.1f", speed_kmh);  // Dodaj spację przed liczbą
+    } else {
+        sprintf(speedStr, "%2.1f", speed_kmh);   // Bez spacji
+    }
+
+    // Wyświetl prędkość dużą czcionką
+    display.setFont(czcionka_duza);
+    display.drawStr(72, 35, speedStr);
+
+    // Wyświetl jednostkę małą czcionką pod prędkością
+    display.setFont(czcionka_mala);
+    display.drawStr(105, 45, "km/h");
+
+    // Wyświetl wartości tylko jeśli nie jesteśmy na ekranie USB
+    if (currentMainScreen != USB_SCREEN) {
+        drawValueAndUnit(valueStr, unitStr);
+    }
+
+    display.setFont(czcionka_mala);
+    display.drawStr(0, 62, descText);
 }
 
-// Implementacja wyświetlania wycentrowanego tekstu
+// wyświetlanie wycentrowanego tekstu
 void drawCenteredText(const char* text, int y, const uint8_t* font) {
+    // Ustawia wybraną czcionkę dla tekstu
+    display.setFont(font);
     
+    // Oblicza szerokość tekstu w pikselach dla wybranej czcionki
+    int textWidth = display.getStrWidth(text);
+    
+    // Oblicza pozycję X dla wycentrowania tekstu
+    // display.getWidth() zwraca szerokość wyświetlacza (zazwyczaj 128 pikseli)
+    // Odejmujemy szerokość tekstu i dzielimy przez 2, aby uzyskać lewy margines
+    int x = (display.getWidth() - textWidth) / 2;
+    
+    // Rysuje tekst w obliczonej pozycji
+    // x - pozycja pozioma (wycentrowana)
+    // y - pozycja pionowa (określona przez parametr)
+    display.drawStr(x, y, text);
 }
 
-// Implementacja wyświetlania wiadomości powitalnej
+// wyświetlanie wiadomości powitalnej
 void showWelcomeMessage() {
-    
+    display.clearBuffer();
+    display.setFont(czcionka_srednia); // Ustaw domyślną czcionkę na początku
+
+    // Tekst "Witaj!" na środku
+    String welcomeText = "Witaj!";
+    int welcomeWidth = display.getStrWidth(welcomeText.c_str());
+    int welcomeX = (128 - welcomeWidth) / 2;
+
+    // Tekst przewijany
+    String scrollText = "e-Bike System PMW  ";
+    int messageWidth = display.getStrWidth(scrollText.c_str());
+    int x = 128; // Start poza prawą krawędzią
+
+    // Przygotuj tekst wersji
+    String versionText = "System ver. ";
+    versionText += VERSION;
+
+    unsigned long lastUpdate = millis();
+    while (x > -messageWidth) { // Przewijaj aż tekst zniknie z lewej strony
+        unsigned long currentMillis = millis();
+        if (currentMillis - lastUpdate >= 2) {
+            display.clearBuffer();
+            
+            // Statyczny tekst "Witaj!" dużą czcionką
+            display.setFont(czcionka_duza);
+            display.drawStr(welcomeX, 20, welcomeText.c_str());
+            
+            // Przewijany tekst średnią czcionką
+            display.setFont(czcionka_srednia);
+            display.drawStr(x, 43, scrollText.c_str());
+
+            // Tekst wersji małą czcionką
+            display.setFont(czcionka_mala);
+            int versionWidth = display.getStrWidth(versionText.c_str());
+            int versionX = (128 - versionWidth) / 2;
+            display.drawStr(versionX, 60, versionText.c_str());
+            
+            display.sendBuffer();
+            
+            //x--; // jeden px na krok
+            x -= 2; // dwa px na krok
+            lastUpdate = currentMillis;
+        }
+    }
+
+    welcomeAnimationDone = true;
 }
 
 // --- Funkcje obsługi przycisków ---
 
-// Implementacja obsługi przycisków
+// obsługa przycisków
 void handleButtons() {
-    
+    if (configModeActive) {
+        return; // W trybie konfiguracji nie obsługuj normalnych funkcji przycisków
+    }
+
+    unsigned long currentTime = millis();
+    bool setState = digitalRead(BTN_SET);
+    bool upState = digitalRead(BTN_UP);
+    bool downState = digitalRead(BTN_DOWN);
+
+    static unsigned long lastButtonCheck = 0;
+    static unsigned long bothPressStart = 0;
+    static bool upPressed = false;
+    static bool downPressed = false;
+    static unsigned long upPressTime = 0;
+    static unsigned long downPressTime = 0;
+    const unsigned long buttonDebounce = 50;
+    static unsigned long legalModeStart = 0;
+
+    // Obsługa włączania/wyłączania wyświetlacza
+    if (!displayActive) {
+        if (!setState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!setPressStartTime) {
+                setPressStartTime = currentTime;
+            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
+                if (!welcomeAnimationDone) {
+                    showWelcomeMessage();  // Pokaż animację powitania
+                } 
+                messageStartTime = currentTime;
+                setLongPressExecuted = true;
+                showingWelcome = true;
+                displayActive = true;
+            }
+        } else if (setState && setPressStartTime) {
+            setPressStartTime = 0;
+            setLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
+        return;
+    }
+
+    // Obsługa przycisków gdy wyświetlacz jest aktywny
+    if (!showingWelcome) {
+
+        // Sprawdzanie trybu legal (UP + SET) - przełączanie trybu legalnego
+        if (displayActive && !showingWelcome && !upState && !setState) {
+            if (legalModeStart == 0) {
+                legalModeStart = currentTime;
+            } else if ((currentTime - legalModeStart) > 500) { // 2 sekundy  przytrzymania
+                toggleLegalMode();
+                while (!digitalRead(BTN_UP) || !digitalRead(BTN_SET)) {
+                    delay(10); // Czekaj na puszczenie przycisków
+                }
+                legalModeStart = 0;
+                return;
+            }
+        } else {
+            legalModeStart = 0;
+        }
+
+        // Obsługa przycisku UP (zmiana asysty)
+        if (!upState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!upPressStartTime) {
+                upPressStartTime = currentTime;
+            } else if (!upLongPressExecuted && (currentTime - upPressStartTime) > LONG_PRESS_TIME) {
+                lightMode = (lightMode + 1) % 3;
+                
+                #ifdef DEBUG
+                Serial.print("Zmieniono tryb świateł na: ");
+                Serial.println(lightMode);
+                #endif
+                
+                setLights(); // Zastosuj ustawienia zgodnie z trybem
+                upLongPressExecuted = true;
+            }
+        } else if (upState && upPressStartTime) {
+            if (!upLongPressExecuted && (currentTime - upPressStartTime) < LONG_PRESS_TIME) {
+                if (assistLevel < 5) assistLevel++;
+            }
+            upPressStartTime = 0;
+            upLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
+
+        // Obsługa przycisku DOWN (zmiana asysty)
+        if (!downState && (currentTime - lastDebounceTime) > DEBOUNCE_DELAY) {
+            if (!downPressStartTime) {
+                downPressStartTime = currentTime;
+            } else if (!downLongPressExecuted && (currentTime - downPressStartTime) > LONG_PRESS_TIME) {
+                assistLevelAsText = !assistLevelAsText;
+                downLongPressExecuted = true;
+            }
+        } else if (downState && downPressStartTime) {
+            if (!downLongPressExecuted && (currentTime - downPressStartTime) < LONG_PRESS_TIME) {
+                if (assistLevel > 0) assistLevel--;
+            }
+            downPressStartTime = 0;
+            downLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
+
+        // Obsługa przycisku SET
+        static unsigned long lastSetRelease = 0;
+        static bool waitingForSecondClick = false;
+
+        if (!setState) {  // Przycisk wciśnięty
+            if (!setPressStartTime) {
+                setPressStartTime = currentTime;
+            } else if (!setLongPressExecuted && (currentTime - setPressStartTime) > SET_LONG_PRESS) {
+                // Długie przytrzymanie (>3s) - wyłączenie
+                display.clearBuffer();
+                display.setFont(czcionka_srednia);
+                display.drawStr(5, 32, "Do widzenia ;)");
+                display.sendBuffer();
+                messageStartTime = currentTime;
+                setLongPressExecuted = true;
+            }
+        } else if (setPressStartTime) {  // Przycisk puszczony
+            if (!setLongPressExecuted) {
+                unsigned long releaseTime = currentTime;
+
+                if (waitingForSecondClick && (releaseTime - lastSetRelease) < DOUBLE_CLICK_TIME) {
+                    // Podwójne kliknięcie
+                    if (currentMainScreen == USB_SCREEN) {
+                        // Przełącz stan USB
+                        usbEnabled = !usbEnabled;
+                        digitalWrite(UsbPin, usbEnabled ? HIGH : LOW);
+                    } else if (inSubScreen) {
+                        inSubScreen = false;  // Wyjście z pod-ekranów
+                    } else if (hasSubScreens(currentMainScreen)) {
+                        inSubScreen = true;  // Wejście do pod-ekranów
+                        currentSubScreen = 0;
+                    }
+                    waitingForSecondClick = false;
+                } else {
+                    // Pojedyncze kliknięcie
+                    if (!waitingForSecondClick) {
+                        waitingForSecondClick = true;
+                        lastSetRelease = releaseTime;
+                    } else if ((releaseTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
+                        // Przełączanie ekranów/pod-ekranów
+                        if (inSubScreen) {
+                            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
+                        } else {
+                            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
+                        }
+                        waitingForSecondClick = false;
+                    }
+                }
+            }
+            setPressStartTime = 0;
+            setLongPressExecuted = false;
+            lastDebounceTime = currentTime;
+        }
+
+        // Reset flagi oczekiwania na drugie kliknięcie po upływie czasu
+        if (waitingForSecondClick && (currentTime - lastSetRelease) >= DOUBLE_CLICK_TIME) {
+          // Wykonaj akcję pojedynczego kliknięcia
+          if (inSubScreen) {
+            currentSubScreen = (currentSubScreen + 1) % getSubScreenCount(currentMainScreen);
+          } else {
+            currentMainScreen = (MainScreen)((currentMainScreen + 1) % MAIN_SCREEN_COUNT);
+          }
+          waitingForSecondClick = false;
+        }
+    }
+
+    // Obsługa komunikatów powitalnych/pożegnalnych
+    if (messageStartTime > 0 && (currentTime - messageStartTime) >= GOODBYE_DELAY) {
+      if (!showingWelcome) {
+          displayActive = false;
+          goToSleep();
+      }
+      messageStartTime = 0;
+      showingWelcome = false;
+    }
 }
 
-// Implementacja sprawdzania trybu konfiguracji
+// sprawdzanie trybu konfiguracji
 void checkConfigMode() {
-    
+    static unsigned long upDownPressTime = 0;
+    static bool bothButtonsPressed = false;
+
+    if (!digitalRead(BTN_UP) && !digitalRead(BTN_DOWN)) {
+        if (!bothButtonsPressed) {
+            bothButtonsPressed = true;
+            upDownPressTime = millis();
+        } else if ((millis() - upDownPressTime > 500) && !configModeActive) {
+            activateConfigMode();
+        }
+    } else {
+        bothButtonsPressed = false;
+    }
 }
 
 // Implementacja aktywacji trybu konfiguracji
 void activateConfigMode() {
+    configModeActive = true;
     
+    // 1. Inicjalizacja LittleFS
+    if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
+        Serial.println("Błąd montowania LittleFS");
+        #endif
+        return;
+    }
+    #ifdef DEBUG
+    Serial.println("LittleFS zainicjalizowany");
+    #endif
+
+    // 2. Włączenie WiFi w trybie AP
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("e-Bike System PMW", "#mamrower");
+    #ifdef DEBUG
+    Serial.println("Tryb AP aktywny");
+    #endif
+
+    // 3. Konfiguracja serwera - najpierw pliki statyczne
+    server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
+    
+    // Dodanie obsługi typów MIME
+    server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/style.css", "text/css");
+    });
+    
+    server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/script.js", "application/javascript");
+    });
+
+    server.on("/api/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<200> doc;
+        doc["version"] = VERSION;
+        
+        String response;
+        serializeJson(doc, response);
+        
+        request->send(200, "application/json", response);
+    });
+
+    // 4. Dodanie endpointów API
+    setupWebServer();
+
+    // 5. Uruchomienie serwera
+    server.begin();
+    #ifdef DEBUG
+    Serial.println("Serwer WWW uruchomiony");
+    #endif
 }
 
-// Implementacja dezaktywacji trybu konfiguracji
-void deactivateConfigMode() {
+// dezaktywacja trybu konfiguracji
+void deactivateConfigMode() {    
+    if (!configModeActive) return;  // Jeśli tryb konfiguracji nie jest aktywny, przerwij
+    server.end();                   // Zatrzymaj serwer HTTP
+    WiFi.softAPdisconnect(true);    // Wyłącz punkt dostępowy WiFi
+    WiFi.mode(WIFI_OFF);            // Wyłącz moduł WiFi
+    LittleFS.end();                 // Odmontuj system plików
     
+    configModeActive = false;
+    
+    display.clearBuffer();
+    display.sendBuffer();
 }
 
-// Implementacja przełączania trybu legal
+// przełączanie trybu legal
 void toggleLegalMode() {
+    legalMode = !legalMode;
     
+    display.clearBuffer();
+        
+    drawCenteredText("Tryb legalny", 20, czcionka_srednia);
+    drawCenteredText("zostal", 35, czcionka_srednia);
+    drawCenteredText(legalMode ? "wlaczony" : "wylaczony", 50, czcionka_srednia);
+    
+    display.sendBuffer();
+    delay(1500);
+    
+    display.clearBuffer();
+    display.sendBuffer();
 }
 
 // --- Funkcje pomocnicze ---
 
-// Implementacja sprawdzania pod-ekranów
+// sprawdzanie pod-ekranów
 bool hasSubScreens(MainScreen screen) {
-    
+    switch (screen) {
+        case SPEED_SCREEN: return SPEED_SUB_COUNT > 1;
+        case CADENCE_SCREEN: return CADENCE_SUB_COUNT > 1;
+        case TEMP_SCREEN: return TEMP_SUB_COUNT > 1;
+        case RANGE_SCREEN: return RANGE_SUB_COUNT > 1;
+        case BATTERY_SCREEN: return BATTERY_SUB_COUNT > 1;
+        case POWER_SCREEN: return POWER_SUB_COUNT > 1;
+        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT > 1;
+        case USB_SCREEN: return false;
+        default: return false;
+    }
 }
 
-// Implementacja liczenia pod-ekranów
+// liczenie pod-ekranów
 int getSubScreenCount(MainScreen screen) {
-    
+    switch (screen) {
+        case SPEED_SCREEN: return SPEED_SUB_COUNT;
+        case CADENCE_SCREEN: return CADENCE_SUB_COUNT;
+        case TEMP_SCREEN: return TEMP_SUB_COUNT;
+        case RANGE_SCREEN: return RANGE_SUB_COUNT;
+        case BATTERY_SCREEN: return BATTERY_SUB_COUNT;
+        case POWER_SCREEN: return POWER_SUB_COUNT;
+        case PRESSURE_SCREEN: return PRESSURE_SUB_COUNT;
+        default: return 0;
+    }
 }
 
-// Implementacja trybu uśpienia
+// tryb uśpienia
 void goToSleep() {
-    
+    // Wyłącz wszystkie LEDy
+    digitalWrite(FrontDayPin, LOW);
+    digitalWrite(FrontPin, LOW);
+    digitalWrite(RealPin, LOW);
+    digitalWrite(UsbPin, LOW);
+
+    delay(50);
+
+    // Wyłącz OLED
+    display.clearBuffer();
+    display.sendBuffer();
+    display.setPowerSave(1);  // Wprowadź OLED w tryb oszczędzania energii
+
+    // Zapisz licznik całkowity
+    odometer.shutdown();
+
+    // Konfiguracja wybudzania przez przycisk SET
+    esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0);  // GPIO12 (BTN_SET) stan niski
+
+    // Wejście w deep sleep
+    esp_deep_sleep_start();
 }
 
-// Implementacja ustawiania świateł
+// ustawiania świateł
 void setLights() {
+    // Wyłącz wszystkie światła
+    digitalWrite(FrontDayPin, LOW);
+    digitalWrite(FrontPin, LOW);
+    digitalWrite(RealPin, LOW);
+
+    // Jeśli światła wyłączone (lightMode == 0), kończymy
+    if (lightMode == 0) {
+        #ifdef DEBUG
+        Serial.println("Światła wyłączone");
+        #endif
+        return;
+    }
+
+    // Zastosuj ustawienia zgodnie z trybem
+    if (lightMode == 1) { // Tryb dzienny
+        switch (lightSettings.dayLights) {
+            case LightSettings::NONE:
+                // Wszystkie światła pozostają wyłączone
+                break;
+            case LightSettings::FRONT:
+                digitalWrite(FrontDayPin, HIGH);
+                break;
+            case LightSettings::REAR:
+                digitalWrite(RealPin, HIGH);
+                break;
+            case LightSettings::BOTH:
+                digitalWrite(FrontDayPin, HIGH);
+                digitalWrite(RealPin, HIGH);
+                break;
+        }
+    } else if (lightMode == 2) { // Tryb nocny
+        switch (lightSettings.nightLights) {
+            case LightSettings::NONE:
+                // Wszystkie światła pozostają wyłączone
+                break;
+            case LightSettings::FRONT:
+                digitalWrite(FrontPin, HIGH);
+                break;
+            case LightSettings::REAR:
+                digitalWrite(RealPin, HIGH);
+                break;
+            case LightSettings::BOTH:
+                digitalWrite(FrontPin, HIGH);
+                digitalWrite(RealPin, HIGH);
+                break;
+        }
+    }
     
+    // Dodaj wywołanie funkcji aktualizującej jasność wyświetlacza
+    applyBacklightSettings();
 }
 
-// Implementacja ustawień podświetlenia
+// ustawienia podświetlenia
 void applyBacklightSettings() {
+    int targetBrightness;
     
+    if (backlightSettings.autoMode) {
+        // Sprawdź tryb świateł
+        if (lightMode == 0) {
+            // Światła wyłączone - używamy jasności dziennej
+            targetBrightness = backlightSettings.dayBrightness;
+        } else if (lightMode == 1) {
+            // Światła dzienne - używamy jasności dziennej
+            targetBrightness = backlightSettings.dayBrightness;
+        } else if (lightMode == 2) {
+            // Światła nocne - używamy jasności nocnej
+            targetBrightness = backlightSettings.nightBrightness;
+        }
+    } else {
+        // W trybie manualnym używaj podstawowej jasności
+        targetBrightness = backlightSettings.dayBrightness;
+    }
+    
+    // Nieliniowe mapowanie jasności
+    // Używamy funkcji wykładniczej do lepszego rozłożenia jasności
+    // Wzór: (x^2)/100 daje nam wartość od 0 do 100
+    float normalized = (targetBrightness * targetBrightness) / 100.0;
+    
+    // Mapujemy wartość na zakres 16-255
+    // Minimum ustawiamy na 16, bo niektóre wyświetlacze OLED mogą się wyłączać przy niższych wartościach
+    displayBrightness = map(normalized, 0, 100, 16, 255);
+    
+    // Zastosuj jasność do wyświetlacza
+    display.setContrast(displayBrightness);
+    
+    #ifdef DEBUG
+    Serial.print("Target brightness: ");
+    Serial.print(targetBrightness);
+    Serial.print("%, Normalized: ");
+    Serial.print(normalized);
+    Serial.print("%, Display brightness: ");
+    Serial.println(displayBrightness);
+    #endif
 }
 
-// Implementacja sprawdzania poprawności temperatury
+// sprawdzanie poprawności temperatury
 bool isValidTemperature(float temp) {
-    
+    return (temp >= -50.0 && temp <= 100.0);
 }
 
-// Implementacja obsługi temperatury
+// obsługa temperatury
 void handleTemperature() {
-    
+    unsigned long currentMillis = millis();
+
+    if (!conversionRequested && (currentMillis - lastTempRequest >= TEMP_REQUEST_INTERVAL)) {
+        // Żądanie konwersji z obu czujników
+        sensorsAir.requestTemperatures();
+        sensorsController.requestTemperatures();
+        conversionRequested = true;
+        lastTempRequest = currentMillis;
+    }
+
+    if (conversionRequested && (currentMillis - lastTempRequest >= 750)) {
+        // Odczyt z obu czujników
+        currentTemp = sensorsAir.getTempCByIndex(0);
+        temp_controller = sensorsController.getTempCByIndex(0);
+        conversionRequested = false;
+    }
 }
 
 // --- Funkcje konfiguracji systemu ---
 
-// Implementacja wczytywania wszystkich ustawień
+// wczytywanie wszystkich ustawień
 void loadSettings() {
-    
+    File configFile = LittleFS.open("/config.json", "r");
+    if (!configFile) {
+        #ifdef DEBUG
+        Serial.println("Failed to open config file");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<1024> doc;
+    DeserializationError error = deserializeJson(doc, configFile);
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Failed to parse config file");
+        #endif
+        return;
+    }
+
+    // Wczytywanie ustawień świateł
+    if (doc.containsKey("light")) {
+        lightSettings.dayLights = static_cast<LightSettings::LightMode>(doc["light"]["dayLights"] | 0);
+        lightSettings.nightLights = static_cast<LightSettings::LightMode>(doc["light"]["nightLights"] | 0);
+        lightSettings.dayBlink = doc["light"]["dayBlink"] | false;
+        lightSettings.nightBlink = doc["light"]["nightBlink"] | false;
+        lightSettings.blinkFrequency = doc["light"]["blinkFrequency"] | 500;
+    }
+
+    // Wczytywanie ustawień podświetlenia
+    if (doc.containsKey("backlight")) {
+        backlightSettings.dayBrightness = doc["backlight"]["dayBrightness"] | 100;
+        backlightSettings.nightBrightness = doc["backlight"]["nightBrightness"] | 50;
+        backlightSettings.autoMode = doc["backlight"]["autoMode"] | false;
+    }
+
+    // Wczytywanie ustawień WiFi
+    if (doc.containsKey("wifi")) {
+        strlcpy(wifiSettings.ssid, doc["wifi"]["ssid"] | "", sizeof(wifiSettings.ssid));
+        strlcpy(wifiSettings.password, doc["wifi"]["password"] | "", sizeof(wifiSettings.password));
+    }
+
+
+    // Wczytywanie ustawień sterownika
+    if (doc.containsKey("controller")) {
+        controllerSettings.type = doc["controller"]["type"] | "kt-lcd";
+        
+        if (controllerSettings.type == "kt-lcd") {
+            for (int i = 1; i <= 5; i++) {
+                controllerSettings.ktParams[i-1] = doc["controller"]["p"][String(i)] | 0;
+            }
+            for (int i = 1; i <= 15; i++) {
+                controllerSettings.ktParams[i+4] = doc["controller"]["c"][String(i)] | 0;
+            }
+            for (int i = 1; i <= 3; i++) {
+                controllerSettings.ktParams[i+19] = doc["controller"]["l"][String(i)] | 0;
+            }
+        } else {
+            for (int i = 1; i <= 20; i++) {
+                controllerSettings.s866Params[i-1] = doc["controller"]["p"][String(i)] | 0;
+            }
+        }
+    }
+
+  configFile.close();
 }
 
-// Implementacja zapisu wszystkich ustawień
+// zapis wszystkich ustawień
 void saveSettings() {
+    StaticJsonDocument<1024> doc;
+
+    // Zapisywanie ustawień czasu
+    JsonObject timeObj = doc.createNestedObject("time");
+    timeObj["ntpEnabled"] = timeSettings.ntpEnabled;
+    timeObj["hours"] = timeSettings.hours;
+    timeObj["minutes"] = timeSettings.minutes;
+    timeObj["seconds"] = timeSettings.seconds;
+    timeObj["day"] = timeSettings.day;
+    timeObj["month"] = timeSettings.month;
+    timeObj["year"] = timeSettings.year;
+
+    // Zapisywanie ustawień świateł
+    JsonObject lightObj = doc.createNestedObject("light");
+    lightObj["dayLights"] = static_cast<int>(lightSettings.dayLights);
+    lightObj["nightLights"] = static_cast<int>(lightSettings.nightLights);
+    lightObj["dayBlink"] = lightSettings.dayBlink;
+    lightObj["nightBlink"] = lightSettings.nightBlink;
+    lightObj["blinkFrequency"] = lightSettings.blinkFrequency;
+
+    // Zapisywanie ustawień podświetlenia
+    JsonObject backlightObj = doc.createNestedObject("backlight");
+    backlightObj["dayBrightness"] = backlightSettings.dayBrightness;
+    backlightObj["nightBrightness"] = backlightSettings.nightBrightness;
+    backlightObj["autoMode"] = backlightSettings.autoMode;
+
+    // Zapisywanie ustawień WiFi
+    JsonObject wifiObj = doc.createNestedObject("wifi");
+    wifiObj["ssid"] = wifiSettings.ssid;
+    wifiObj["password"] = wifiSettings.password;
+
+    // Zapisywanie ustawień sterownika
+    JsonObject controllerObj = doc.createNestedObject("controller");
+    controllerObj["type"] = controllerSettings.type;
     
+    JsonObject paramsObj = controllerObj.createNestedObject("params");
+    if (controllerSettings.type == "kt-lcd") {
+      for (int i = 1; i <= 5; i++) {
+        paramsObj["p"][String(i)] = controllerSettings.ktParams[i-1];
+      }
+      for (int i = 1; i <= 15; i++) {
+        paramsObj["c"][String(i)] = controllerSettings.ktParams[i+4];
+      }
+      for (int i = 1; i <= 3; i++) {
+        paramsObj["l"][String(i)] = controllerSettings.ktParams[i+19];
+      }
+    } else {
+      for (int i = 1; i <= 20; i++) {
+        paramsObj["p"][String(i)] = controllerSettings.s866Params[i-1];
+      }
+    }
+
+  File configFile = LittleFS.open("/config.json", "w");
+  if (!configFile) {
+    #ifdef DEBUG
+    Serial.println("Failed to open config file for writing");
+    #endif
+    return;
+  }
+
+  if (serializeJson(doc, configFile) == 0) {
+    #ifdef DEBUG
+    Serial.println("Failed to write config file");
+    #endif
+  }
+
+  configFile.close();
 }
 
-// Implementacja konwersji parametru na indeks
+// konwersja parametru na indeks
 int getParamIndex(const String& param) {
-    
+    if (param.startsWith("p")) {
+        return param.substring(1).toInt() - 1;
+    } else if (param.startsWith("c")) {
+        return param.substring(1).toInt() + 4;  // P1-P5 zajmują indeksy 0-4
+    } else if (param.startsWith("l")) {
+        return param.substring(1).toInt() + 19; // P1-P5 i C1-C15 zajmują indeksy 0-19
+    }
+    return -1;
 }
 
-// Implementacja aktualizacji parametrów kontrolera
+// aktualizacja parametrów kontrolera
 void updateControllerParam(const String& param, int value) {
-    
+    if (controllerSettings.type == "kt-lcd") {
+        int index = getParamIndex(param);
+        if (index >= 0 && index < 23) { // 5 (P) + 15 (C) + 3 (L) = 23 parametry
+            controllerSettings.ktParams[index] = value;
+        }
+    } else if (controllerSettings.type == "s866") {
+        if (param.startsWith("p")) {
+            int index = param.substring(1).toInt() - 1;
+            if (index >= 0 && index < 20) {
+                controllerSettings.s866Params[index] = value;
+            }
+        }
+    }
+    saveSettings();
 }
 
-// Implementacja konwersji trybu świateł na string
+// konwersja trybu świateł na string
 const char* getLightModeString(LightSettings::LightMode mode) {
-    
+    switch (mode) {
+        case LightSettings::FRONT: return "FRONT";
+        case LightSettings::REAR: return "REAR";
+        case LightSettings::BOTH: return "BOTH";
+        case LightSettings::NONE:
+        default: return "NONE";
+    }
 }
 
 // --- Funkcje serwera WWW ---
 
-// Implementacja konfiguracji serwera WWW
+// konfiguracja serwera WWW
 void setupWebServer() {
+    // Serwowanie plików statycznych
+    server.serveStatic("/", LittleFS, "/");
+
+    // Licznik całkowity 
+    server.on("/api/odometer", HTTP_GET, [](AsyncWebServerRequest *request) {
+        #ifdef DEBUG
+        Serial.print("Odczyt licznika: ");
+        Serial.println(odometer.getRawTotal());
+        #endif
+        request->send(200, "text/plain", String(odometer.getRawTotal()));
+    });
+
+    server.on("/api/setOdometer", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("value", true)) {
+            float newValue = request->getParam("value", true)->value().toFloat();
+            bool success = odometer.setInitialValue(newValue);
+            #ifdef DEBUG
+            Serial.print("Ustawienie licznika na ");
+            Serial.print(newValue);
+            Serial.println(success ? ": OK" : ": Błąd");
+            #endif
+            request->send(success ? 200 : 400, "text/plain", 
+                        success ? "OK" : "Invalid value");
+        } else {
+            #ifdef DEBUG
+            Serial.println("Błąd: brak parametru value");
+            #endif
+            request->send(400, "text/plain", "Missing value");
+        }
+    });
+
+    // Światła
+    server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* request) {
+        StaticJsonDocument<512> doc;
+        JsonObject lightsObj = doc.createNestedObject("lights");
+        
+        lightsObj["dayLights"] = getLightModeString(lightSettings.dayLights);
+        lightsObj["nightLights"] = getLightModeString(lightSettings.nightLights);
+        lightsObj["dayBlink"] = lightSettings.dayBlink;
+        lightsObj["nightBlink"] = lightSettings.nightBlink;
+        lightsObj["blinkFrequency"] = lightSettings.blinkFrequency;
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    server.on("/api/lights/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (request->hasParam("data", true)) {
+            String jsonString = request->getParam("data", true)->value();
+            DynamicJsonDocument doc(256);
+            DeserializationError error = deserializeJson(doc, jsonString);
+
+            if (!error) {
+                const char* dayLightsStr = doc["dayLights"] | "OFF";
+                const char* nightLightsStr = doc["nightLights"] | "OFF";
+                
+                // Konwersja stringów na enum
+                if (strcmp(dayLightsStr, "OFF") == 0) 
+                    lightSettings.dayLights = LightSettings::NONE;
+                else if (strcmp(dayLightsStr, "FRONT") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT;
+                else if (strcmp(dayLightsStr, "REAR") == 0) 
+                    lightSettings.dayLights = LightSettings::REAR;
+                else if (strcmp(dayLightsStr, "BOTH") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH;
+                
+                if (strcmp(nightLightsStr, "OFF") == 0)
+                    lightSettings.nightLights = LightSettings::NONE;
+                else if (strcmp(nightLightsStr, "FRONT") == 0)
+                    lightSettings.nightLights = LightSettings::FRONT;
+                else if (strcmp(nightLightsStr, "REAR") == 0)
+                    lightSettings.nightLights = LightSettings::REAR;
+                else if (strcmp(nightLightsStr, "BOTH") == 0)
+                    lightSettings.nightLights = LightSettings::BOTH;
+                
+                lightSettings.dayBlink = doc["dayBlink"] | false;
+                lightSettings.nightBlink = doc["nightBlink"] | false;
+                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+                
+                // Zapisz do pliku
+                saveLightSettings();
+                
+                // Od razu zastosuj nowe ustawienia jeśli jakiś tryb jest aktywny
+                if (lightMode > 0) {
+                    setLights();
+                }
+                
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            }
+        }
+    });
+
+    // Endpoint do pobierania czasu (GET)
+    server.on("/api/time", HTTP_GET, [](AsyncWebServerRequest* request) {
+        DateTime now = rtc.now();
+        
+        StaticJsonDocument<200> doc;
+        JsonObject time = doc.createNestedObject("time");
+        time["year"] = now.year();
+        time["month"] = now.month();
+        time["day"] = now.day();
+        time["hours"] = now.hour();
+        time["minutes"] = now.minute();
+        time["seconds"] = now.second();
+        
+        String response;
+        serializeJson(doc, response);
+        
+        #ifdef DEBUG
+        Serial.print("Wysyłam aktualny czas: ");
+        Serial.println(response);
+        #endif
+        
+        request->send(200, "application/json", response);
+    });
+
+    // Endpoint do ustawiania czasu (POST)
+    server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest* request) {}, NULL,
+        [](AsyncWebServerRequest* request, uint8_t *data, size_t len, size_t index, size_t total) {
+            StaticJsonDocument<200> doc;
+            DeserializationError error = deserializeJson(doc, (char*)data);
+
+            if (!error) {
+                int year = doc["year"] | 2024;
+                int month = doc["month"] | 1;
+                int day = doc["day"] | 1;
+                int hour = doc["hour"] | 0;
+                int minute = doc["minute"] | 0;
+                int second = doc["second"] | 0;
+
+                // Dodaj walidację
+                if (year >= 2000 && year <= 2099 &&
+                    month >= 1 && month <= 12 &&
+                    day >= 1 && day <= 31 &&
+                    hour >= 0 && hour <= 23 &&
+                    minute >= 0 && minute <= 59 &&
+                    second >= 0 && second <= 59) {
+                    
+                    rtc.adjust(DateTime(year, month, day, hour, minute, second));
+                    
+                    #ifdef DEBUG
+                    Serial.println("Czas został zaktualizowany:");
+                    Serial.print(year); Serial.print("-");
+                    Serial.print(month); Serial.print("-");
+                    Serial.print(day); Serial.print(" ");
+                    Serial.print(hour); Serial.print(":");
+                    Serial.print(minute); Serial.print(":");
+                    Serial.println(second);
+                    #endif
+                    
+                    request->send(200, "application/json", "{\"status\":\"ok\"}");
+                } else {
+                    #ifdef DEBUG
+                    Serial.println("Błędne wartości daty/czasu");
+                    #endif
+                    request->send(400, "application/json", "{\"error\":\"Invalid date/time values\"}");
+                }
+            } else {
+                #ifdef DEBUG
+                Serial.println("Błędny format JSON");
+                #endif
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            }
+    });
     
+    server.on("/api/display/config", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index + len != total) {
+                // Jeśli to nie jest ostatni fragment danych, czekamy na więcej
+                return;
+            }
+
+            // Dodaj null terminator do danych
+            data[len] = '\0';
+            
+            StaticJsonDocument<200> doc;
+            DeserializationError error = deserializeJson(doc, (const char*)data);
+            
+            if (!error) {
+                // Aktualizacja ustawień
+                backlightSettings.dayBrightness = doc["dayBrightness"] | backlightSettings.dayBrightness;
+                backlightSettings.nightBrightness = doc["nightBrightness"] | backlightSettings.nightBrightness;
+                backlightSettings.autoMode = doc["autoMode"] | backlightSettings.autoMode;
+                
+                // Zapisz do pliku
+                saveBacklightSettingsToFile();
+                
+                // Zastosuj nowe ustawienia
+                applyBacklightSettings();
+                
+                // Odpowiedz używając send()
+                String response = "{\"status\":\"ok\"}";
+                request->send(200, "application/json", response);
+            } else {
+                String response = "{\"status\":\"error\",\"message\":\"Invalid JSON\"}";
+                request->send(400, "application/json", response);
+            }
+        }
+    );
+
+    // Endpoint do zapisywania ustawień ogólnych
+    server.on("/save-general-settings", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (index + len != total) {
+                return; // Nie wszystkie dane zostały otrzymane
+            }
+
+            // Dodaj null terminator do danych
+            data[len] = '\0';
+            
+            StaticJsonDocument<64> doc;
+            DeserializationError error = deserializeJson(doc, (const char*)data);
+
+            if (!error) {
+                // Konwersja wartości "700C" na 0 lub liczby na odpowiednie wartości
+                if (doc.containsKey("wheelSize")) {
+                    String wheelSizeStr = doc["wheelSize"].as<String>();
+                    if (wheelSizeStr == "700C") {
+                        generalSettings.wheelSize = 0; // 0 oznacza 700C
+                    } else {
+                        generalSettings.wheelSize = doc["wheelSize"].as<uint8_t>();
+                    }
+                    
+                    // Zapisz ustawienia od razu po zmianie
+                    saveGeneralSettingsToFile();
+                    #ifdef DEBUG
+                    Serial.println("General settings saved");
+                    Serial.print("Wheel size: ");
+                    Serial.println(generalSettings.wheelSize);
+                    #endif
+                }
+
+                request->send(200, "application/json", "{\"success\":true}");
+            } else {
+                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+            }
+    });
+
+    // Dodaj w setupWebServer():
+    server.on("/get-bluetooth-config", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<64> doc;
+        doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+        doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    server.on("/save-bluetooth-config", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (request->hasParam("body", true)) {
+            String json = request->getParam("body", true)->value();
+            StaticJsonDocument<64> doc;
+            DeserializationError error = deserializeJson(doc, json);
+
+            if (!error) {
+                bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+                bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+                
+                saveBluetoothConfigToFile();
+                request->send(200, "application/json", "{\"success\":true}");
+            } else {
+                request->send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+            }
+        } else {
+            request->send(400, "application/json", "{\"success\":false,\"error\":\"No data\"}");
+        }
+    });
+    
+    // Endpoint do pobierania aktualnych ustawień ogólnych
+    server.on("/get-general-settings", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<64> doc;
+        if (generalSettings.wheelSize == 0) {
+            doc["wheelSize"] = "700C";
+        } else {
+            doc["wheelSize"] = generalSettings.wheelSize;
+        }
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+    
+    server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+        if (request->hasParam("data", true)) {
+            String jsonString = request->getParam("data", true)->value();
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, jsonString);
+
+            if (!error) {
+                controllerSettings.type = doc["type"].as<String>();
+                
+                if (controllerSettings.type == "kt-lcd") {
+                    for (int i = 1; i <= 5; i++) {
+                        if (doc["p"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i-1] = doc["p"][String(i)].as<int>();
+                        }
+                    }
+                    for (int i = 1; i <= 15; i++) {
+                        if (doc["c"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i+4] = doc["c"][String(i)].as<int>();
+                        }
+                    }
+                    for (int i = 1; i <= 3; i++) {
+                        if (doc["l"].containsKey(String(i))) {
+                            controllerSettings.ktParams[i+19] = doc["l"][String(i)].as<int>();
+                        }
+                    }
+                } else {
+                    for (int i = 1; i <= 20; i++) {
+                        if (doc["p"].containsKey(String(i))) {
+                            controllerSettings.s866Params[i-1] = doc["p"][String(i)].as<int>();
+                        }
+                    }
+                }
+                
+                saveSettings();
+                request->send(200, "application/json", "{\"status\":\"ok\"}");
+            } else {
+                request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"Invalid JSON\"}");
+            }
+        } else {
+            request->send(400, "application/json", "{\"status\":\"error\",\"message\":\"No data parameter\"}");
+        }
+    });
+
+    ws.onEvent([](AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+        switch (type) {
+            case WS_EVT_CONNECT:
+                #ifdef DEBUG
+                Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+                #endif
+                break;
+            case WS_EVT_DISCONNECT:
+                #ifdef DEBUG
+                Serial.printf("WebSocket client #%u disconnected\n", client->id());
+                #endif
+                break;
+        }
+    });
+    server.addHandler(&ws);
+
+    // Start serwera
+    server.begin();
 }
 
-// Implementacja obsługi ustawień przez WWW
+// obsługa ustawień przez WWW
 void handleSettings(AsyncWebServerRequest *request) {
-    
+    String html = "<!DOCTYPE html><html lang='pl'>";
+    request->send(200, "text/html", html);
 }
 
-// Implementacja zapisu ustawień zegara
+// zapis ustawień zegara
 void handleSaveClockSettings(AsyncWebServerRequest *request) {
-    
+    if (request->hasParam("hour")) {
+        int hour = request->getParam("hour")->value().toInt();
+    }
+    request->redirect("/");
 }
 
-// Implementacja zapisu ustawień roweru
+// zapis ustawień roweru
 void handleSaveBikeSettings(AsyncWebServerRequest *request) {
-    
+    if (request->hasParam("wheel")) {
+        bikeSettings.wheelCircumference = request->getParam("wheel")->value().toInt();
+    }
+    request->redirect("/");
 }
 
 // --- Funkcje systemu plików ---
 
-// Implementacja inicjalizacji systemu plików
+// Sprawdzenie i formatowanie systemu plików przy starcie
 void initLittleFS() {
-    
+    if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
+        Serial.println("LittleFS Mount Failed");
+        #endif
+        if (!LittleFS.format()) {
+            #ifdef DEBUG
+            Serial.println("LittleFS Format Failed");
+            #endif
+            return;
+        }
+        if (!LittleFS.begin()) {
+            #ifdef DEBUG
+            Serial.println("LittleFS Mount Failed After Format");
+            #endif
+            return;
+        }
+    }
+    #ifdef DEBUG
+    Serial.println("LittleFS Mounted Successfully");
+    #endif
 }
 
-// Implementacja listowania plików
+// listowanie plików
 void listFiles() {
-    
+    #ifdef DEBUG
+    Serial.println("Files in LittleFS:");
+    #endif
+    File root = LittleFS.open("/");
+    if (!root) {
+        #ifdef DEBUG
+        Serial.println("- Failed to open directory");
+        #endif
+        return;
+    }
+    if (!root.isDirectory()) {
+        #ifdef DEBUG
+        Serial.println(" - Not a directory");
+        #endif
+        return;
+    }
+
+    File file = root.openNextFile();
+    while (file) {
+        if (file.isDirectory()) {
+            #ifdef DEBUG
+            Serial.print("  DIR : ");
+            Serial.println(file.name());
+            #endif
+        } else {
+            #ifdef DEBUG
+            Serial.print("  FILE: ");
+            Serial.print(file.name());
+            Serial.print("\tSIZE: ");
+            Serial.println(file.size());
+            #endif
+        }
+        file = root.openNextFile();
+    }
 }
 
-// Implementacja wczytywania konfiguracji
+// wczytywanie konfiguracji
 bool loadConfig() {
+    if(!LittleFS.exists("/config.json")) {
+        #ifdef DEBUG
+        Serial.println("Creating default config file...");
+        #endif
+        // Tworzymy domyślną konfigurację
+        StaticJsonDocument<512> defaultConfig;
+        defaultConfig["version"] = "1.0.0";
+        defaultConfig["timezone"] = "Europe/Warsaw";
+        defaultConfig["lastUpdate"] = "";
+        
+        File configFile = LittleFS.open("/config.json", "w");
+        if(!configFile) {
+            #ifdef DEBUG
+            Serial.println("Failed to create config file");
+            #endif
+            return false;
+        }
+        serializeJson(defaultConfig, configFile);
+        configFile.close();
+    }
     
+    // Czytamy konfigurację
+    File configFile = LittleFS.open("/config.json", "r");
+    if(!configFile) {
+        #ifdef DEBUG
+        Serial.println("Failed to open config file");
+        #endif
+        return false;
+    }
+    
+    #ifdef DEBUG
+    Serial.println("Config file loaded successfully");
+    #endif
+    return true;
 }
 
 // --- Funkcje czasu ---
 
-// Implementacja synchronizacji RTC z NTP
+// Synchronizacja RTC z NTP
 void syncRTCWithNTP() {
-    
+    configTime(0, 0, "pool.ntp.org");
+    delay(1000);
+    time_t now;
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+        rtc.adjust(DateTime(
+            timeinfo.tm_year + 1900,
+            timeinfo.tm_mon + 1,
+            timeinfo.tm_mday,
+            timeinfo.tm_hour,
+            timeinfo.tm_min,
+            timeinfo.tm_sec
+        ));
+    }
 }
 
-// Implementacja synchronizacji czasu
+// synchronizacja czasu NTP
 void synchronizeTime() {
-    
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    #ifdef DEBUG
+    Serial.println("Waiting for NTP time sync...");
+    #endif
+    time_t now = time(nullptr);
+    while (now < 8 * 3600 * 2) {
+        delay(500);
+        #ifdef DEBUG
+        Serial.print(".");
+        #endif
+        now = time(nullptr);
+    }
+    Serial.println();
+
+    struct tm timeinfo;
+    gmtime_r(&now, &timeinfo);
+    rtc.adjust(DateTime(timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+                        timeinfo.tm_mday, timeinfo.tm_hour,
+                        timeinfo.tm_min, timeinfo.tm_sec));
 }
 
-// Implementacja aktualizacji podświetlenia
+// aktualizacja podświetlenia
 void updateBacklight() {
-    
+    if (backlightSettings.autoMode) {
+        // Auto mode - ustaw jasność na podstawie trybu dzień/noc
+        bool isDayMode = true;  // Tu trzeba dodać właściwą logikę
+        int brightness = isDayMode ? backlightSettings.dayBrightness : backlightSettings.nightBrightness;
+        // Tu dodaj kod ustawiający jasność wyświetlacza
+    } else {
+        // Manual mode - ustaw stałą jasność
+        // Tu dodaj kod ustawiający jasność wyświetlacza
+    }
 }
 
 // --- Główne funkcje programu ---
 
 // Implementacja funkcji setup
 void setup() {
+    // Sprawdź przyczynę wybudzenia
+    esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
+    Serial.begin(115200);
     
+    // Inicjalizacja I2C
+    Wire.begin();
+
+    // Inicjalizacja DS18B20
+    sensorsAir.begin();
+    sensorsController.begin();
+    sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
+    sensorsController.setWaitForConversion(false);// Tryb nieblokujący
+    sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
+    sensorsController.setResolution(12);         // Najwyższa rozdzielczość
+    
+    // Pierwsze żądanie pomiaru
+    sensorsAir.requestTemperatures();
+    sensorsController.requestTemperatures();
+
+    // Inicjalizacja RTC
+    if (!rtc.begin()) {
+        #ifdef DEBUG
+        Serial.println("Couldn't find RTC");
+        #endif
+        while (1);
+    }
+
+    if (rtc.lostPower()) {
+        #ifdef DEBUG
+        Serial.println("RTC lost power, lets set the time!");
+        #endif
+        rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+
+    // Konfiguracja pinów
+    pinMode(BTN_UP, INPUT_PULLUP);
+    pinMode(BTN_DOWN, INPUT_PULLUP);
+    pinMode(BTN_SET, INPUT_PULLUP);
+
+    // Konfiguracja pinów LED
+    pinMode(FrontDayPin, OUTPUT);
+    pinMode(FrontPin, OUTPUT);
+    pinMode(RealPin, OUTPUT);
+    digitalWrite(FrontDayPin, LOW);
+    digitalWrite(FrontPin, LOW);
+    digitalWrite(RealPin, LOW);
+    setLights();
+
+    // Ładowarka USB
+    pinMode(UsbPin, OUTPUT);
+    digitalWrite(UsbPin, LOW);
+
+    // Inicjalizacja wyświetlacza
+    display.begin();
+    display.setFontDirection(0);
+    display.clearBuffer();
+    display.sendBuffer();
+
+    setLights();  // Zastosuj wczytane ustawienia    
+    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
+
+    display.sendBuffer();
+
+    // Inicjalizacja LittleFS i wczytanie ustawień
+    if (!LittleFS.begin(true)) {
+        #ifdef DEBUG
+        Serial.println("Błąd montowania LittleFS");
+        #endif
+    } else {
+        #ifdef DEBUG
+        Serial.println("LittleFS zamontowany pomyślnie");
+        #endif
+        // Wczytaj ustawienia z pliku
+        loadLightSettings();  // Wczytaj ustawienia świateł
+        loadBacklightSettingsFromFile();
+        loadSettings();
+        loadGeneralSettingsFromFile();
+        loadBluetoothConfigFromFile();
+    }
+
+    // Inicjalizacja licznika (powinno być po inicjalizacji Preferences)
+    odometer.initialize();
+
+    // Jeśli wybudzenie przez przycisk SET
+    if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
+        unsigned long startTime = millis();
+        while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+            if ((millis() - startTime) > SET_LONG_PRESS) {
+                displayActive = true;
+                showingWelcome = true;
+                messageStartTime = millis();
+                if (!welcomeAnimationDone) {
+                    showWelcomeMessage();  // Pokaż animację powitania
+                }                
+                while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+                    delay(10);
+                }
+                break;
+            }
+            delay(10);
+        }
+    }
 }
 
 // Implementacja funkcji loop
 void loop() {
-    
+    static unsigned long lastButtonCheck = 0;
+    static unsigned long lastUpdate = 0;
+    const unsigned long buttonInterval = 5;
+    const unsigned long updateInterval = 2000;
+
+    unsigned long currentTime = millis();
+
+    if (configModeActive) {      
+        display.clearBuffer();
+
+        // Wycentruj każdą linię tekstu
+        drawCenteredText("e-Bike System", 12, czcionka_srednia);
+        drawCenteredText("Konfiguracja on-line", 25, czcionka_mala);
+        drawCenteredText("siec: e-Bike System", 40, czcionka_mala);
+        drawCenteredText("haslo: #mamrower", 51, czcionka_mala);
+        drawCenteredText("IP: 192.168.4.1", 62, czcionka_mala);
+
+        display.sendBuffer();
+
+        // Sprawdź długie przytrzymanie SET do wyjścia
+        static unsigned long setPressStartTime = 0;
+        if (!digitalRead(BTN_SET)) { 
+            if (setPressStartTime == 0) {
+                setPressStartTime = millis();
+            } else if (millis() - setPressStartTime > 50) {
+                deactivateConfigMode();
+                setPressStartTime = 0;
+            }
+        } else {
+            setPressStartTime = 0;
+        }
+        return;
+    }
+
+    // Sprawdzaj czy nie trzeba włączyć trybu konfiguracji
+    checkConfigMode();
+
+    if (currentTime - lastButtonCheck >= buttonInterval) {
+        handleButtons();
+        lastButtonCheck = currentTime;
+    }
+
+    static unsigned long lastWebSocketUpdate = 0;
+    if (currentTime - lastWebSocketUpdate >= 1000) { // Aktualizuj co sekundę
+        if (ws.count() > 0) {
+            String json = "{";
+            json += "\"speed\":" + String(speed_kmh) + ",";
+            json += "\"temperature\":" + String(currentTemp) + ",";
+            json += "\"battery\":" + String(battery_capacity_percent) + ",";
+            json += "\"power\":" + String(power_w);
+            json += "}";
+            ws.textAll(json);
+        }
+        lastWebSocketUpdate = currentTime;
+    }
+
+    // Aktualizuj wyświetlacz tylko jeśli jest aktywny i nie wyświetla komunikatów
+    if (displayActive && messageStartTime == 0) {
+        display.clearBuffer();
+        drawTopBar();
+        drawHorizontalLine();
+        drawVerticalLine();
+        drawAssistLevel();
+        drawMainDisplay();
+        drawLightStatus();
+        display.sendBuffer();
+        handleTemperature();
+        updateBmsData();
+
+        if (currentTime - lastUpdate >= updateInterval) {
+            speed_kmh = (speed_kmh >= 35.0) ? 0.0 : speed_kmh + 0.1;
+            cadence_rpm = random(60, 90);
+            temp_motor = 30.0 + random(20);
+            range_km = 50.0 - (random(20) / 10.0);
+            // Aktualizacja dystansu            
+            odometer.update(distance_km);
+            distance_km += 0.1;
+            power_w = 100 + random(300);
+            power_avg_w = power_w * 0.8;
+            power_max_w = power_w * 1.2;
+            battery_current = random(50, 150) / 10.0;
+            battery_capacity_wh = battery_voltage * battery_capacity_ah;
+            pressure_bar = 2.0 + (random(20) / 10.0);
+            pressure_voltage = 0.5 + (random(20) / 100.0);
+            pressure_temp = 20.0 + (random(100) / 10.0);
+            battery_capacity_wh = 14.5 - (random(20) / 10.0);
+            battery_capacity_percent = (battery_capacity_percent <= 0) ? 100 : battery_capacity_percent - 1;
+            battery_voltage = (battery_voltage <= 42.0) ? 50.0 : battery_voltage - 0.1;
+            assistMode = (assistMode + 1) % 5;
+            lastUpdate = currentTime;
+            pressure_rear_bar = 2.0 + (random(20) / 10.0);
+            pressure_rear_voltage = 0.5 + (random(20) / 100.0);
+            pressure_rear_temp = 20.0 + (random(100) / 10.0);
+            // Aktualizacja średniej prędkości (przykładowa implementacja)
+            static float speed_sum = 0;
+            static int speed_count = 0;
+            speed_sum += speed_kmh;
+            speed_count++;
+            speed_avg_kmh = speed_sum / speed_count;
+            // Aktualizacja maksymalnej prędkości
+            if (speed_kmh > speed_max_kmh) {
+                speed_max_kmh = speed_kmh;
+            }
+
+            // Aktualizacja kadencji
+            cadence_rpm = random(60, 90);
+
+            // Aktualizacja średniej kadencji (przykładowa implementacja)
+            static int cadence_sum = 0;
+            static int cadence_count = 0;
+            cadence_sum += cadence_rpm;
+            cadence_count++;
+            cadence_avg_rpm = cadence_sum / cadence_count;
+        }
+    }
 }
