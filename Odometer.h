@@ -1,157 +1,116 @@
 #ifndef ODOMETER_H
 #define ODOMETER_H
 
-#include <Preferences.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <ArduinoJson.h>
 
 class OdometerManager {
 private:
-    Preferences preferences;
-    const char* NAMESPACE = "odometer";
-    const char* TOTAL_KEY = "total";
-    const char* BACKUP_KEY = "total_bak";
-    
+    const char* filename = "/odometer.json";
     float currentTotal = 0;
-    float lastSavedTotal = 0;
-    unsigned long lastSaveTime = 0;
-    bool isInitialized = false;
-    
-    const float MIN_DISTANCE_CHANGE = 0.1;    // 100 metrów
-    const unsigned long MIN_SAVE_TIME = 300000; // 5 minut
 
-    bool saveTotal() {
+    void saveToFile() {
         #ifdef DEBUG
-        Serial.println("Saving total distance...");
-        Serial.printf("Current total: %.2f\n", currentTotal);
+        Serial.println("Zapisywanie licznika do pliku...");
         #endif
 
-        bool backupSuccess = preferences.putFloat(BACKUP_KEY, currentTotal);
-        bool mainSuccess = preferences.putFloat(TOTAL_KEY, currentTotal);
-        
-        #ifdef DEBUG
-        Serial.printf("Backup save: %s\n", backupSuccess ? "OK" : "Failed");
-        Serial.printf("Main save: %s\n", mainSuccess ? "OK" : "Failed");
-        #endif
-
-        if (backupSuccess && mainSuccess) {
-            lastSavedTotal = currentTotal;
-            lastSaveTime = millis();
-            return true;
+        File file = LittleFS.open(filename, "w");
+        if (!file) {
+            #ifdef DEBUG
+            Serial.println("Błąd otwarcia pliku licznika do zapisu");
+            #endif
+            return;
         }
-        return false;
+
+        StaticJsonDocument<128> doc;
+        doc["total"] = currentTotal;
+        
+        if (serializeJson(doc, file) == 0) {
+            #ifdef DEBUG
+            Serial.println("Błąd zapisu do pliku licznika");
+            #endif
+        } else {
+            #ifdef DEBUG
+            Serial.printf("Zapisano licznik: %.2f\n", currentTotal);
+            #endif
+        }
+        
+        file.close();
+    }
+
+    void loadFromFile() {
+        #ifdef DEBUG
+        Serial.println("Wczytywanie licznika z pliku...");
+        #endif
+
+        File file = LittleFS.open(filename, "r");
+        if (!file) {
+            #ifdef DEBUG
+            Serial.println("Brak pliku licznika - tworzę nowy");
+            #endif
+            currentTotal = 0;
+            saveToFile();
+            return;
+        }
+
+        StaticJsonDocument<128> doc;
+        DeserializationError error = deserializeJson(doc, file);
+        
+        if (!error) {
+            currentTotal = doc["total"] | 0.0f;
+            #ifdef DEBUG
+            Serial.printf("Wczytano licznik: %.2f\n", currentTotal);
+            #endif
+        } else {
+            #ifdef DEBUG
+            Serial.println("Błąd odczytu pliku licznika");
+            #endif
+            currentTotal = 0;
+        }
+        
+        file.close();
     }
 
 public:
     OdometerManager() {
-        #ifdef DEBUG
-        Serial.println("Initializing OdometerManager...");
-        #endif
-
-        isInitialized = preferences.begin(NAMESPACE, false);
-        
-        #ifdef DEBUG
-        Serial.printf("Preferences begin: %s\n", isInitialized ? "OK" : "Failed");
-        #endif
-
-        if (isInitialized) {
-            initialize();
-        }
-    }
-    
-    ~OdometerManager() {
-        if (isInitialized) {
-            preferences.end();
-            isInitialized = false;
-        }
-    }
-
-    void initialize() {
-        float mainValue = preferences.getFloat(TOTAL_KEY, 0);
-        float backupValue = preferences.getFloat(BACKUP_KEY, 0);
-        
-        #ifdef DEBUG
-        Serial.printf("Read main value: %.2f\n", mainValue);
-        Serial.printf("Read backup value: %.2f\n", backupValue);
-        #endif
-        
-        currentTotal = max(mainValue, backupValue);
-        lastSavedTotal = currentTotal;
-
-        #ifdef DEBUG
-        Serial.printf("Initialized with total: %.2f\n", currentTotal);
-        #endif
+        loadFromFile();
     }
 
     float getRawTotal() const {
         return currentTotal;
     }
 
-    void updateTotal(float newDistance) {
-        if (newDistance > currentTotal) {
+    bool setInitialValue(float value) {
+        if (value < 0) {
             #ifdef DEBUG
-            Serial.printf("Updating distance from %.2f to %.2f\n", currentTotal, newDistance);
-            #endif
-
-            currentTotal = newDistance;
-            
-            float change = currentTotal - lastSavedTotal;
-            unsigned long currentTime = millis();
-            
-            if (change >= MIN_DISTANCE_CHANGE && 
-                currentTime - lastSaveTime >= MIN_SAVE_TIME) {
-                #ifdef DEBUG
-                Serial.println("Change threshold reached, saving...");
-                #endif
-                saveTotal();
-            }
-        }
-    }
-
-    bool setInitialValue(float initialKm) {
-        if (!isInitialized) {
-            #ifdef DEBUG
-            Serial.println("Odometer not initialized!");
+            Serial.println("Błędna wartość początkowa (ujemna)");
             #endif
             return false;
         }
-
-        if (initialKm < 0) {
-            #ifdef DEBUG
-            Serial.println("Invalid initial value (negative)");
-            #endif
-            return false;
-        }
-
-        #ifdef DEBUG
-        Serial.printf("Setting initial value to %.2f km\n", initialKm);
-        #endif
-
-        currentTotal = initialKm;
-        lastSavedTotal = initialKm;
-        
-        bool backupSuccess = preferences.putFloat(BACKUP_KEY, initialKm);
-        bool mainSuccess = preferences.putFloat(TOTAL_KEY, initialKm);
         
         #ifdef DEBUG
-        Serial.printf("Backup save: %s\n", backupSuccess ? "OK" : "Failed");
-        Serial.printf("Main save: %s\n", mainSuccess ? "OK" : "Failed");
+        Serial.printf("Ustawianie początkowej wartości licznika: %.2f\n", value);
         #endif
-        
-        return backupSuccess && mainSuccess;
+
+        currentTotal = value;
+        saveToFile();
+        return true;
     }
 
-    void shutdown() {
-        if (isInitialized) {
+    void updateTotal(float newValue) {
+        if (newValue > currentTotal) {
             #ifdef DEBUG
-            Serial.println("Shutting down OdometerManager...");
+            Serial.printf("Aktualizacja licznika z %.2f na %.2f\n", currentTotal, newValue);
             #endif
-            saveTotal();
-            preferences.end();
-            isInitialized = false;
+
+            currentTotal = newValue;
+            saveToFile();
         }
     }
 
     bool isValid() const {
-        return isInitialized;
+        return true; // Zawsze zwraca true, bo nie ma już inicjalizacji Preferences
     }
 };
 
