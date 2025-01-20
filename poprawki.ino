@@ -626,24 +626,6 @@ void connectToBms() {
 
 // --- Funkcje konfiguracji ---
 
-//
-void saveBluetoothConfigToFile() {
-    File file = LittleFS.open("/bluetooth_config.json", "w");
-    if (!file) {
-        #ifdef DEBUG
-        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
-        #endif
-        return;
-    }
-
-    StaticJsonDocument<64> doc;
-    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
-    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
-
-    serializeJson(doc, file);
-    file.close();
-}
-
 // zapis ustawień świateł
 void saveLightSettings() {
     #ifdef DEBUG
