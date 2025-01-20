@@ -90,7 +90,7 @@ const char* LIGHT_CONFIG_FILE = "/light_config.json";
 // światła
 #define FrontDayPin 5  // światła dzienne
 #define FrontPin 18    // światła zwykłe
-#define RealPin 19     // tylne światło
+#define RearPin 19     // tylne światło
 // ładowarka USB
 #define UsbPin 32  // ładowarka USB
 // czujniki temperatury
@@ -144,9 +144,10 @@ struct LightSettings {
 };
 
 struct BacklightSettings {
-    int dayBrightness;    // %
-    int nightBrightness;  // %
-    bool autoMode;
+    int Brightness;        // Podstawowa jasność w trybie manualnym
+    int dayBrightness;    // Jasność dzienna w trybie auto
+    int nightBrightness;  // Jasność nocna w trybie auto
+    bool autoMode;        // Tryb automatyczny włączony/wyłączony
 };
 
 struct WiFiSettings {
@@ -1049,23 +1050,32 @@ void drawAssistLevel() {
     }    
 
     display.setFont(czcionka_mala);
-    const char* modeText;
-    const char* modeText2;
+    const char* modeText = "";  // Domyślna wartość
+    const char* modeText2 = ""; // Domyślna wartość
     switch (assistMode) {
         case 0:
+            modeText = "";     // Pusty tekst dla trybu 0
             modeText2 = "STOP";
             break;
         case 1:
             modeText = "PAS";
+            modeText2 = "";
             break;
         case 2:           
             modeText = "TENS";
+            modeText2 = "";
             break;
         case 3:
             modeText = "GAZ";
+            modeText2 = "";
             break;
         case 4:
             modeText = "MIX";
+            modeText2 = "";
+            break;
+        default:
+            modeText = "";
+            modeText2 = "";
             break;
     }
     display.drawStr(30, 23, modeText);  // wyświetl rodzaj sterowania
@@ -1735,7 +1745,7 @@ void goToSleep() {
     // Wyłącz wszystkie LEDy
     digitalWrite(FrontDayPin, LOW);
     digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
+    digitalWrite(RearPin, LOW);
     digitalWrite(UsbPin, LOW);
 
     delay(50);
@@ -1760,7 +1770,7 @@ void setLights() {
     // Wyłącz wszystkie światła
     digitalWrite(FrontDayPin, LOW);
     digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
+    digitalWrite(RearPin, LOW);
 
     // Jeśli światła wyłączone (lightMode == 0), kończymy
     if (lightMode == 0) {
@@ -1780,11 +1790,11 @@ void setLights() {
                 digitalWrite(FrontDayPin, HIGH);
                 break;
             case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
+                digitalWrite(RearPin, HIGH);
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontDayPin, HIGH);
-                digitalWrite(RealPin, HIGH);
+                digitalWrite(RearPin, HIGH);
                 break;
         }
     } else if (lightMode == 2) { // Tryb nocny
@@ -1796,11 +1806,11 @@ void setLights() {
                 digitalWrite(FrontPin, HIGH);
                 break;
             case LightSettings::REAR:
-                digitalWrite(RealPin, HIGH);
+                digitalWrite(RearPin, HIGH);
                 break;
             case LightSettings::BOTH:
                 digitalWrite(FrontPin, HIGH);
-                digitalWrite(RealPin, HIGH);
+                digitalWrite(RearPin, HIGH);
                 break;
         }
     }
@@ -1813,21 +1823,16 @@ void setLights() {
 void applyBacklightSettings() {
     int targetBrightness;
     
-    if (backlightSettings.autoMode) {
-        // Sprawdź tryb świateł
-        if (lightMode == 0) {
-            // Światła wyłączone - używamy jasności dziennej
-            targetBrightness = backlightSettings.dayBrightness;
-        } else if (lightMode == 1) {
-            // Światła dzienne - używamy jasności dziennej
-            targetBrightness = backlightSettings.dayBrightness;
-        } else if (lightMode == 2) {
-            // Światła nocne - używamy jasności nocnej
-            targetBrightness = backlightSettings.nightBrightness;
-        }
+    if (!backlightSettings.autoMode) {
+        // Tryb manualny - użyj podstawowej jasności
+        targetBrightness = backlightSettings.Brightness;
     } else {
-        // W trybie manualnym używaj podstawowej jasności
-        targetBrightness = backlightSettings.dayBrightness;
+        // Tryb auto - sprawdź stan świateł
+        if (lightMode == 2) {  // Światła nocne
+            targetBrightness = backlightSettings.nightBrightness;
+        } else {  // Światła dzienne (lightMode == 1) lub wyłączone (lightMode == 0)
+            targetBrightness = backlightSettings.dayBrightness;
+        }
     }
     
     // Nieliniowe mapowanie jasności
@@ -2670,10 +2675,10 @@ void setup() {
     // Konfiguracja pinów LED
     pinMode(FrontDayPin, OUTPUT);
     pinMode(FrontPin, OUTPUT);
-    pinMode(RealPin, OUTPUT);
+    pinMode(RearPin, OUTPUT);
     digitalWrite(FrontDayPin, LOW);
     digitalWrite(FrontPin, LOW);
-    digitalWrite(RealPin, LOW);
+    digitalWrite(RearPin, LOW);
 
     // Ładowarka USB
     pinMode(UsbPin, OUTPUT);
