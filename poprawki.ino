@@ -2594,7 +2594,216 @@ void initializeDefaultSettings() {
 // --- Główne funkcje programu ---
 
 // Implementacja funkcji setup
-void setup() {
+// void setup() {
+//     // Sprawdź przyczynę wybudzenia
+//     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
+//     Serial.begin(115200);
+    
+//     // Inicjalizacja I2C
+//     Wire.begin();
+
+//     // Inicjalizacja DS18B20
+//     sensorsAir.begin();
+//     sensorsController.begin();
+//     sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
+//     sensorsController.setWaitForConversion(false);// Tryb nieblokujący
+//     sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
+//     sensorsController.setResolution(12);         // Najwyższa rozdzielczość
+    
+//     // Pierwsze żądanie pomiaru
+//     sensorsAir.requestTemperatures();
+//     sensorsController.requestTemperatures();
+
+//     // Inicjalizacja RTC
+//     if (!rtc.begin()) {
+//         #ifdef DEBUG
+//         Serial.println("Couldn't find RTC");
+//         #endif
+//         while (1);
+//     }
+
+//     if (rtc.lostPower()) {
+//         #ifdef DEBUG
+//         Serial.println("RTC lost power, lets set the time!");
+//         #endif
+//         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+//     }
+
+//     // Konfiguracja pinów
+//     pinMode(BTN_UP, INPUT_PULLUP);
+//     pinMode(BTN_DOWN, INPUT_PULLUP);
+//     pinMode(BTN_SET, INPUT_PULLUP);
+
+//     // Konfiguracja pinów LED
+//     pinMode(FrontDayPin, OUTPUT);
+//     pinMode(FrontPin, OUTPUT);
+//     pinMode(RearPin, OUTPUT);
+//     digitalWrite(FrontDayPin, LOW);
+//     digitalWrite(FrontPin, LOW);
+//     digitalWrite(RearPin, LOW);
+
+//     // Ładowarka USB
+//     pinMode(UsbPin, OUTPUT);
+//     digitalWrite(UsbPin, LOW);
+
+//     // Inicjalizacja wyświetlacza
+//     display.begin();
+//     display.setFontDirection(0);
+//     display.clearBuffer();
+//     display.sendBuffer();
+
+//     setLights();  // Zastosuj wczytane ustawienia    
+//     applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
+
+//     display.sendBuffer();
+
+//     // Inicjalizacja LittleFS i wczytanie ustawień
+//     if (!LittleFS.begin(true)) {
+//         #ifdef DEBUG
+//         Serial.println("Błąd montowania LittleFS");
+//         #endif
+//     } else {
+//         #ifdef DEBUG
+//         Serial.println("LittleFS zamontowany pomyślnie");
+//         #endif
+//         // Wczytaj ustawienia z pliku
+//         loadLightSettings();  // Wczytaj ustawienia świateł
+//         loadBacklightSettingsFromFile();
+//         loadSettings();
+//         loadGeneralSettingsFromFile();
+//         loadBluetoothConfigFromFile();
+//     }
+
+//     // Inicjalizacja licznika (powinno być po inicjalizacji Preferences)
+//     odometer.initialize();
+
+//     // Jeśli wybudzenie przez przycisk SET
+//     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
+//         unsigned long startTime = millis();
+//         while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+//             if ((millis() - startTime) > SET_LONG_PRESS) {
+//                 displayActive = true;
+//                 showingWelcome = true;
+//                 messageStartTime = millis();
+//                 if (!welcomeAnimationDone) {
+//                     showWelcomeMessage();  // Pokaż animację powitania
+//                 }                
+//                 while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+//                     delay(10);
+//                 }
+//                 break;
+//             }
+//             delay(10);
+//         }
+//     }
+// }
+
+// void setup() {  // POPRAWKA 1
+//     // Sprawdź przyczynę wybudzenia
+//     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
+//     Serial.begin(115200);
+    
+//     // Inicjalizacja I2C
+//     Wire.begin();
+
+//     // Inicjalizacja wyświetlacza
+//     display.begin();
+//     display.setFontDirection(0);
+//     display.clearBuffer();
+//     display.sendBuffer();
+
+//     // Inicjalizacja DS18B20
+//     sensorsAir.begin();
+//     sensorsController.begin();
+//     sensorsAir.setWaitForConversion(false);      // Tryb nieblokujący
+//     sensorsController.setWaitForConversion(false);// Tryb nieblokujący
+//     sensorsAir.setResolution(12);                // Najwyższa rozdzielczość
+//     sensorsController.setResolution(12);         // Najwyższa rozdzielczość
+    
+//     // Pierwsze żądanie pomiaru
+//     sensorsAir.requestTemperatures();
+//     sensorsController.requestTemperatures();
+
+//     // Inicjalizacja RTC
+//     if (!rtc.begin()) {
+//         #ifdef DEBUG
+//         Serial.println("Couldn't find RTC");
+//         #endif
+//         while (1);
+//     }
+
+//     if (rtc.lostPower()) {
+//         #ifdef DEBUG
+//         Serial.println("RTC lost power, lets set the time!");
+//         #endif
+//         rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+//     }
+
+//     // Konfiguracja pinów
+//     pinMode(BTN_UP, INPUT_PULLUP);
+//     pinMode(BTN_DOWN, INPUT_PULLUP);
+//     pinMode(BTN_SET, INPUT_PULLUP);
+
+//     // Konfiguracja pinów LED
+//     pinMode(FrontDayPin, OUTPUT);
+//     pinMode(FrontPin, OUTPUT);
+//     pinMode(RearPin, OUTPUT);
+//     digitalWrite(FrontDayPin, LOW);
+//     digitalWrite(FrontPin, LOW);
+//     digitalWrite(RearPin, LOW);
+
+//     // Ładowarka USB
+//     pinMode(UsbPin, OUTPUT);
+//     digitalWrite(UsbPin, LOW);
+
+//     // Inicjalizacja LittleFS i wczytanie ustawień
+//     if (!LittleFS.begin(true)) {
+//         #ifdef DEBUG
+//         Serial.println("Błąd montowania LittleFS");
+//         #endif
+//     } else {
+//         #ifdef DEBUG
+//         Serial.println("LittleFS zamontowany pomyślnie");
+//         #endif
+//         // Wczytaj ustawienia z pliku
+//         loadSettings();              // Wczytaj główne ustawienia
+//         loadLightSettings();         // Wczytaj ustawienia świateł
+//         loadBacklightSettingsFromFile();
+//         loadGeneralSettingsFromFile();
+//         loadBluetoothConfigFromFile();
+//     }
+
+//     // Inicjalizacja licznika
+//     odometer.initialize();
+
+//     // Zastosuj wczytane ustawienia
+//     setLights();  
+//     applyBacklightSettings();
+
+//     // Jeśli wybudzenie przez przycisk SET
+//     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
+//         unsigned long startTime = millis();
+//         while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+//             if ((millis() - startTime) > SET_LONG_PRESS) {
+//                 displayActive = true;
+//                 showingWelcome = true;
+//                 messageStartTime = millis();
+//                 if (!welcomeAnimationDone) {
+//                     showWelcomeMessage();  // Pokaż animację powitania
+//                 }                
+//                 while (!digitalRead(BTN_SET)) {  // Czekaj na puszczenie przycisku
+//                     delay(10);
+//                 }
+//                 break;
+//             }
+//             delay(10);
+//         }
+//     }
+// }
+
+void setup() {  // POPRAWKA 2
     // Sprawdź przyczynę wybudzenia
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
@@ -2602,6 +2811,12 @@ void setup() {
     
     // Inicjalizacja I2C
     Wire.begin();
+
+    // Inicjalizacja wyświetlacza
+    display.begin();
+    display.setFontDirection(0);
+    display.clearBuffer();
+    display.sendBuffer();
 
     // Inicjalizacja DS18B20
     sensorsAir.begin();
@@ -2647,17 +2862,6 @@ void setup() {
     pinMode(UsbPin, OUTPUT);
     digitalWrite(UsbPin, LOW);
 
-    // Inicjalizacja wyświetlacza
-    display.begin();
-    display.setFontDirection(0);
-    display.clearBuffer();
-    display.sendBuffer();
-
-    setLights();  // Zastosuj wczytane ustawienia    
-    applyBacklightSettings();  // Zastosuj zapisane ustawienia jasności
-
-    display.sendBuffer();
-
     // Inicjalizacja LittleFS i wczytanie ustawień
     if (!LittleFS.begin(true)) {
         #ifdef DEBUG
@@ -2668,15 +2872,32 @@ void setup() {
         Serial.println("LittleFS zamontowany pomyślnie");
         #endif
         // Wczytaj ustawienia z pliku
-        loadLightSettings();  // Wczytaj ustawienia świateł
+        loadSettings();              // Wczytaj główne ustawienia
+        loadLightSettings();         // Wczytaj ustawienia świateł
         loadBacklightSettingsFromFile();
-        loadSettings();
         loadGeneralSettingsFromFile();
         loadBluetoothConfigFromFile();
     }
 
-    // Inicjalizacja licznika (powinno być po inicjalizacji Preferences)
+    // Inicjalizacja EEPROM i wczytanie ustawień
+    EEPROM.begin(512);  // Zainicjuj EEPROM z rozmiarem 512 bajtów
+    loadSettingsFromEEPROM();
+
+    // Inicjalizacja licznika
     odometer.initialize();
+
+    // Inicjalizacja BLE
+    if (bluetoothConfig.bmsEnabled || bluetoothConfig.tpmsEnabled) {
+        BLEDevice::init("e-Bike System PMW");
+        bleClient = BLEDevice::createClient();
+        if (bluetoothConfig.bmsEnabled) {
+            connectToBms();
+        }
+    }
+
+    // Zastosuj wczytane ustawienia
+    setLights();  
+    applyBacklightSettings();
 
     // Jeśli wybudzenie przez przycisk SET
     if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
