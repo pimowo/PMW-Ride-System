@@ -63,6 +63,9 @@
 #include <ArduinoJson.h>        // Biblioteka do obsługi formatu JSON
 #include <map>                  // Biblioteka do obsługi map (kontenerów)
 
+// --- Biblioteki systemowe ESP32 ---
+#include <esp_partition.h>    // Biblioteka do obsługi partycji ESP32
+
 // --- Biblioteki własne ---
 #include "Odometer.h"         // Własna biblioteka do obsługi licznika kilometrów
 
@@ -284,6 +287,7 @@ bool showingWelcome = false;
 MainScreen currentMainScreen = SPEED_SCREEN;
 int currentSubScreen = 0;
 bool inSubScreen = false;
+uint8_t displayBrightness = 16;  // Wartość od 0 do 255 (jasność wyświetlacza)
 
 // Zmienne pomiarowe
 float speed_kmh;
@@ -620,6 +624,24 @@ void connectToBms() {
 }
 
 // --- Funkcje konfiguracji ---
+
+//
+void saveBluetoothConfigToFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku konfiguracji Bluetooth");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    doc["bmsEnabled"] = bluetoothConfig.bmsEnabled;
+    doc["tpmsEnabled"] = bluetoothConfig.tpmsEnabled;
+
+    serializeJson(doc, file);
+    file.close();
+}
 
 // zapis ustawień świateł
 void saveLightSettings() {
@@ -2571,6 +2593,38 @@ void updateBacklight() {
         // Manual mode - ustaw stałą jasność
         // Tu dodaj kod ustawiający jasność wyświetlacza
     }
+}
+
+/********************************************************************
+ * DEKLARACJE I IMPLEMENTACJE FUNKCJI
+ ********************************************************************/
+
+// --- Funkcje inicjalizacyjne ---
+void initializeDefaultSettings() {
+    // Czas
+    timeSettings.ntpEnabled = false;
+    timeSettings.hours = 0;
+    timeSettings.minutes = 0;
+    timeSettings.seconds = 0;
+    timeSettings.day = 1;
+    timeSettings.month = 1;
+    timeSettings.year = 2024;
+
+    // Ustawienia świateł
+    lightSettings.dayLights = LightSettings::FRONT;
+    lightSettings.nightLights = LightSettings::BOTH;
+    lightSettings.dayBlink = false;
+    lightSettings.nightBlink = false;
+    lightSettings.blinkFrequency = 500;
+
+    // Podświetlenie
+    backlightSettings.dayBrightness = 100;
+    backlightSettings.nightBrightness = 50;
+    backlightSettings.autoMode = false;
+
+    // WiFi - początkowo puste
+    memset(wifiSettings.ssid, 0, sizeof(wifiSettings.ssid));
+    memset(wifiSettings.password, 0, sizeof(wifiSettings.password));
 }
 
 // --- Główne funkcje programu ---
