@@ -2550,7 +2550,7 @@ void initializeDefaultSettings() {
 // --- Główne funkcje programu ---
 
 // SETUP
-void setup() {  // POPRAWKA 2
+void setup() { 
     // Sprawdź przyczynę wybudzenia
     esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
@@ -2643,10 +2643,26 @@ void setup() {  // POPRAWKA 2
     applyBacklightSettings();
 
     #ifdef DEBUG
-        Serial.println("Flash size: " + String(ESP.getFlashChipSize()));
-        Serial.println("Free heap: " + String(ESP.getFreeHeap()));
-        Serial.println("Sketch size: " + String(ESP.getSketchSize()));
-        Serial.println("Free sketch space: " + String(ESP.getFreeSketchSpace()));
+        Serial.println("\n--- Memory Info ---");
+        Serial.printf("Total heap: %d\n", ESP.getHeapSize());
+        Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+        Serial.printf("Total PSRAM: %d\n", ESP.getPsramSize());
+        Serial.printf("Free PSRAM: %d\n", ESP.getFreePsram());
+        
+        Serial.println("\n--- Flash Info ---");
+        Serial.printf("Flash size: %d\n", ESP.getFlashChipSize());
+        Serial.printf("Sketch size: %d\n", ESP.getSketchSize());
+        Serial.printf("Free sketch space: %d\n", ESP.getFreeSketchSpace());
+        
+        Serial.println("\n--- Partition Info ---");
+        esp_partition_iterator_t pi = esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+        while (pi != NULL) {
+            const esp_partition_t* partition = esp_partition_get(pi);
+            Serial.printf("Partition '%s': size %d\n", partition->label, partition->size);
+            pi = esp_partition_next(pi);
+        }
+        esp_partition_iterator_release(pi);
+        Serial.println("-------------------\n");
     #endif
 
     // Jeśli wybudzenie przez przycisk SET
