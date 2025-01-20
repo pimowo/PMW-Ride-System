@@ -64,6 +64,7 @@
 
 // --- Biblioteki systemowe ESP32 ---
 #include <esp_partition.h>    // Biblioteka do obsługi partycji ESP32
+#include <Preferences.h>      // Biblioteka do stałej pamięci ESP32
 
 // --- Biblioteki własne ---
 #include "Odometer.h"         // Własna biblioteka do obsługi licznika kilometrów
