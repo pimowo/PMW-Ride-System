@@ -2948,7 +2948,8 @@ void loop() {
             temp_motor = 30.0 + random(20);
             range_km = 50.0 - (random(20) / 10.0);
             // Aktualizacja dystansu            
-            odometer.update(distance_km);
+            //odometer.update(distance_km);
+            odometer.updateTotal(distance_km);
             distance_km += 0.1;
             power_w = 100 + random(300);
             power_avg_w = power_w * 0.8;
