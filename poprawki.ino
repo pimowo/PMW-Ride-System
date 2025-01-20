@@ -34,7 +34,6 @@
 
 // --- Podstawowe biblioteki systemowe ---
 #include <Wire.h>               // Biblioteka do komunikacji I2C
-#include <EEPROM.h>             // Biblioteka do obsługi pamięci EEPROM
 
 // --- Biblioteki wyświetlacza ---
 #include <U8g2lib.h>            // Biblioteka do obsługi wyświetlacza OLED
@@ -186,16 +185,6 @@ struct BmsData {
     float temperatures[4];    // Temperatury [°C]
     bool charging;            // Status ładowania
     bool discharging;         // Status rozładowania
-};
-
-struct Settings {
-    int wheelCircumference;
-    float batteryCapacity;
-    int daySetting;
-    int nightSetting;
-    bool dayRearBlink;
-    bool nightRearBlink;
-    unsigned long blinkInterval;
 };
 
 /********************************************************************
@@ -366,8 +355,6 @@ OneWire oneWireAir(TEMP_AIR_PIN);
 OneWire oneWireController(TEMP_CONTROLLER_PIN);
 DallasTemperature sensorsAir(&oneWireAir);
 DallasTemperature sensorsController(&oneWireController);
-Settings bikeSettings;
-Settings storedSettings;
 
 // Obiekty BLE
 BLEClient* bleClient;
@@ -892,38 +879,6 @@ void loadGeneralSettingsFromFile() {
     Serial.print("Loaded wheel size: ");
     Serial.println(generalSettings.wheelSize);
     #endif
-}
-
-// wczytywanie ustawień z EEPROM
-void loadSettingsFromEEPROM() {
-    // Wczytanie ustawień z EEPROM
-    EEPROM.get(0, bikeSettings);
-
-    // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
-    storedSettings = bikeSettings;
-
-    if (bikeSettings.wheelCircumference == 0) {
-        bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
-        bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
-        bikeSettings.daySetting = 0;
-        bikeSettings.nightSetting = 0;
-        bikeSettings.dayRearBlink = false;
-        bikeSettings.nightRearBlink = false;
-        bikeSettings.blinkInterval = 500;
-    }
-}
-
-// zapis ustawień do EEPROM
-void saveSettingsToEEPROM() {
-    // Porównaj aktualne ustawienia z poprzednio wczytanymi
-    if (memcmp(&storedSettings, &bikeSettings, sizeof(bikeSettings)) != 0) {
-        // Jeśli ustawienia się zmieniły, zapisz je do EEPROM
-        EEPROM.put(0, bikeSettings);
-        EEPROM.commit();
-
-        // Zaktualizuj storedSettings po zapisie
-        storedSettings = bikeSettings;
-    }
 }
 
 // --- Funkcje wyświetlacza ---
@@ -2161,8 +2116,8 @@ void setupWebServer() {
         serializeJson(doc, response);
         
         #ifdef DEBUG
-        Serial.print("Wysyłam aktualny czas: ");
-        Serial.println(response);
+        //Serial.print("Wysyłam aktualny czas: ");
+        //Serial.println(response);
         #endif
         
         request->send(200, "application/json", response);
@@ -2878,10 +2833,6 @@ void setup() {  // POPRAWKA 2
         loadGeneralSettingsFromFile();
         loadBluetoothConfigFromFile();
     }
-
-    // Inicjalizacja EEPROM i wczytanie ustawień
-    EEPROM.begin(512);  // Zainicjuj EEPROM z rozmiarem 512 bajtów
-    loadSettingsFromEEPROM();
 
     // Inicjalizacja licznika
     odometer.initialize();
