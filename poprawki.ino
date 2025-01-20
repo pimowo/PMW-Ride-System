@@ -1,28 +1,45 @@
 /********************************************************************
  * BIBLIOTEKI
  ********************************************************************/
-#include <Wire.h>
-#include <U8g2lib.h>
-#include <RTClib.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <EEPROM.h>
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
-#include <WiFi.h>
-#include <AsyncTCP.h>
-#include <ESPAsyncWebServer.h>
-#include <LittleFS.h>
-#include <ArduinoJson.h>
-#include <TimeLib.h>
-#include <map>
-#include "Odometer.h"
+
+// --- Podstawowe biblioteki systemowe ---
+#include <Wire.h>              // Biblioteka do komunikacji I2C
+#include <EEPROM.h>           // Biblioteka do obsługi pamięci EEPROM
+
+// --- Biblioteki wyświetlacza ---
+#include <U8g2lib.h>          // Biblioteka do obsługi wyświetlacza OLED
+
+// --- Biblioteki czasu ---
+#include <RTClib.h>           // Biblioteka do obsługi zegara czasu rzeczywistego (RTC)
+#include <TimeLib.h>          // Biblioteka do obsługi funkcji czasowych
+
+// --- Biblioteki czujników temperatury ---
+#include <OneWire.h>          // Biblioteka do komunikacji z czujnikami OneWire
+#include <DallasTemperature.h> // Biblioteka do obsługi czujników temperatury DS18B20
+
+// --- Biblioteki Bluetooth ---
+#include <BLEDevice.h>        // Główna biblioteka BLE
+#include <BLEServer.h>        // Biblioteka do tworzenia serwera BLE
+#include <BLEUtils.h>         // Narzędzia BLE
+#include <BLE2902.h>          // Deskryptor powiadomień BLE
+
+// --- Biblioteki sieciowe ---
+#include <WiFi.h>             // Biblioteka do obsługi WiFi
+#include <AsyncTCP.h>         // Biblioteka do asynchronicznej komunikacji TCP
+#include <ESPAsyncWebServer.h> // Biblioteka do obsługi serwera WWW
+
+// --- Biblioteki systemu plików i JSON ---
+#include <LittleFS.h>         // System plików dla ESP32
+#include <ArduinoJson.h>      // Biblioteka do obsługi formatu JSON
+#include <map>                // Biblioteka do obsługi map (kontenerów)
+
+// --- Biblioteki własne ---
+#include "Odometer.h"         // Własna biblioteka do obsługi licznika kilometrów
 
 /********************************************************************
  * DEFINICJE I STAŁE GLOBALNE
  ********************************************************************/
+
 #define DEBUG
 
 // Wersja oprogramowania
@@ -33,15 +50,15 @@ const char* CONFIG_FILE = "/display_config.json";
 const char* LIGHT_CONFIG_FILE = "/light_config.json";
 
 // Definicje pinów
-#define BTN_UP 13
-#define BTN_DOWN 14
-#define BTN_SET 12
-#define FrontDayPin 5    // światła dzienne
-#define FrontPin 18      // światła zwykłe
-#define RealPin 19       // tylne światło
-#define UsbPin 32        // ładowarka USB
-#define TEMP_AIR_PIN 15          // temperatutra powietrza (DS18B20)
-#define TEMP_CONTROLLER_PIN 4    // temperatura sterownika (DS18B20)
+#define BTN_UP 13              // przycisk w górę
+#define BTN_DOWN 14            // przycisk w dół
+#define BTN_SET 12             // przycisk menu
+#define FrontDayPin 5          // światła dzienne
+#define FrontPin 18            // światła zwykłe
+#define RealPin 19             // tylne światło
+#define UsbPin 32              // ładowarka USB
+#define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
+#define TEMP_CONTROLLER_PIN 4  // temperatura sterownika (DS18B20)
 
 // Stałe czasowe
 const unsigned long DEBOUNCE_DELAY = 25;
@@ -62,6 +79,7 @@ const unsigned long DS18B20_CONVERSION_DELAY_MS = 750;
 /********************************************************************
  * STRUKTURY I TYPY WYLICZENIOWE
  ********************************************************************/
+
 // Struktury konfiguracyjne
 struct TimeSettings {
     bool ntpEnabled;
@@ -145,6 +163,7 @@ struct Settings {
 /********************************************************************
  * TYPY WYLICZENIOWE
  ********************************************************************/
+
 // Ekrany główne
 enum MainScreen {
     SPEED_SCREEN,      // Ekran prędkości
@@ -212,6 +231,7 @@ enum PressureSubScreen {
 /********************************************************************
  * ZMIENNE GLOBALNE
  ********************************************************************/
+
 // Obiekty główne
 OdometerManager odometer;
 Preferences preferences;
@@ -330,6 +350,7 @@ BmsData bmsData;
 /********************************************************************
  * KLASY POMOCNICZE
  ********************************************************************/
+
 // Klasa obsługująca timeout
 class TimeoutHandler {
     // Implementacja klasy TimeoutHandler
@@ -345,224 +366,287 @@ class TemperatureSensor {
  ********************************************************************/
 
 // --- Funkcje BLE ---
+
+// callback dla BLE
 void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic,
                         uint8_t* pData, size_t length, bool isNotify) {
-    // Implementacja funkcji callback dla BLE
+   
 }
 
+// wysyłanie zapytania do BMS
 void requestBmsData(const uint8_t* command, size_t length) {
-    // Implementacja wysyłania zapytania do BMS
+    
 }
 
+// aktualizacja danych BMS
 void updateBmsData() {
-    // Implementacja aktualizacji danych BMS
+    
 }
 
+// połączenie z BMS
 void connectToBms() {
-    // Implementacja połączenia z BMS
+    
 }
 
 // --- Funkcje konfiguracji ---
+
+// zapis ustawień świateł
 void saveLightSettings() {
-    // Implementacja zapisu ustawień świateł
+    
 }
 
+// wczytywanie ustawień świateł
 void loadLightSettings() {
-    // Implementacja wczytywania ustawień świateł
+    
 }
 
+// ustawianie jasności wyświetlacza
 void setDisplayBrightness(uint8_t brightness) {
-    // Implementacja ustawiania jasności wyświetlacza
+    
 }
 
+// zapis ustawień podświetlenia
 void saveBacklightSettingsToFile() {
-    // Implementacja zapisu ustawień podświetlenia
+    
 }
 
+// wczytywanie ustawień podświetlenia
 void loadBacklightSettingsFromFile() {
-    // Implementacja wczytywania ustawień podświetlenia
+    
 }
 
+// zapis ustawień ogólnych
 void saveGeneralSettingsToFile() {
-    // Implementacja zapisu ustawień ogólnych
+    
 }
 
+// zapis konfiguracji Bluetooth
 void saveBluetoothConfigToFile() {
-    // Implementacja zapisu konfiguracji Bluetooth
+    
 }
 
+// wczytywanie konfiguracji Bluetooth
 void loadBluetoothConfigFromFile() {
-    // Implementacja wczytywania konfiguracji Bluetooth
+    
 }
 
+// wczytywanie ustawień ogólnych
 void loadGeneralSettingsFromFile() {
-    // Implementacja wczytywania ustawień ogólnych
+    
 }
 
+// wczytywanie ustawień z EEPROM
 void loadSettingsFromEEPROM() {
-    // Implementacja wczytywania ustawień z EEPROM
+    
 }
 
+// zapis ustawień do EEPROM
 void saveSettingsToEEPROM() {
-    // Implementacja zapisu ustawień do EEPROM
+    
 }
 
 // --- Funkcje wyświetlacza ---
+
+// rysowanie linii poziomej
 void drawHorizontalLine() {
-    // Implementacja rysowania linii poziomej
+    
 }
 
+// rysowanie linii pionowej
 void drawVerticalLine() {
-    // Implementacja rysowania linii pionowej
+    
 }
 
+// rysowanie górnego paska
 void drawTopBar() {
-    // Implementacja rysowania górnego paska
+    
 }
 
+// wyświetlanie statusu świateł
 void drawLightStatus() {
-    // Implementacja wyświetlania statusu świateł
+    
 }
 
+// Implementacja wyświetlania poziomu wspomagania
 void drawAssistLevel() {
-    // Implementacja wyświetlania poziomu wspomagania
+    
 }
 
+// Implementacja wyświetlania wartości i jednostki
 void drawValueAndUnit(const char* valueStr, const char* unitStr) {
-    // Implementacja wyświetlania wartości i jednostki
+    
 }
 
+// Implementacja głównego ekranu
 void drawMainDisplay() {
-    // Implementacja głównego ekranu
+    
 }
 
+// Implementacja wyświetlania wycentrowanego tekstu
 void drawCenteredText(const char* text, int y, const uint8_t* font) {
-    // Implementacja wyświetlania wycentrowanego tekstu
+    
 }
 
+// Implementacja wyświetlania wiadomości powitalnej
 void showWelcomeMessage() {
-    // Implementacja wyświetlania wiadomości powitalnej
+    
 }
 
 // --- Funkcje obsługi przycisków ---
+
+// Implementacja obsługi przycisków
 void handleButtons() {
-    // Implementacja obsługi przycisków
+    
 }
 
+// Implementacja sprawdzania trybu konfiguracji
 void checkConfigMode() {
-    // Implementacja sprawdzania trybu konfiguracji
+    
 }
 
+// Implementacja aktywacji trybu konfiguracji
 void activateConfigMode() {
-    // Implementacja aktywacji trybu konfiguracji
+    
 }
 
+// Implementacja dezaktywacji trybu konfiguracji
 void deactivateConfigMode() {
-    // Implementacja dezaktywacji trybu konfiguracji
+    
 }
 
+// Implementacja przełączania trybu legal
 void toggleLegalMode() {
-    // Implementacja przełączania trybu legal
+    
 }
 
 // --- Funkcje pomocnicze ---
+
+// Implementacja sprawdzania pod-ekranów
 bool hasSubScreens(MainScreen screen) {
-    // Implementacja sprawdzania pod-ekranów
+    
 }
 
+// Implementacja liczenia pod-ekranów
 int getSubScreenCount(MainScreen screen) {
-    // Implementacja liczenia pod-ekranów
+    
 }
 
+// Implementacja trybu uśpienia
 void goToSleep() {
-    // Implementacja trybu uśpienia
+    
 }
 
+// Implementacja ustawiania świateł
 void setLights() {
-    // Implementacja ustawiania świateł
+    
 }
 
+// Implementacja ustawień podświetlenia
 void applyBacklightSettings() {
-    // Implementacja ustawień podświetlenia
+    
 }
 
+// Implementacja sprawdzania poprawności temperatury
 bool isValidTemperature(float temp) {
-    // Implementacja sprawdzania poprawności temperatury
+    
 }
 
+// Implementacja obsługi temperatury
 void handleTemperature() {
-    // Implementacja obsługi temperatury
+    
 }
 
 // --- Funkcje konfiguracji systemu ---
+
+// Implementacja wczytywania wszystkich ustawień
 void loadSettings() {
-    // Implementacja wczytywania wszystkich ustawień
+    
 }
 
+// Implementacja zapisu wszystkich ustawień
 void saveSettings() {
-    // Implementacja zapisu wszystkich ustawień
+    
 }
 
+// Implementacja konwersji parametru na indeks
 int getParamIndex(const String& param) {
-    // Implementacja konwersji parametru na indeks
+    
 }
 
+// Implementacja aktualizacji parametrów kontrolera
 void updateControllerParam(const String& param, int value) {
-    // Implementacja aktualizacji parametrów kontrolera
+    
 }
 
+// Implementacja konwersji trybu świateł na string
 const char* getLightModeString(LightSettings::LightMode mode) {
-    // Implementacja konwersji trybu świateł na string
+    
 }
 
 // --- Funkcje serwera WWW ---
+
+// Implementacja konfiguracji serwera WWW
 void setupWebServer() {
-    // Implementacja konfiguracji serwera WWW
+    
 }
 
+// Implementacja obsługi ustawień przez WWW
 void handleSettings(AsyncWebServerRequest *request) {
-    // Implementacja obsługi ustawień przez WWW
+    
 }
 
+// Implementacja zapisu ustawień zegara
 void handleSaveClockSettings(AsyncWebServerRequest *request) {
-    // Implementacja zapisu ustawień zegara
+    
 }
 
+// Implementacja zapisu ustawień roweru
 void handleSaveBikeSettings(AsyncWebServerRequest *request) {
-    // Implementacja zapisu ustawień roweru
+    
 }
 
 // --- Funkcje systemu plików ---
+
+// Implementacja inicjalizacji systemu plików
 void initLittleFS() {
-    // Implementacja inicjalizacji systemu plików
+    
 }
 
+// Implementacja listowania plików
 void listFiles() {
-    // Implementacja listowania plików
+    
 }
 
+// Implementacja wczytywania konfiguracji
 bool loadConfig() {
-    // Implementacja wczytywania konfiguracji
+    
 }
 
 // --- Funkcje czasu ---
+
+// Implementacja synchronizacji RTC z NTP
 void syncRTCWithNTP() {
-    // Implementacja synchronizacji RTC z NTP
+    
 }
 
+// Implementacja synchronizacji czasu
 void synchronizeTime() {
-    // Implementacja synchronizacji czasu
+    
 }
 
+// Implementacja aktualizacji podświetlenia
 void updateBacklight() {
-    // Implementacja aktualizacji podświetlenia
+    
 }
 
 // --- Główne funkcje programu ---
+
+// Implementacja funkcji setup
 void setup() {
-    // Implementacja funkcji setup
+    
 }
 
+// Implementacja funkcji loop
 void loop() {
-    // Implementacja funkcji loop
+    
 }
