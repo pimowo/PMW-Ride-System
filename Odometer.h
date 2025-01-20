@@ -9,12 +9,9 @@ class OdometerManager {
 private:
     const char* filename = "/odometer.json";
     float currentTotal = 0;
+    bool initialized = false;
 
     void saveToFile() {
-        #ifdef DEBUG
-        Serial.println("Zapisywanie licznika do pliku...");
-        #endif
-
         File file = LittleFS.open(filename, "w");
         if (!file) {
             #ifdef DEBUG
@@ -31,6 +28,7 @@ private:
             Serial.println("Błąd zapisu do pliku licznika");
             #endif
         } else {
+            file.flush(); // Wymuszenie zapisu na kartę
             #ifdef DEBUG
             Serial.printf("Zapisano licznik: %.2f\n", currentTotal);
             #endif
@@ -40,40 +38,44 @@ private:
     }
 
     void loadFromFile() {
-        #ifdef DEBUG
-        Serial.println("Wczytywanie licznika z pliku...");
-        #endif
+        if (!initialized) {
+            File file = LittleFS.open(filename, "r");
+            if (!file) {
+                #ifdef DEBUG
+                Serial.println("Brak pliku licznika - tworzę nowy");
+                #endif
+                currentTotal = 0;
+                saveToFile();
+                initialized = true;
+                return;
+            }
 
-        File file = LittleFS.open(filename, "r");
-        if (!file) {
-            #ifdef DEBUG
-            Serial.println("Brak pliku licznika - tworzę nowy");
-            #endif
-            currentTotal = 0;
-            saveToFile();
-            return;
+            StaticJsonDocument<128> doc;
+            DeserializationError error = deserializeJson(doc, file);
+            
+            if (!error) {
+                currentTotal = doc["total"] | 0.0f;
+                #ifdef DEBUG
+                Serial.printf("Wczytano licznik: %.2f\n", currentTotal);
+                #endif
+            } else {
+                #ifdef DEBUG
+                Serial.println("Błąd odczytu pliku licznika");
+                #endif
+                currentTotal = 0;
+            }
+            
+            file.close();
+            initialized = true;
         }
-
-        StaticJsonDocument<128> doc;
-        DeserializationError error = deserializeJson(doc, file);
-        
-        if (!error) {
-            currentTotal = doc["total"] | 0.0f;
-            #ifdef DEBUG
-            Serial.printf("Wczytano licznik: %.2f\n", currentTotal);
-            #endif
-        } else {
-            #ifdef DEBUG
-            Serial.println("Błąd odczytu pliku licznika");
-            #endif
-            currentTotal = 0;
-        }
-        
-        file.close();
     }
 
 public:
     OdometerManager() {
+        loadFromFile();
+    }
+
+    void initialize() {
         loadFromFile();
     }
 
@@ -110,7 +112,11 @@ public:
     }
 
     bool isValid() const {
-        return true; // Zawsze zwraca true, bo nie ma już inicjalizacji Preferences
+        return initialized;
+    }
+
+    void shutdown() {
+        saveToFile();
     }
 };
 
