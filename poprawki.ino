@@ -1,3 +1,33 @@
+/*
+01＿info Throttle Abnormality
+03＿info Motor Hall Signal Abnormality
+04＿info Torque sensor Signal Abnormality
+05＿info Axis speed sensor Abnormality(only applied to torque sensor )
+06＿info Motor or controller has short circuit Abnormality
+
+01_info - Problem z Manetką
+    W skrócie: Manetka nie działa prawidłowo
+    Możliwe przyczyny: uszkodzenie manetki, złe połączenie, problemy z przewodami
+
+03_info - Problem z Czujnikami w Silniku
+    W skrócie: Silnik nie otrzymuje prawidłowych sygnałów od swoich wewnętrznych czujników
+    Możliwe przyczyny: uszkodzenie czujników, problemy z okablowaniem silnika
+
+04_info - Problem z Czujnikiem Siły Nacisku
+    W skrócie: System nie wykrywa prawidłowo siły pedałowania
+    Możliwe przyczyny: uszkodzenie czujnika, problemy z kalibracją
+
+05_info - Problem z Czujnikiem Prędkości
+    W skrócie: System ma problem z pomiarem prędkości
+    Uwaga: Ten błąd pojawia się tylko w systemach z czujnikiem siły nacisku
+    Możliwe przyczyny: uszkodzony czujnik, złe ustawienie magnesów
+
+06_info - Wykryto Zwarcie
+    W skrócie: Poważny problem elektryczny w silniku lub kontrolerze
+    Możliwe przyczyny: uszkodzenie przewodów, zalanie wodą, wewnętrzne uszkodzenie
+    UWAGA: Ten błąd wymaga natychmiastowej kontroli, aby uniknąć poważniejszych uszkodzeń!
+*/
+
 /********************************************************************
  * BIBLIOTEKI
  ********************************************************************/
@@ -50,13 +80,17 @@ const char* CONFIG_FILE = "/display_config.json";
 const char* LIGHT_CONFIG_FILE = "/light_config.json";
 
 // Definicje pinów
-#define BTN_UP 13              // przycisk w górę
-#define BTN_DOWN 14            // przycisk w dół
-#define BTN_SET 12             // przycisk menu
-#define FrontDayPin 5          // światła dzienne
-#define FrontPin 18            // światła zwykłe
-#define RealPin 19             // tylne światło
-#define UsbPin 32              // ładowarka USB
+// przyciski
+#define BTN_UP 13
+#define BTN_DOWN 14
+#define BTN_SET 12
+// światła
+#define FrontDayPin 5  // światła dzienne
+#define FrontPin 18    // światła zwykłe
+#define RealPin 19     // tylne światło
+// ładowarka USB
+#define UsbPin 32  // ładowarka USB
+// czujniki temperatury
 #define TEMP_AIR_PIN 15        // temperatutra powietrza (DS18B20)
 #define TEMP_CONTROLLER_PIN 4  // temperatura sterownika (DS18B20)
 
@@ -353,12 +387,87 @@ BmsData bmsData;
 
 // Klasa obsługująca timeout
 class TimeoutHandler {
-    // Implementacja klasy TimeoutHandler
+    private:
+        uint32_t startTime;
+        uint32_t timeoutPeriod;
+        bool isRunning;
+
+    public:
+        TimeoutHandler(uint32_t timeout_ms = 0)
+            : startTime(0),
+                timeoutPeriod(timeout_ms),
+                isRunning(false) {}
+
+        void start(uint32_t timeout_ms = 0) {
+            if (timeout_ms > 0) timeoutPeriod = timeout_ms;
+            startTime = millis();
+            isRunning = true;
+        }
+
+        bool isExpired() {
+            if (!isRunning) return false;
+            return (millis() - startTime) >= timeoutPeriod;
+        }
+
+        void stop() {
+            isRunning = false;
+        }
+
+        uint32_t getElapsed() {
+            if (!isRunning) return 0;
+            return (millis() - startTime);
+      }
 };
 
 // Klasa obsługująca czujnik temperatury
 class TemperatureSensor {
-    // Implementacja klasy TemperatureSensor
+    private:
+        static constexpr float INVALID_TEMP = -999.0f;
+        static constexpr float MIN_VALID_TEMP = -50.0f;
+        static constexpr float MAX_VALID_TEMP = 100.0f;
+        bool conversionRequested = false;
+        unsigned long lastRequestTime = 0;
+        DallasTemperature* airSensor;
+        DallasTemperature* controllerSensor;
+
+    public:
+        TemperatureSensor(DallasTemperature* air, DallasTemperature* controller) 
+            : airSensor(air), controllerSensor(controller) {}
+
+        void requestTemperature() {
+            if (millis() - lastRequestTime >= TEMP_REQUEST_INTERVAL) {
+                airSensor->requestTemperatures();
+                controllerSensor->requestTemperatures();
+                conversionRequested = true;
+                lastRequestTime = millis();
+            }
+        }
+
+        bool isValidTemperature(float temp) {
+            return temp >= MIN_VALID_TEMP && temp <= MAX_VALID_TEMP;
+        }
+
+        float readAirTemperature() {
+            if (!conversionRequested) return INVALID_TEMP;
+
+            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
+                return INVALID_TEMP;  // Konwersja jeszcze trwa
+            }
+
+            float temp = airSensor->getTempCByIndex(0);
+            return isValidTemperature(temp) ? temp : INVALID_TEMP;
+        }
+
+        float readControllerTemperature() {
+            if (!conversionRequested) return INVALID_TEMP;
+
+            if (millis() - lastRequestTime < DS18B20_CONVERSION_DELAY_MS) {
+                return INVALID_TEMP;  // Konwersja jeszcze trwa
+            }
+
+            float temp = controllerSensor->getTempCByIndex(0);
+            return isValidTemperature(temp) ? temp : INVALID_TEMP;
+        }
 };
 
 /********************************************************************
@@ -368,81 +477,452 @@ class TemperatureSensor {
 // --- Funkcje BLE ---
 
 // callback dla BLE
-void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic,
+void notificationCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, 
                         uint8_t* pData, size_t length, bool isNotify) {
-   
+    if (length < 2) return;  // Sprawdzenie minimalnej długości pakietu
+
+    switch (pData[1]) {  // Sprawdź typ pakietu
+        case 0x03:  // Basic info
+            if (length >= 34) {
+                // Napięcie całkowite (0.1V)
+                bmsData.voltage = (float)((pData[4] << 8) | pData[5]) / 10.0;
+                
+                // Prąd (0.1A, wartość ze znakiem)
+                int16_t current = (pData[6] << 8) | pData[7];
+                bmsData.current = (float)current / 10.0;
+                
+                // Pozostała pojemność (0.1Ah)
+                bmsData.remainingCapacity = (float)((pData[8] << 8) | pData[9]) / 10.0;
+                
+                // SOC (%)
+                bmsData.soc = pData[23];
+                
+                // Status ładowania/rozładowania
+                uint8_t status = pData[22];
+                bmsData.charging = (status & 0x01);
+                bmsData.discharging = (status & 0x02);
+                
+                #ifdef DEBUG
+                Serial.printf("Voltage: %.1fV, Current: %.1fA, SOC: %d%%\n", 
+                            bmsData.voltage, bmsData.current, bmsData.soc);
+                #endif
+            }
+            break;
+
+        case 0x04:  // Cell info
+            if (length >= 34) {  // Sprawdź czy mamy kompletny pakiet
+                for (int i = 0; i < 16; i++) {
+                    bmsData.cellVoltages[i] = (float)((pData[4 + i*2] << 8) | pData[5 + i*2]) / 1000.0;
+                }
+                #ifdef DEBUG
+                Serial.println("Cell voltages updated");
+                #endif
+            }
+            break;
+
+        case 0x08:  // Temperature info
+            if (length >= 12) {
+                for (int i = 0; i < 4; i++) {
+                    // Konwersja z K na °C
+                    int16_t temp = ((pData[4 + i*2] << 8) | pData[5 + i*2]) - 2731;
+                    bmsData.temperatures[i] = (float)temp / 10.0;
+                }
+                #ifdef DEBUG
+                Serial.println("Temperatures updated");
+                #endif
+            }
+            break;
+    }
 }
 
 // wysyłanie zapytania do BMS
 void requestBmsData(const uint8_t* command, size_t length) {
-    
+    if (bleClient && bleClient->isConnected() && bleCharacteristicTx) {
+//        bleCharacteristicTx->writeValue(command, length);
+    }
 }
 
 // aktualizacja danych BMS
 void updateBmsData() {
-    
+    static unsigned long lastBmsUpdate = 0;
+    const unsigned long BMS_UPDATE_INTERVAL = 1000; // Aktualizuj co 1 sekundę
+
+    if (millis() - lastBmsUpdate >= BMS_UPDATE_INTERVAL) {
+        if (bleClient && bleClient->isConnected()) {
+            requestBmsData(BMS_BASIC_INFO, sizeof(BMS_BASIC_INFO));
+            delay(100);  // Krótkie opóźnienie między zapytaniami
+            requestBmsData(BMS_CELL_INFO, sizeof(BMS_CELL_INFO));
+            delay(100);
+            requestBmsData(BMS_TEMP_INFO, sizeof(BMS_TEMP_INFO));
+            lastBmsUpdate = millis();
+        }
+    }
 }
 
 // połączenie z BMS
 void connectToBms() {
-    
+    if (!bleClient->isConnected()) {
+        #ifdef DEBUG
+        Serial.println("Próba połączenia z BMS...");
+        #endif
+
+        if (bleClient->connect(bmsMacAddress)) {
+            #ifdef DEBUG
+            Serial.println("Połączono z BMS");
+            #endif
+
+            bleService = bleClient->getService("0000ff00-0000-1000-8000-00805f9b34fb");
+            if (bleService == nullptr) {
+                #ifdef DEBUG
+                Serial.println("Nie znaleziono usługi BMS");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
+
+            bleCharacteristicTx = bleService->getCharacteristic("0000ff02-0000-1000-8000-00805f9b34fb");
+            if (bleCharacteristicTx == nullptr) {
+                #ifdef DEBUG
+                Serial.println("Nie znaleziono charakterystyki Tx");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
+
+            bleCharacteristicRx = bleService->getCharacteristic("0000ff01-0000-1000-8000-00805f9b34fb");
+            if (bleCharacteristicRx == nullptr) {
+                #ifdef DEBUG
+                Serial.println("Nie znaleziono charakterystyki Rx");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
+
+            // Rejestracja funkcji obsługi powiadomień BLE
+            if (bleCharacteristicRx->canNotify()) {
+                bleCharacteristicRx->registerForNotify(notificationCallback);
+                #ifdef DEBUG
+                Serial.println("Zarejestrowano powiadomienia dla Rx");
+                #endif
+            } else {
+                #ifdef DEBUG
+                Serial.println("Charakterystyka Rx nie obsługuje powiadomień");
+                #endif
+                bleClient->disconnect();
+                return;
+            }
+        } else {
+          #ifdef DEBUG
+          Serial.println("Nie udało się połączyć z BMS");
+          #endif
+        }
+    }
 }
 
 // --- Funkcje konfiguracji ---
 
 // zapis ustawień świateł
 void saveLightSettings() {
+    #ifdef DEBUG
+    Serial.println("Zapisywanie ustawień świateł");
+    #endif
+
+    // Przygotuj dokument JSON
+    StaticJsonDocument<256> doc;
     
+    // Zapisz ustawienia
+    doc["dayLights"] = lightSettings.dayLights;
+    doc["nightLights"] = lightSettings.nightLights;
+    doc["dayBlink"] = lightSettings.dayBlink;
+    doc["nightBlink"] = lightSettings.nightBlink;
+    doc["blinkFrequency"] = lightSettings.blinkFrequency;
+
+    // Otwórz plik do zapisu
+    File file = LittleFS.open("/lights.json", "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Błąd otwarcia pliku do zapisu");
+        #endif
+        return;
+    }
+
+    // Zapisz JSON do pliku
+    if (serializeJson(doc, file) == 0) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu do pliku");
+        #endif
+    }
+
+    file.close();
+
+    #ifdef DEBUG
+    Serial.println("Ustawienia świateł zapisane");
+    Serial.print("dayLights: "); Serial.println(lightSettings.dayLights);
+    Serial.print("nightLights: "); Serial.println(lightSettings.nightLights);
+    #endif
+
+    // Od razu zastosuj nowe ustawienia
+    setLights();
 }
 
 // wczytywanie ustawień świateł
 void loadLightSettings() {
-    
+    #ifdef DEBUG
+    Serial.println("Wczytywanie ustawień świateł");
+    #endif
+
+    if (LittleFS.exists("/lights.json")) {
+        File file = LittleFS.open("/lights.json", "r");
+        if (file) {
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, file);
+            file.close();
+
+            if (!error) {
+                const char* dayLightsStr = doc["dayLights"] | "FRONT";
+                const char* nightLightsStr = doc["nightLights"] | "BOTH";
+
+                // Konwersja stringów na enum
+                if (strcmp(dayLightsStr, "FRONT") == 0) 
+                    lightSettings.dayLights = LightSettings::FRONT;
+                else if (strcmp(dayLightsStr, "REAR") == 0) 
+                    lightSettings.dayLights = LightSettings::REAR;
+                else if (strcmp(dayLightsStr, "BOTH") == 0) 
+                    lightSettings.dayLights = LightSettings::BOTH;
+                else 
+                    lightSettings.dayLights = LightSettings::NONE;
+
+                if (strcmp(nightLightsStr, "FRONT") == 0) 
+                    lightSettings.nightLights = LightSettings::FRONT;
+                else if (strcmp(nightLightsStr, "REAR") == 0) 
+                    lightSettings.nightLights = LightSettings::REAR;
+                else if (strcmp(nightLightsStr, "BOTH") == 0) 
+                    lightSettings.nightLights = LightSettings::BOTH;
+                else 
+                    lightSettings.nightLights = LightSettings::NONE;
+
+                lightSettings.dayBlink = doc["dayBlink"] | false;
+                lightSettings.nightBlink = doc["nightBlink"] | false;
+                lightSettings.blinkFrequency = doc["blinkFrequency"] | 500;
+            }
+        }
+    } else {
+        // Ustawienia domyślne
+        lightSettings.dayLights = LightSettings::FRONT;
+        lightSettings.nightLights = LightSettings::BOTH;
+        lightSettings.dayBlink = false;
+        lightSettings.nightBlink = false;
+        lightSettings.blinkFrequency = 500;
+    }
 }
 
 // ustawianie jasności wyświetlacza
 void setDisplayBrightness(uint8_t brightness) {
-    
+    displayBrightness = brightness;
+    display.setContrast(displayBrightness);
 }
 
 // zapis ustawień podświetlenia
 void saveBacklightSettingsToFile() {
+    File file = LittleFS.open(CONFIG_FILE, "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku do zapisu");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    doc["dayBrightness"] = backlightSettings.dayBrightness;
+    doc["nightBrightness"] = backlightSettings.nightBrightness;
+    doc["autoMode"] = backlightSettings.autoMode;
+
+    // Zapisz JSON do pliku
+    if (serializeJson(doc, file)) {
+        #ifdef DEBUG
+        Serial.println("Zapisano ustawienia do pliku");
+        #endif
+    } else {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu do pliku");
+        #endif
+    }
     
+    file.close();
 }
 
 // wczytywanie ustawień podświetlenia
 void loadBacklightSettingsFromFile() {
-    
+    File file = LittleFS.open(CONFIG_FILE, "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Brak pliku konfiguracyjnego, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        backlightSettings.dayBrightness = 100;
+        backlightSettings.nightBrightness = 50;
+        backlightSettings.autoMode = false;
+        // Zapisz domyślne ustawienia do pliku
+        saveBacklightSettingsToFile();
+        return;
+    }
+
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON, używam ustawień domyślnych");
+        #endif
+        // Ustaw wartości domyślne
+        backlightSettings.dayBrightness = 100;
+        backlightSettings.nightBrightness = 50;
+        backlightSettings.autoMode = false;
+        return;
+    }
+
+    // Wczytaj ustawienia
+    backlightSettings.dayBrightness = doc["dayBrightness"] | 100;
+    backlightSettings.nightBrightness = doc["nightBrightness"] | 50;
+    backlightSettings.autoMode = doc["autoMode"] | false;
+
+    #ifdef DEBUG
+    Serial.println("Wczytano ustawienia z pliku:");
+    Serial.print("Day Brightness: "); Serial.println(backlightSettings.dayBrightness);
+    Serial.print("Night Brightness: "); Serial.println(backlightSettings.nightBrightness);
+    Serial.print("Auto Mode: "); Serial.println(backlightSettings.autoMode);
+    #endif
 }
 
 // zapis ustawień ogólnych
 void saveGeneralSettingsToFile() {
-    
+    File file = LittleFS.open("/general_config.json", "w");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie można otworzyć pliku ustawień ogólnych do zapisu");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    doc["wheelSize"] = generalSettings.wheelSize;
+
+    if (serializeJson(doc, file) == 0) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas zapisu ustawień ogólnych");
+        #endif
+    }
+
+    file.close();
 }
 
 // zapis konfiguracji Bluetooth
-void saveBluetoothConfigToFile() {
+void loadBluetoothConfigFromFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    DeserializationError error = deserializeJson(doc, file);
     
+    if (!error) {
+        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+    }
+    
+    file.close();
+}    
 }
 
 // wczytywanie konfiguracji Bluetooth
 void loadBluetoothConfigFromFile() {
+    File file = LittleFS.open("/bluetooth_config.json", "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie znaleziono pliku konfiguracji Bluetooth, używam domyślnych");
+        #endif
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    DeserializationError error = deserializeJson(doc, file);
     
+    if (!error) {
+        bluetoothConfig.bmsEnabled = doc["bmsEnabled"] | false;
+        bluetoothConfig.tpmsEnabled = doc["tpmsEnabled"] | false;
+    }
+    
+    file.close();
 }
 
 // wczytywanie ustawień ogólnych
 void loadGeneralSettingsFromFile() {
-    
+    File file = LittleFS.open("/general_config.json", "r");
+    if (!file) {
+        #ifdef DEBUG
+        Serial.println("Nie znaleziono pliku ustawień ogólnych, używam domyślnych");
+        #endif
+        generalSettings.wheelSize = 26; // Wartość domyślna
+        saveGeneralSettingsToFile(); // Zapisz domyślne ustawienia
+        return;
+    }
+
+    StaticJsonDocument<64> doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+
+    if (error) {
+        #ifdef DEBUG
+        Serial.println("Błąd podczas parsowania JSON ustawień ogólnych");
+        #endif
+        generalSettings.wheelSize = 26; // Wartość domyślna
+        saveGeneralSettingsToFile(); // Zapisz domyślne ustawienia
+        return;
+    }
+
+    generalSettings.wheelSize = doc["wheelSize"] | 26; // Domyślnie 26 cali jeśli nie znaleziono
+
+    #ifdef DEBUG
+    Serial.print("Loaded wheel size: ");
+    Serial.println(generalSettings.wheelSize);
+    #endif
 }
 
 // wczytywanie ustawień z EEPROM
 void loadSettingsFromEEPROM() {
-    
+    // Wczytanie ustawień z EEPROM
+    EEPROM.get(0, bikeSettings);
+
+    // Skopiowanie aktualnych ustawień do storedSettings do późniejszego porównania
+    storedSettings = bikeSettings;
+
+    if (bikeSettings.wheelCircumference == 0) {
+        bikeSettings.wheelCircumference = 2210;  // Domyślny obwód koła
+        bikeSettings.batteryCapacity = 10.0;     // Domyślna pojemność baterii
+        bikeSettings.daySetting = 0;
+        bikeSettings.nightSetting = 0;
+        bikeSettings.dayRearBlink = false;
+        bikeSettings.nightRearBlink = false;
+        bikeSettings.blinkInterval = 500;
+    }
 }
 
 // zapis ustawień do EEPROM
 void saveSettingsToEEPROM() {
-    
+    // Porównaj aktualne ustawienia z poprzednio wczytanymi
+    if (memcmp(&storedSettings, &bikeSettings, sizeof(bikeSettings)) != 0) {
+        // Jeśli ustawienia się zmieniły, zapisz je do EEPROM
+        EEPROM.put(0, bikeSettings);
+        EEPROM.commit();
+
+        // Zaktualizuj storedSettings po zapisie
+        storedSettings = bikeSettings;
+    }
 }
 
 // --- Funkcje wyświetlacza ---
