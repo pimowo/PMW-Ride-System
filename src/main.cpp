@@ -263,7 +263,6 @@ enum PressureSubScreen {
  ********************************************************************/
 
 // Obiekty główne
-OdometerManager odometer;
 OdometerManager odometerManager;
 Preferences preferences;
 AsyncWebServer server(80);
@@ -1134,7 +1133,7 @@ void drawMainDisplay() {
                         descText = ">Dystans";
                         break;
                     case ODOMETER_KM:
-                        sprintf(valueStr, "%4.0f", odometer.getRawTotal());
+                        sprintf(valueStr, "%4.0f", odometerManager.getRawTotal());
                         unitStr = "km";
                         descText = ">Przebieg";
                         break;
@@ -1697,7 +1696,7 @@ void goToSleep() {
     display.setPowerSave(1);  // Wprowadź OLED w tryb oszczędzania energii
 
     // Zapisz licznik całkowity
-    odometer.shutdown();
+    odometerManager.shutdown();
 
     // Konfiguracja wybudzania przez przycisk SET
     esp_sleep_enable_ext0_wakeup(GPIO_NUM_12, 0);  // GPIO12 (BTN_SET) stan niski
