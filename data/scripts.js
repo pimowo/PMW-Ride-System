@@ -185,6 +185,23 @@ async function loadLightConfig() {
     }, 250); // Czekaj 250ms przed odświeżeniem
 }
 
+// Zadeklaruj controllerElements jako zmienną globalną
+let controllerElements = null;
+
+// Funkcja inicjalizująca referencje do elementów kontrolera
+function initializeControllerElements() {
+    controllerElements = {
+        kt: {
+            p: Array.from({length: 5}, (_, i) => document.getElementById(`kt-p${i+1}`)),
+            c: Array.from({length: 15}, (_, i) => document.getElementById(`kt-c${i+1}`)),
+            l: Array.from({length: 3}, (_, i) => document.getElementById(`kt-l${i+1}`))
+        },
+        s866: {
+            p: Array.from({length: 20}, (_, i) => document.getElementById(`s866-p${i+1}`))
+        }
+    };
+}
+
 // Funkcja pomocnicza do debugowania
 function debug(...args) {
     if (typeof console !== 'undefined') {
@@ -194,6 +211,9 @@ function debug(...args) {
 
 document.addEventListener('DOMContentLoaded', async function() {
     debug('Inicjalizacja aplikacji...');
+
+    // Dodaj inicjalizację elementów kontrolera
+    initializeControllerElements();
 
     let clockInterval;
     
@@ -256,39 +276,30 @@ function showModal(title, description) {
 let ws = null;
 
 function setupWebSocket() {
-    debug('Inicjalizacja WebSocket...');
+    let retryCount = 0;
+    const maxRetry = 5;
+    const messageQueue = [];
+
     function connect() {
         ws = new WebSocket('ws://' + window.location.hostname + '/ws');
         
         ws.onopen = () => {
-            debug('WebSocket połączony');
-            // Pobierz aktualny stan po połączeniu
-            fetchCurrentState();
-        };
-
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                debug('Otrzymano dane WebSocket:', data);
-                if (data.lights) {
-                    updateLightStatus(data.lights);
-                    updateLightForm(data.lights); // Aktualizuj też formularz
-                }
-            } catch (error) {
-                console.error('Błąd podczas przetwarzania danych WebSocket:', error);
+            retryCount = 0;
+            // Wyślij zabuforowane wiadomości
+            while (messageQueue.length > 0) {
+                const msg = messageQueue.shift();
+                ws.send(msg);
             }
         };
 
         ws.onclose = () => {
-            debug('WebSocket rozłączony, próba ponownego połączenia za 5s');
-            setTimeout(connect, 5000);
-        };
-
-        ws.onerror = (error) => {
-            console.error('Błąd WebSocket:', error);
+            if (retryCount < maxRetry) {
+                const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+                setTimeout(connect, delay);
+                retryCount++;
+            }
         };
     }
-
     connect();
 }
 
@@ -326,9 +337,38 @@ async function fetchRTCTime() {
 
 // Funkcja inicjalizacji zegara
 function initializeClock() {
-    debug('Inicjalizacja zegara');
-    fetchRTCTime(); // Pierwsze pobranie
-    return setInterval(fetchRTCTime, 1000); // Aktualizacja co sekundę
+    let serverOffset = 0;
+    let lastSync = 0;
+
+    async function syncWithServer() {
+        const startTime = Date.now();
+        const response = await fetch('/api/time');
+        const data = await response.json();
+        const endTime = Date.now();
+        const latency = (endTime - startTime) / 2;
+        
+        if (data && data.time) {
+            const serverTime = new Date(data.time).getTime();
+            serverOffset = serverTime + latency - Date.now();
+            lastSync = Date.now();
+        }
+    }
+
+    function updateDisplay() {
+        const now = new Date(Date.now() + serverOffset);
+        document.getElementById('rtc-time').value = 
+            now.toTimeString().split(' ')[0];
+        document.getElementById('rtc-date').value = 
+            now.toLocaleDateString();
+
+        // Synchronizuj z serwerem co 5 minut
+        if (Date.now() - lastSync > 300000) {
+            syncWithServer();
+        }
+    }
+
+    syncWithServer();
+    return setInterval(updateDisplay, 1000);
 }
 
 function checkElements(...ids) {
@@ -556,31 +596,18 @@ function setupModal() {
     const modalTitle = document.getElementById('modal-title');
     const modalDescription = document.getElementById('modal-description');
     
-    // Otwieranie modala przez info-icons
-    document.querySelectorAll('.info-icon').forEach(button => {
-        button.addEventListener('click', function() {
-            const infoId = this.dataset.info;
+    // Jeden listener na kontener
+    document.addEventListener('click', function(event) {
+        const infoIcon = event.target.closest('.info-icon');
+        if (infoIcon) {
+            const infoId = infoIcon.dataset.info;
             const info = infoContent[infoId];
             
             if (info) {
                 modalTitle.textContent = info.title;
-                modalDescription.textContent = info.description;               
+                modalDescription.textContent = info.description;
                 modal.style.display = 'block';
-            } else {
-                console.error('Nie znaleziono opisu dla:', infoId);
             }
-        });
-    });
-    
-    // Zamykanie modala
-    document.querySelector('.close-modal').addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-    
-    // Zamykanie po kliknięciu poza modalem
-    window.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
         }
     });
 }
@@ -720,37 +747,50 @@ document.addEventListener('DOMContentLoaded', function() {
 // Funkcja pobierająca konfigurację sterownika
 async function fetchControllerConfig() {
     try {
+        // Inicjalizuj controllerElements jeśli jeszcze nie zostało to zrobione
+        if (!controllerElements) {
+            initializeControllerElements();
+        }
+
         const response = await fetch('/api/status');
         const data = await response.json();
+        
         if (data.controller) {
             // Ustaw typ sterownika
-            document.getElementById('controller-type').value = data.controller.type;
+            const controllerTypeElement = document.getElementById('controller-type');
+            controllerTypeElement.value = data.controller.type;
             toggleControllerParams();
 
-            // Wypełnij parametry dla KT-LCD
+            // Wypełnij parametry w zależności od typu sterownika
             if (data.controller.type === 'kt-lcd') {
                 // Parametry P
-                for (let i = 1; i <= 5; i++) {
-                    document.getElementById(`kt-p${i}`).value = data.controller[`p${i}`] || '';
-                }
+                controllerElements.kt.p.forEach((element, index) => {
+                    if (element) {
+                        element.value = data.controller[`p${index + 1}`] || '';
+                    }
+                });
+
                 // Parametry C
-                for (let i = 1; i <= 15; i++) {
-                    document.getElementById(`kt-c${i}`).value = data.controller[`c${i}`] || '';
-                }
+                controllerElements.kt.c.forEach((element, index) => {
+                    if (element) {
+                        element.value = data.controller[`c${index + 1}`] || '';
+                    }
+                });
+
                 // Parametry L
-                for (let i = 1; i <= 3; i++) {
-                    document.getElementById(`kt-l${i}`).value = data.controller[`l${i}`] || '';
-                }
+                controllerElements.kt.l.forEach((element, index) => {
+                    if (element) {
+                        element.value = data.controller[`l${index + 1}`] || '';
+                    }
+                });
             }
             // Wypełnij parametry dla S866
             else if (data.controller.type === 's866') {
-                document.getElementById('controller-type').value = 's866';
-                for (let i = 1; i <= 20; i++) {
-                    const input = document.getElementById(`s866-p${i}`);
-                    if (input) {
-                        input.value = data.controller[`p${i}`] || '';
+                controllerElements.s866.p.forEach((element, index) => {
+                    if (element) {
+                        element.value = data.controller[`p${index + 1}`] || '';
                     }
-                }
+                });
             }
         }
     } catch (error) {
@@ -769,28 +809,33 @@ async function saveControllerConfig() {
         // Zbierz parametry w zależności od typu sterownika
         if (controllerType === 'kt-lcd') {
             // Parametry P
-            for (let i = 1; i <= 5; i++) {
-                const value = document.getElementById(`kt-p${i}`).value;
-                if (value !== '') data[`p${i}`] = parseInt(value);
-            }
-            // Parametry C
-            for (let i = 1; i <= 15; i++) {
-                const value = document.getElementById(`kt-c${i}`).value;
-                if (value !== '') data[`c${i}`] = parseInt(value);
-            }
-            // Parametry L
-            for (let i = 1; i <= 3; i++) {
-                const value = document.getElementById(`kt-l${i}`).value;
-                if (value !== '') data[`l${i}`] = parseInt(value);
-            }
-        } else if (controllerType === 's866') {
-            // Zbierz wszystkie parametry S866 (P1-P20)
-            for (let i = 1; i <= 20; i++) {
-                const value = document.getElementById(`s866-p${i}`).value;
-                if (value !== '') {
-                    data.p[i] = parseInt(value);
+            controllerElements.kt.p.forEach((element, index) => {
+                if (element && element.value !== '') {
+                    data[`p${index + 1}`] = parseInt(element.value);
                 }
-            }
+            });
+
+            // Parametry C
+            controllerElements.kt.c.forEach((element, index) => {
+                if (element && element.value !== '') {
+                    data[`c${index + 1}`] = parseInt(element.value);
+                }
+            });
+
+            // Parametry L
+            controllerElements.kt.l.forEach((element, index) => {
+                if (element && element.value !== '') {
+                    data[`l${index + 1}`] = parseInt(element.value);
+                }
+            });
+        } 
+        else if (controllerType === 's866') {
+            data.p = {};
+            controllerElements.s866.p.forEach((element, index) => {
+                if (element && element.value !== '') {
+                    data.p[index + 1] = parseInt(element.value);
+                }
+            });
         }
 
         const response = await fetch('/api/controller/config', {
@@ -804,8 +849,7 @@ async function saveControllerConfig() {
         const result = await response.json();
         if (result.status === 'ok') {
             alert('Zapisano ustawienia sterownika');
-            await fetchControllerConfig(); // Odśwież widok
-            fetchControllerConfig();
+            await fetchControllerConfig();
         } else {
             throw new Error('Błąd odpowiedzi serwera');
         }
@@ -1580,41 +1624,18 @@ function showRTCInfo() {
 }
 
 // Funkcja pobierająca wersję systemu
-async function fetchSystemVersion() {
-    try {
-        const response = await fetch('/api/version');
-        const data = await response.json();
-        if (data.version) {
-            document.getElementById('system-version').textContent = data.version;
+async function fetchWithRetry(url, options = {}, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
         }
-    } catch (error) {
-        console.error('Błąd podczas pobierania wersji systemu:', error);
-        document.getElementById('system-version').textContent = 'N/A';
     }
 }
-
-//function saveGeneralSettings() {
-//    const wheelSize = document.getElementById('wheel-size').value;
-//    
-//    fetch('/save-general-settings', {
-//        method: 'POST',
-//        headers: {
-//            'Content-Type': 'application/json',
-//        },
-//        body: JSON.stringify({
-//            wheelSize: wheelSize
-//        })
-//    })
-//    .then(response => response.json())
-//    .then(data => {
-//        if (data.success) {
-//            console.log('Ustawienia ogólne zapisane pomyślnie');
-//        }
-//    })
-//    .catch(error => {
-//        console.error('Błąd podczas zapisywania ustawień ogólnych:', error);
-//    });
-//}
 
 // Zmodyfikuj istniejącą funkcję saveGeneralSettings
 function saveGeneralSettings() {
