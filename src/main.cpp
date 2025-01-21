@@ -68,6 +68,7 @@
 
 // --- Biblioteki własne ---
 #include "Odometer.h"         // Własna biblioteka do obsługi licznika kilometrów
+#include "OdometerManager.h"
 
 /********************************************************************
  * DEFINICJE I STAŁE GLOBALNE
@@ -129,6 +130,7 @@ struct TimeSettings {
 };
 
 struct LightSettings {
+
     enum LightMode {
         NONE,
         FRONT,
@@ -262,6 +264,7 @@ enum PressureSubScreen {
 
 // Obiekty główne
 OdometerManager odometer;
+OdometerManager odometerManager;
 Preferences preferences;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -2628,6 +2631,7 @@ void setup() {
 
     // Inicjalizacja licznika
     odometer.initialize();
+    odometerManager.begin();
 
     // Inicjalizacja BLE
     if (bluetoothConfig.bmsEnabled || bluetoothConfig.tpmsEnabled) {
@@ -2694,6 +2698,8 @@ void loop() {
     const unsigned long updateInterval = 2000;
 
     unsigned long currentTime = millis();
+
+    odometerManager.update();
 
     if (configModeActive) {      
         display.clearBuffer();
