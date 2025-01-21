@@ -273,35 +273,127 @@ function showModal(title, description) {
     }
 }
 
+// Globalne zmienne dla WebSocket
 let ws = null;
+let wsRetryCount = 0;
+const WS_MAX_RETRY = 5;
+const WS_MESSAGE_QUEUE = [];
+const WS_MAX_QUEUE_SIZE = 100; // Maksymalna wielkość kolejki wiadomości
 
 function setupWebSocket() {
-    let retryCount = 0;
-    const maxRetry = 5;
-    const messageQueue = [];
+    debug('Inicjalizacja WebSocket...');
+    
+    // Funkcja do obliczania opóźnienia ponownego połączenia
+    function getRetryDelay() {
+        // Wykładnicze opóźnienie: 1s, 2s, 4s, 8s, 16s, ale nie więcej niż 30s
+        return Math.min(1000 * Math.pow(2, wsRetryCount), 30000);
+    }
+
+    // Funkcja do wysyłania zabuforowanych wiadomości
+    function sendQueuedMessages() {
+        debug(`Wysyłanie ${WS_MESSAGE_QUEUE.length} zabuforowanych wiadomości`);
+        while (WS_MESSAGE_QUEUE.length > 0 && ws.readyState === WebSocket.OPEN) {
+            const msg = WS_MESSAGE_QUEUE.shift();
+            try {
+                ws.send(msg);
+                debug('Wysłano zabuforowaną wiadomość');
+            } catch (error) {
+                console.error('Błąd wysyłania zabuforowanej wiadomości:', error);
+                // Jeśli wysyłanie nie powiodło się, włóż wiadomość z powrotem do kolejki
+                WS_MESSAGE_QUEUE.unshift(msg);
+                break;
+            }
+        }
+    }
+
+    // Bezpieczna funkcja wysyłania wiadomości
+    function safeSend(message) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            try {
+                ws.send(message);
+                return true;
+            } catch (error) {
+                console.error('Błąd wysyłania:', error);
+            }
+        }
+        
+        // Jeśli nie można wysłać, dodaj do kolejki
+        if (WS_MESSAGE_QUEUE.length < WS_MAX_QUEUE_SIZE) {
+            WS_MESSAGE_QUEUE.push(message);
+            debug('Wiadomość dodana do kolejki');
+            return true;
+        } else {
+            console.warn('Kolejka wiadomości pełna, wiadomość odrzucona');
+            return false;
+        }
+    }
 
     function connect() {
-        ws = new WebSocket('ws://' + window.location.hostname + '/ws');
-        
-        ws.onopen = () => {
-            retryCount = 0;
-            // Wyślij zabuforowane wiadomości
-            while (messageQueue.length > 0) {
-                const msg = messageQueue.shift();
-                ws.send(msg);
-            }
-        };
+        try {
+            ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+            
+            ws.onopen = () => {
+                debug('WebSocket połączony');
+                wsRetryCount = 0; // Reset licznika prób
+                sendQueuedMessages(); // Wyślij zabuforowane wiadomości
+                fetchCurrentState(); // Pobierz aktualny stan
+            };
 
-        ws.onclose = () => {
-            if (retryCount < maxRetry) {
-                const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-                setTimeout(connect, delay);
-                retryCount++;
-            }
-        };
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    debug('Otrzymano dane WebSocket:', data);
+                    if (data.lights) {
+                        updateLightStatus(data.lights);
+                        updateLightForm(data.lights);
+                    }
+                } catch (error) {
+                    console.error('Błąd podczas przetwarzania danych WebSocket:', error);
+                }
+            };
+
+            ws.onclose = (event) => {
+                debug(`WebSocket rozłączony (kod: ${event.code})`);
+                
+                if (wsRetryCount < WS_MAX_RETRY) {
+                    const delay = getRetryDelay();
+                    debug(`Ponowna próba połączenia za ${delay}ms (próba ${wsRetryCount + 1}/${WS_MAX_RETRY})`);
+                    setTimeout(connect, delay);
+                    wsRetryCount++;
+                } else {
+                    console.error('Przekroczono maksymalną liczbę prób połączenia WebSocket');
+                    // Możemy tu dodać wyświetlenie komunikatu użytkownikowi
+                    alert('Nie można nawiązać połączenia z serwerem. Odśwież stronę aby spróbować ponownie.');
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('Błąd WebSocket:', error);
+            };
+        } catch (error) {
+            console.error('Błąd podczas tworzenia połączenia WebSocket:', error);
+        }
     }
+
+    // Eksportuj funkcję safeSend do globalnego zasięgu
+    window.wsSend = safeSend;
+
+    // Rozpocznij połączenie
     connect();
 }
+
+// Dodaj nasłuchiwanie na zdarzenie online/offline
+window.addEventListener('online', () => {
+    debug('Połączenie internetowe przywrócone');
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+        wsRetryCount = 0; // Reset licznika prób
+        setupWebSocket(); // Ponowne połączenie
+    }
+});
+
+window.addEventListener('offline', () => {
+    debug('Utracono połączenie internetowe');
+});
 
 async function fetchRTCTime() {
     try {
