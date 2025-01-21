@@ -10,23 +10,45 @@ OdometerManager::~OdometerManager() {
 }
 
 void OdometerManager::begin() {
-    // Inicjalizacja licznika
     odometer = new Odometer();
-    
-    // Otwieranie przestrzeni nazw w pamięci flash
     preferences.begin(PREF_NAMESPACE, false);
-    
-    // Wczytywanie zapisanych wartości
     loadFromPreferences();
+    
+    // Inicjalizacja ostatnich zapisanych wartości
+    lastSavedTotal = odometer->getTotalDistance();
+    lastSavedTrip = odometer->getTripDistance();
+    lastSaveTime = millis();
 }
 
 void OdometerManager::update() {
-    if (odometer != nullptr) {
-        odometer->update();
-        
-        // Zapisujemy stan co jakiś czas lub przy znaczących zmianach
-        // TODO: Zoptymalizować częstotliwość zapisu
+    if (odometer == nullptr) return;
+    
+    odometer->update();
+    
+    // Pobierz aktualne wartości
+    float currentTotal = odometer->getTotalDistance();
+    float currentTrip = odometer->getTripDistance();
+    unsigned long currentTime = millis();
+    
+    // Sprawdź, czy należy zapisać stan:
+    bool shouldSave = false;
+    
+    // 1. Zapisz jeśli minęło wystarczająco dużo czasu
+    if (currentTime - lastSaveTime >= SAVE_INTERVAL) {
+        shouldSave = true;
+    }
+    
+    // 2. Zapisz jeśli zmiana dystansu przekroczyła próg
+    if (abs(currentTotal - lastSavedTotal) >= DISTANCE_THRESHOLD ||
+        abs(currentTrip - lastSavedTrip) >= DISTANCE_THRESHOLD) {
+        shouldSave = true;
+    }
+    
+    if (shouldSave) {
         saveToPreferences();
+        lastSaveTime = currentTime;
+        lastSavedTotal = currentTotal;
+        lastSavedTrip = currentTrip;
     }
 }
 
@@ -39,17 +61,24 @@ float OdometerManager::getTripDistance() const {
 }
 
 void OdometerManager::resetTrip() {
-    if (odometer != nullptr) {
-        odometer->resetTrip();
-        saveToPreferences();
-    }
+    if (odometer == nullptr) return;
+    
+    odometer->resetTrip();
+    // Zawsze zapisz po resecie
+    saveToPreferences();
+    lastSavedTrip = 0.0f;
+    lastSaveTime = millis();
 }
 
 void OdometerManager::calibrate(float actualDistance) {
-    if (odometer != nullptr) {
-        odometer->calibrate(actualDistance);
-        saveToPreferences();
-    }
+    if (odometer == nullptr) return;
+    
+    odometer->calibrate(actualDistance);
+    // Zawsze zapisz po kalibracji
+    saveToPreferences();
+    lastSavedTotal = odometer->getTotalDistance();
+    lastSavedTrip = odometer->getTripDistance();
+    lastSaveTime = millis();
 }
 
 void OdometerManager::saveToPreferences() {
@@ -68,4 +97,13 @@ void OdometerManager::loadFromPreferences() {
         odometer->setTotalDistance(totalDistance);
         odometer->setTripDistance(tripDistance);
     }
+}
+
+void OdometerManager::forceSave() {
+    if (odometer == nullptr) return;
+    
+    saveToPreferences();
+    lastSavedTotal = odometer->getTotalDistance();
+    lastSavedTrip = odometer->getTripDistance();
+    lastSaveTime = millis();
 }
