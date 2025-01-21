@@ -209,15 +209,15 @@ enum MainScreen {
 
 // Podekrany
 enum SpeedSubScreen {
-    SPEED_KMH,       // Aktualna prędkość
-    SPEED_AVG_KMH,   // Średnia prędkość
-    SPEED_MAX_KMH,   // Maksymalna prędkość
+    SPEED_KMH,      // Aktualna prędkość
+    SPEED_AVG_KMH,  // Średnia prędkość
+    SPEED_MAX_KMH,  // Maksymalna prędkość
     SPEED_SUB_COUNT  
 };
 
 enum CadenceSubScreen {
-    CADENCE_RPM,       // Aktualna kadencja
-    CADENCE_AVG_RPM,   // Średnia kadencja
+    CADENCE_RPM,      // Aktualna kadencja
+    CADENCE_AVG_RPM,  // Średnia kadencja
     CADENCE_SUB_COUNT  
 };
 
