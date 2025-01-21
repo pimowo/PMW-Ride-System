@@ -2293,6 +2293,36 @@ void setupWebServer() {
         request->send(200, "application/json", response);
     });
     
+    // Dodaj ten endpoint w setupWebServer() przed istniejącym POST endpoint'em
+    server.on("/api/controller/config", HTTP_GET, [](AsyncWebServerRequest* request) {
+        StaticJsonDocument<512> doc;
+        doc["type"] = controllerSettings.type;
+        
+        if (controllerSettings.type == "kt-lcd") {
+            JsonObject p = doc.createNestedObject("p");
+            for (int i = 1; i <= 5; i++) {
+                p[String(i)] = controllerSettings.ktParams[i-1];
+            }
+            JsonObject c = doc.createNestedObject("c");
+            for (int i = 1; i <= 15; i++) {
+                c[String(i)] = controllerSettings.ktParams[i+4];
+            }
+            JsonObject l = doc.createNestedObject("l");
+            for (int i = 1; i <= 3; i++) {
+                l[String(i)] = controllerSettings.ktParams[i+19];
+            }
+        } else {
+            JsonObject p = doc.createNestedObject("p");
+            for (int i = 1; i <= 20; i++) {
+                p[String(i)] = controllerSettings.s866Params[i-1];
+            }
+        }
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
     server.on("/api/controller/config", HTTP_POST, [](AsyncWebServerRequest* request) {
         if (request->hasParam("data", true)) {
             String jsonString = request->getParam("data", true)->value();

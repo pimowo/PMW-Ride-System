@@ -1980,6 +1980,97 @@ async function loadGeneralSettings() {
     }
 }
 
+// Dodaj te funkcje na końcu pliku script.js
+function loadControllerConfig() {
+    fetch('/api/controller/config')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('controller-type').value = data.type;
+            
+            if (data.type === 'kt-lcd') {
+                // Wczytaj parametry P
+                for (let i = 1; i <= 5; i++) {
+                    document.getElementById(`p${i}`).value = data.p[i];
+                }
+                // Wczytaj parametry C
+                for (let i = 1; i <= 15; i++) {
+                    document.getElementById(`c${i}`).value = data.c[i];
+                }
+                // Wczytaj parametry L
+                for (let i = 1; i <= 3; i++) {
+                    document.getElementById(`l${i}`).value = data.l[i];
+                }
+            } else {
+                // Wczytaj parametry dla S866
+                for (let i = 1; i <= 20; i++) {
+                    document.getElementById(`p${i}`).value = data.p[i];
+                }
+            }
+        })
+        .catch(error => console.error('Błąd wczytywania konfiguracji:', error));
+}
+
+function saveControllerConfig() {
+    const type = document.getElementById('controller-type').value;
+    const data = {
+        type: type,
+        p: {},
+        c: {},
+        l: {}
+    };
+    
+    if (type === 'kt-lcd') {
+        for (let i = 1; i <= 5; i++) {
+            data.p[i] = parseInt(document.getElementById(`p${i}`).value);
+        }
+        for (let i = 1; i <= 15; i++) {
+            data.c[i] = parseInt(document.getElementById(`c${i}`).value);
+        }
+        for (let i = 1; i <= 3; i++) {
+            data.l[i] = parseInt(document.getElementById(`l${i}`).value);
+        }
+    } else {
+        for (let i = 1; i <= 20; i++) {
+            data.p[i] = parseInt(document.getElementById(`p${i}`).value);
+        }
+    }
+    
+    fetch('/api/controller/config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: data })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            showMessage('success', 'Ustawienia sterownika zostały zapisane');
+        } else {
+            showMessage('error', data.message || 'Błąd podczas zapisywania ustawień');
+        }
+    })
+    .catch(error => {
+        showMessage('error', 'Wystąpił błąd podczas zapisywania ustawień');
+        console.error('Error:', error);
+    });
+}
+
+function showMessage(type, message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = message;
+    
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 3000);
+}
+
+// Dodaj to na końcu pliku
+document.addEventListener('DOMContentLoaded', loadControllerConfig);
+
 /*
 WAŻNE KOMUNIKATY:
 ⚠️ - Ważne ostrzeżenia
