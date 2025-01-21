@@ -1,3 +1,9 @@
+// Dodaj na początku pliku, zaraz po innych deklaracjach globalnych
+let rtcServerOffset = 0;
+let rtcLastSync = 0;
+const RTC_SYNC_INTERVAL = 300000;
+let rtcUpdateInterval;
+
 // Funkcja konwersji wartości formularza na wartości API
 function getLightMode(value) {
     debug('Konwersja wartości formularza:', value);
@@ -273,6 +279,101 @@ function showModal(title, description) {
     }
 }
 
+// Funkcje formatujące
+function formatTime(date) {
+    return date.toTimeString().split(' ')[0];
+}
+
+function formatDate(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+// Funkcja synchronizacji z serwerem
+async function syncRTCWithServer() {
+    try {
+        debug('Rozpoczęcie synchronizacji RTC z serwerem...');
+        const startTime = Date.now();
+        
+        const response = await fetch('/api/time');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        const endTime = Date.now();
+        const latency = (endTime - startTime) / 2;
+        
+        if (data && data.time) {
+            const { hours, minutes, seconds, year, month, day } = data.time;
+            const serverDate = new Date(year, month - 1, day, hours, minutes, seconds);
+            rtcServerOffset = serverDate.getTime() + latency - Date.now();
+            rtcLastSync = Date.now();
+            
+            debug(`RTC zsynchronizowano. Offset: ${rtcServerOffset}ms, Latencja: ${latency}ms`);
+            return true;
+        }
+    } catch (error) {
+        console.error('Błąd podczas synchronizacji RTC:', error);
+        return false;
+    }
+}
+
+// Funkcja aktualizacji wyświetlania
+function updateRTCDisplay() {
+    const currentTime = new Date(Date.now() + rtcServerOffset);
+    
+    const timeElement = document.getElementById('rtc-time');
+    const dateElement = document.getElementById('rtc-date');
+    
+    if (timeElement) timeElement.value = formatTime(currentTime);
+    if (dateElement) dateElement.value = formatDate(currentTime);
+    
+    if (Date.now() - rtcLastSync >= RTC_SYNC_INTERVAL) {
+        syncRTCWithServer();
+    }
+}
+
+// Nowa funkcja inicjalizacji zegara
+async function initializeClock() {
+    debug('Inicjalizacja zegara RTC...');
+    
+    const syncSuccess = await syncRTCWithServer();
+    
+    if (!syncSuccess) {
+        console.warn('Nie udało się zsynchronizować RTC z serwerem, używam czasu lokalnego');
+    }
+    
+    if (rtcUpdateInterval) {
+        clearInterval(rtcUpdateInterval);
+    }
+    
+    rtcUpdateInterval = setInterval(updateRTCDisplay, 1000);
+    updateRTCDisplay();
+    
+    return rtcUpdateInterval;
+}
+
+// Funkcja ręcznej synchronizacji
+async function manualRTCSync() {
+    debug('Rozpoczęcie ręcznej synchronizacji RTC...');
+    
+    try {
+        const success = await syncRTCWithServer();
+        if (success) {
+            alert('Zegar został zsynchronizowany');
+            updateRTCDisplay();
+        } else {
+            throw new Error('Nie udało się zsynchronizować zegara');
+        }
+    } catch (error) {
+        console.error('Błąd podczas ręcznej synchronizacji:', error);
+        alert('Błąd podczas synchronizacji zegara');
+    }
+}
+
 // Globalne zmienne dla WebSocket
 let ws = null;
 let wsRetryCount = 0;
@@ -427,42 +528,6 @@ async function fetchRTCTime() {
     }
 }
 
-// Funkcja inicjalizacji zegara
-function initializeClock() {
-    let serverOffset = 0;
-    let lastSync = 0;
-
-    async function syncWithServer() {
-        const startTime = Date.now();
-        const response = await fetch('/api/time');
-        const data = await response.json();
-        const endTime = Date.now();
-        const latency = (endTime - startTime) / 2;
-        
-        if (data && data.time) {
-            const serverTime = new Date(data.time).getTime();
-            serverOffset = serverTime + latency - Date.now();
-            lastSync = Date.now();
-        }
-    }
-
-    function updateDisplay() {
-        const now = new Date(Date.now() + serverOffset);
-        document.getElementById('rtc-time').value = 
-            now.toTimeString().split(' ')[0];
-        document.getElementById('rtc-date').value = 
-            now.toLocaleDateString();
-
-        // Synchronizuj z serwerem co 5 minut
-        if (Date.now() - lastSync > 300000) {
-            syncWithServer();
-        }
-    }
-
-    syncWithServer();
-    return setInterval(updateDisplay, 1000);
-}
-
 function checkElements(...ids) {
     const missing = [];
     const elements = {};
@@ -556,6 +621,12 @@ function setupFormListeners() {
     const saveButton = document.getElementById('save-lights-btn');
     if (saveButton) {
         saveButton.addEventListener('click', saveLightConfig);
+    }
+
+    // Dodaj listener dla przycisku synchronizacji RTC
+    const syncRTCButton = document.getElementById('sync-rtc-btn');
+    if (syncRTCButton) {
+        syncRTCButton.addEventListener('click', manualRTCSync);
     }
 }
 
